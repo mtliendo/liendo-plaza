@@ -67,6 +67,7 @@ async function main() {
 
     await phonePage.locator('[data-testid="invite-phone"]').click();
     await phonePage.waitForSelector('[data-testid="invite-qr"]', { timeout: 10000 });
+    await phonePage.locator('[data-testid="invite-qr"]').scrollIntoViewIfNeeded();
     await shot(phonePage, "preview_phone_invite.png");
     const inviteUrl = (await phonePage.locator('[data-testid="invite-url"]').innerText()).trim();
 
@@ -79,6 +80,7 @@ async function main() {
     await guest.close();
 
     await phonePage.goto(`${BASE}/family/devices`, { waitUntil: "domcontentloaded" });
+    await phonePage.waitForSelector('[data-testid="device-row"]', { timeout: 15000 });
     await shot(phonePage, "preview_phone_devices.png");
   } else if (!signedIn) {
     notes.push("Could not approve the frame from the phone UI because this viewport never reached a signed-in parent.");

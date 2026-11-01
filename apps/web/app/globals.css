@@ -99,7 +99,7 @@
   min-height: 0;
 }
 .board .row {
-  font-size: 1.55rem;
+  font-size: 1.8rem;
   line-height: 1.25;
   padding: var(--space-md) 0;
 }
@@ -151,7 +151,7 @@
 .display .chore-btn {
   width: 100%;
   text-align: left;
-  min-height: 88px;
+  min-height: 96px;
   padding: var(--space-md);
   background: var(--color-paper);
   border: var(--rule-hair) solid var(--color-rule);
@@ -160,7 +160,7 @@
   display: grid;
   justify-items: start;
   gap: var(--space-2xs);
-  font-size: 1.4rem;
+  font-size: 1.55rem;
   line-height: 1.2;
 }
 .chore-btn {

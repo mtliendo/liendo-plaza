@@ -106,12 +106,12 @@ export function AddDevicePanel() {
         </section>
       ) : null}
 
-      <button className="btn-secondary btn" type="button" onClick={() => void invitePhone()} data-testid="invite-phone">
+      <button className="btn" type="button" onClick={() => void invitePhone()} data-testid="invite-phone">
         Invite a new phone
       </button>
 
       {invite ? (
-        <div className="pair-card well pair-card-compact">
+        <div className="pair-card well pair-card-compact" id="invite-card">
           <p className="small">New phone scans this</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={invite.qrDataUrl} alt="Invite QR code" className="pair-qr" data-testid="invite-qr" />

@@ -42,7 +42,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   const [familyToken, setFamilyToken] = useState<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [me, setMe] = useState<Person | null>(null);
-  const [phase, setPhase] = useState<Screen>("gate");
+  const [phase, setPhase] = useState<Screen | "loading">("loading");
   const [pin, setPin] = useState("");
   const [picked, setPicked] = useState<Person | null>(null);
   const [error, setError] = useState("");
@@ -90,7 +90,10 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         setPhase(screen);
         return;
       }
-      if (!familyToken) return;
+      if (!familyToken) {
+        setPhase("gate");
+        return;
+      }
       const peopleRes = await fetch("/api/people", { headers: { "x-family-token": familyToken } });
       if (peopleRes.ok) {
         const body = (await peopleRes.json()) as { people: Person[] };
@@ -131,6 +134,15 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   const isParent = me?.role === "parent";
   const visibleChores =
     snapshot?.chores.filter((item) => (isParent ? true : item.personId === me?.id) && item.date === today) ?? [];
+
+  if (phase === "loading") {
+    return (
+      <main className="phone">
+        <p className="small">Liendo Plaza</p>
+        <p>Getting ready.</p>
+      </main>
+    );
+  }
 
   if (phase === "gate") {
     return <UnpairedFamily invite={invite} onReady={onPaired} />;
