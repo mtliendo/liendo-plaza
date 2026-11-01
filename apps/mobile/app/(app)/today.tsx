@@ -80,7 +80,7 @@ export default function TodayScreen() {
           <Text style={{ fontSize: 18, color: colors.ink }}>{chore.title}</Text>
           <Text style={muted}>{chore.status}</Text>
           {chore.requiresPhoto ? <Text style={muted}>photo</Text> : null}
-          <Text style={body}>{chore.stars} stars</Text>
+          <Text style={body}>{chore.stars === 1 ? "1 star" : `${chore.stars} stars`}</Text>
         </Pressable>
       ))}
     </ScrollView>

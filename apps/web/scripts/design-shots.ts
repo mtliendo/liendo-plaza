@@ -10,6 +10,15 @@ async function shot(page: import("playwright").Page, name: string) {
   await page.evaluate(() => document.fonts?.ready ?? Promise.resolve());
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   await page.waitForTimeout(400);
+  const fonts = await page.evaluate(() => {
+    const clock = document.querySelector("[data-testid='clock'], [data-testid='pair-code'], h1");
+    const body = document.body;
+    return {
+      body: getComputedStyle(body).fontFamily,
+      sample: clock ? getComputedStyle(clock).fontFamily : "",
+    };
+  });
+  console.log(`fonts ${name}`, fonts);
   await page.screenshot({ path: join(artifacts, `${prefix}_${name}.png`), fullPage: false });
 }
 

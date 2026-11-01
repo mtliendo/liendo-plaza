@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DisplaySnapshot } from "@liendo/shared";
-import { addDays, isDimHours, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+import { isDimHours, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
 import { PairCard } from "@/components/pair/PairCard";
 import { useClaim } from "@/components/pair/useClaim";
 
@@ -34,6 +34,10 @@ function dateLabel(now: string) {
     day: "numeric",
     timeZone: "America/Chicago",
   });
+}
+
+function starsLabel(count: number) {
+  return count === 1 ? "1 star" : `${count} stars`;
 }
 
 function hourInChicago(now: string) {
@@ -178,14 +182,14 @@ export function DisplayApp({ view }: { view: View }) {
           <p className="weather num">
             {snapshot.weather ? `${snapshot.weather.temperatureF}° ${snapshot.weather.label}` : "Weather later"}
           </p>
-          <p className="small">Davenport</p>
+          <p className="place">Davenport</p>
           {nav}
         </div>
       </header>
 
       {view === "home" ? (
-        <section className="bento">
-          <div className="events">
+        <>
+          <section className="events">
             <h2>Today</h2>
             <div className="list" style={{ marginTop: "var(--space-md)" }}>
               {todayEvents.length === 0 ? <p>Nothing on the calendar.</p> : null}
@@ -196,52 +200,58 @@ export function DisplayApp({ view }: { view: View }) {
                 </article>
               ))}
             </div>
-          </div>
-          <aside className="dinner">
-            <p className="small">Tonight’s dinner</p>
-            <p className="dinner-name">{dinner}</p>
-            <div className="dinner-foot">
-              <p className="small">Tomorrow</p>
-              <p className="dinner-next">
-                {snapshot.meals.find((meal) => meal.date === addDays(today, 1))?.name ?? "Not written yet"}
-              </p>
-            </div>
-          </aside>
-          <section className="kids">
-            {kids.map((kid) => {
-              const chores = snapshot.chores.filter((item) => item.personId === kid.id && item.date === today);
-              const stars = snapshot.stars.find((item) => item.personId === kid.id);
-              return (
-                <article key={kid.id} className="kid" style={{ ["--person" as string]: kid.color }}>
-                  <h3>{kid.name}</h3>
-                  <p className="small">{stars?.weekEarned ?? 0} this week</p>
-                  <p className="small">{stars?.balance ?? 0} to spend</p>
-                  {chores.length === 0 ? <p className="small">No chores today.</p> : null}
-                  {chores.map((chore) => {
-                    const canTap = !chore.requiresPhoto && chore.status === "open";
-                    return (
-                      <button
-                        key={chore.id}
-                        type="button"
-                        className="chore-btn tap"
-                        data-status={chore.status}
-                        disabled={!canTap}
-                        aria-label={chore.title}
-                        onClick={() => void complete(chore.id)}
-                      >
-                        <span>{chore.title}</span>
-                        <span className="small">{chore.stars} stars</span>
-                        {chore.requiresPhoto ? <span className="small">photo on the phone</span> : null}
-                        {chore.status === "pending" ? <span className="small">waiting</span> : null}
-                        {chore.status === "done" ? <span className="small">done</span> : null}
-                      </button>
-                    );
-                  })}
-                </article>
-              );
-            })}
           </section>
-        </section>
+          <section className="bento">
+            <section className="kids">
+              {kids.map((kid) => {
+                const chores = snapshot.chores.filter((item) => item.personId === kid.id && item.date === today);
+                const stars = snapshot.stars.find((item) => item.personId === kid.id);
+                return (
+                  <article key={kid.id} className="kid" style={{ ["--person" as string]: kid.color }}>
+                    <h3>{kid.name}</h3>
+                    <p className="stars">{stars?.weekEarned ?? 0} this week</p>
+                    <p className="stars">{stars?.balance ?? 0} to spend</p>
+                    {chores.length === 0 ? <p className="stars">No chores today.</p> : null}
+                    {chores.map((chore) => {
+                      const canTap = !chore.requiresPhoto && chore.status === "open";
+                      const done = chore.status === "done";
+                      return (
+                        <button
+                          key={chore.id}
+                          type="button"
+                          className="chore-btn tap"
+                          data-status={chore.status}
+                          disabled={!canTap}
+                          aria-label={chore.title}
+                          onClick={() => void complete(chore.id)}
+                        >
+                          <span>{chore.title}</span>
+                          {done ? null : <span className="small">{starsLabel(chore.stars)}</span>}
+                          {!done && chore.requiresPhoto ? <span className="small">photo on the phone</span> : null}
+                          {chore.status === "pending" ? <span className="small">waiting</span> : null}
+                        </button>
+                      );
+                    })}
+                  </article>
+                );
+              })}
+            </section>
+            <aside className="dinner">
+              <p className="place">Tonight’s dinner</p>
+              <p className="dinner-name">{dinner}</p>
+              <div className="dinner-week">
+                {week
+                  .filter((iso) => iso !== today)
+                  .map((iso) => (
+                    <p key={iso} className="dinner-week-row">
+                      <span className="day-name">{WEEKDAY_LABELS[week.indexOf(iso)]}</span>
+                      <span>{snapshot.meals.find((meal) => meal.date === iso)?.name ?? "Not written yet"}</span>
+                    </p>
+                  ))}
+              </div>
+            </aside>
+          </section>
+        </>
       ) : null}
 
       {view === "week" ? (

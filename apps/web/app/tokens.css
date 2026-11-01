@@ -20,9 +20,9 @@
   --color-person-xavier: oklch(62% 0.13 80);
   --color-dusk: oklch(27% 0.035 42);
   --color-dusk-ink: oklch(93% 0.02 80);
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
-  --font-body: "DM Sans", ui-sans-serif, sans-serif;
-  --font-outlier: "DM Sans", ui-sans-serif, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-body: var(--font-dm-sans), ui-sans-serif, sans-serif;
+  --font-outlier: var(--font-dm-sans), ui-sans-serif, sans-serif;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-md: 1rem;

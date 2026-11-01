@@ -5,7 +5,7 @@
 /* Hallmark · pre-emit critique: P4 H5 E4 S5 R4 V4 · weakest: R, dropped the ruled well so person tints and the dinner poster carry the board */
 /* Hallmark · waive 39b · kitchen board · tap targets stay 64px so a step from the board still hits */
 /* Hallmark · waive 65 · theme asked · cream paper, serif display and warm ochre are pinned by the kitchen board brief */
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap");
+/* Hallmark · dismissed 49 · chore titles wrap on the kitchen board so they stay readable from across the room */
 @import "tailwindcss";
 @import "./tokens.css";
 @import "./base.css" layer(base);
@@ -78,55 +78,73 @@ body {
 }
 .date {
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 2.2vw, 2.25rem);
+  font-size: clamp(2.4rem, 3.2vw, 3.1rem);
   line-height: 1.15;
   margin-top: var(--space-xs);
   font-variation-settings: "SOFT" 50, "opsz" 72;
 }
 .weather {
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 2.4vw, 2.4rem);
+  font-size: clamp(2.6rem, 3.4vw, 3.4rem);
   line-height: 1;
+}
+.place {
+  font-size: 2rem;
+  color: var(--color-ink-2);
 }
 
 .kitchen {
   --text-md: 1.45rem;
   --text-lg: 1.75rem;
-  --text-display: clamp(4.8rem, 7.4vw, 7.2rem);
-  --text-section: 2.4rem;
-  --text-title: 1.7rem;
+  --text-display: clamp(5.2rem, 8vw, 7.6rem);
+  --text-section: 3rem;
+  --text-title: 3.6rem;
   min-height: 100svh;
   padding: var(--space-lg) var(--space-xl);
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
   gap: var(--space-lg);
+}
+.kitchen h2 {
+  font-size: 3rem;
+  max-width: none;
 }
 .kitchen .tap {
   min-height: 64px;
   min-width: 64px;
 }
-.kitchen-nav { display: flex; gap: var(--space-xs); }
+.kitchen-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
 .kitchen-nav a {
-  min-height: 64px;
-  min-width: 64px;
-  padding: var(--space-sm) var(--space-md);
+  min-height: 80px;
+  min-width: 8.5rem;
+  padding: var(--space-sm) var(--space-lg);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   text-decoration: none;
-  color: var(--color-muted);
+  font-size: 2.15rem;
+  background: var(--color-paper-2);
+  color: var(--color-ink);
 }
-.kitchen-nav a[aria-current="page"] { color: var(--color-accent); }
+.kitchen-nav a[aria-current="page"] {
+  background: color-mix(in oklab, var(--color-accent) 16%, var(--color-paper));
+  color: var(--color-ink);
+}
 .bento {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
-  grid-template-rows: auto minmax(0, 1fr);
-  grid-template-areas:
-    "events dinner"
-    "kids dinner";
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.85fr);
+  grid-template-areas: "kids dinner";
   gap: var(--space-xl);
   min-height: 0;
+  align-items: start;
 }
-.events { grid-area: events; min-width: 0; }
+.events { min-width: 0; }
 .dinner { grid-area: dinner; min-width: 0; }
 .bento .kids { grid-area: kids; }
 .board {
@@ -137,31 +155,46 @@ body {
 }
 .board .row,
 .events .row {
-  font-size: 1.7rem;
-  line-height: 1.25;
+  font-size: 3.2rem;
+  line-height: 1.15;
   padding: var(--space-md) 0;
   border-bottom-color: color-mix(in oklab, var(--color-rule) 70%, transparent);
+  align-items: baseline;
 }
 .board .row .small,
 .events .row .small {
-  font-size: 1.05rem;
+  font-size: 1.8rem;
 }
 .dinner-card,
 .dinner {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
-  padding: var(--space-2xl) var(--space-xl);
+  padding: var(--space-xl);
   gap: var(--space-md);
   background: color-mix(in oklab, var(--color-accent) 9%, var(--color-paper-2));
 }
 .dinner-name {
   font-family: var(--font-display);
-  font-size: clamp(2.8rem, 4.8vw, 4.6rem);
+  font-size: clamp(4.2rem, 5.6vw, 6rem);
   line-height: 1.02;
   letter-spacing: var(--tracking-display);
   overflow-wrap: break-word;
   font-variation-settings: "SOFT" 70, "opsz" 144;
+}
+.dinner-week {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+.dinner-week-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: 1.7rem;
+  line-height: 1.2;
+}
+.dinner-week-row .day-name {
+  font-size: 1.7rem;
 }
 .dinner-foot {
   margin-top: auto;
@@ -180,23 +213,30 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-md);
   min-width: 0;
+  align-content: start;
 }
 .kid {
   --person-tint: color-mix(in oklab, var(--person, var(--color-ink)) 11%, var(--color-paper));
   background: var(--person-tint);
   box-shadow: inset 5px 0 0 var(--person, var(--color-ink));
-  padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg);
+  padding: var(--space-lg) var(--space-md) var(--space-lg) var(--space-lg);
   display: grid;
   align-content: start;
   gap: var(--space-sm);
   min-width: 0;
 }
-.kid h3 { font-size: 2.1rem; }
-.kid .small { font-size: 1rem; }
+.kid h3 {
+  font-size: 3.6rem;
+  max-width: none;
+}
+.kid .stars {
+  font-size: 1.85rem;
+  color: var(--color-ink-2);
+}
 .kitchen .chore-btn {
   width: 100%;
   text-align: left;
-  min-height: 96px;
+  min-height: 104px;
   padding: var(--space-md);
   background: color-mix(in oklab, var(--color-paper) 78%, transparent);
   border: 0;
@@ -204,14 +244,22 @@ body {
   cursor: pointer;
   display: grid;
   justify-items: start;
+  align-content: center;
   gap: var(--space-2xs);
-  font-size: 1.55rem;
+  font-size: 3rem;
   font-weight: 400;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 .kitchen .chore-btn .small {
   color: inherit;
   font-weight: inherit;
+  font-size: 1.6rem;
+}
+.kitchen .chore-btn[data-status="done"] {
+  text-decoration: none;
+  min-height: 72px;
+  background: transparent;
+  color: var(--color-muted);
 }
 .chore-btn {
   width: 100%;
@@ -228,7 +276,7 @@ body {
   gap: var(--space-3xs);
 }
 .chore-btn:hover { background: color-mix(in oklab, var(--color-paper-2) 70%, var(--color-paper-3)); }
-.chore-btn[data-status="done"] { text-decoration: line-through; color: var(--color-muted); }
+.chore-btn[data-status="done"] { text-decoration: none; color: var(--color-muted); }
 .chore-btn[disabled] {
   cursor: default;
   background: color-mix(in oklab, var(--color-paper) 70%, var(--color-paper-3));
@@ -392,7 +440,6 @@ body {
     grid-template-columns: 1fr;
     grid-template-areas:
       "dinner"
-      "events"
       "kids";
   }
   .kids { grid-template-columns: 1fr; }
