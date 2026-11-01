@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, TextInput } from "react-native";
 import { Link } from "expo-router";
 import type { Chore, Person } from "@liendo/shared";
 import { api } from "@/lib/api";
+import { body, btn, btnLabel, colors, input, screen } from "@/lib/theme";
 
 export default function ParentChoresScreen() {
   const [chores, setChores] = useState<Chore[]>([]);
@@ -16,12 +17,20 @@ export default function ParentChoresScreen() {
   }, []);
   const kid = people[0];
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-      <Link href="/parent/approvals">Approvals</Link>
-      <Link href="/parent/rewards">Rewards</Link>
-      <Link href="/parent/meals">Plan dinners</Link>
-      <Link href="/parent/pins">PINs</Link>
-      <TextInput value={title} onChangeText={setTitle} placeholder="New chore" style={{ borderWidth: 1, padding: 12 }} />
+    <ScrollView contentContainerStyle={screen}>
+      <Link href="/parent/approvals">
+        <Text style={{ color: colors.accent, minHeight: 48, fontSize: 18 }}>Approvals</Text>
+      </Link>
+      <Link href="/parent/rewards">
+        <Text style={{ color: colors.accent, minHeight: 48, fontSize: 18 }}>Rewards</Text>
+      </Link>
+      <Link href="/parent/meals">
+        <Text style={{ color: colors.accent, minHeight: 48, fontSize: 18 }}>Plan dinners</Text>
+      </Link>
+      <Link href="/parent/pins">
+        <Text style={{ color: colors.accent, minHeight: 48, fontSize: 18 }}>PINs</Text>
+      </Link>
+      <TextInput value={title} onChangeText={setTitle} placeholder="New chore" style={input} />
       <Pressable
         onPress={async () => {
           if (!kid || !title) return;
@@ -38,12 +47,12 @@ export default function ParentChoresScreen() {
           setTitle("");
           setChores(((await api("chores")) as { chores: Chore[] }).chores);
         }}
-        style={{ backgroundColor: "#C24A2A", padding: 14 }}
+        style={btn}
       >
-        <Text style={{ color: "#FBF6EA", textAlign: "center" }}>Add chore</Text>
+        <Text style={btnLabel}>Add chore</Text>
       </Pressable>
       {chores.filter((chore) => chore.active).map((chore) => (
-        <Text key={chore.id}>{chore.title}</Text>
+        <Text key={chore.id} style={body}>{chore.title}</Text>
       ))}
     </ScrollView>
   );

@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import type { Person } from "@liendo/shared";
 import { API_URL } from "@/lib/config";
 import { getSession, saveFamilyToken, saveSession } from "@/lib/session";
+import { body, btn, btnLabel, colors, h1, h2, input, muted, personEdge, screen, type } from "@/lib/theme";
 
 type Claim = { id: string; displayCode: string; qrDataUrl: string; pollSecret: string };
 
@@ -123,62 +124,51 @@ export default function AuthScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "#F3E6C8", padding: 24, justifyContent: "center", gap: 16 }}>
-      <Text style={{ fontFamily: "Georgia", fontSize: 36, color: "#3D2416" }}>Liendo Plaza</Text>
+    <ScrollView contentContainerStyle={{ ...screen, justifyContent: "center" }}>
+      <Text style={{ ...h1, fontSize: 36 }}>Liendo Plaza</Text>
       {!familyToken && bootstrap && !picked ? (
         <>
-          <Text style={{ color: "#5C3A24" }}>First parent phone. Pick your name and enter your PIN.</Text>
+          <Text style={body}>First parent phone. Pick your name and enter your PIN.</Text>
           {parents.map((person) => (
-            <Pressable
-              key={person.id}
-              onPress={() => setPicked(person)}
-              style={{ borderLeftWidth: 6, borderLeftColor: person.color, padding: 14, backgroundColor: "#FBF6EA" }}
-            >
-              <Text>{person.name}</Text>
+            <Pressable key={person.id} onPress={() => setPicked(person)} style={personEdge(person.color)}>
+              <Text style={{ color: colors.ink }}>{person.name}</Text>
             </Pressable>
           ))}
         </>
       ) : null}
       {familyToken && !picked ? (
         <>
-          <Text style={{ fontSize: 22, color: "#3D2416" }}>Pick your name</Text>
+          <Text style={h2}>Pick your name</Text>
           {people.map((person) => (
-            <Pressable
-              key={person.id}
-              onPress={() => setPicked(person)}
-              style={{ borderLeftWidth: 6, borderLeftColor: person.color, padding: 14, backgroundColor: "#FBF6EA" }}
-            >
-              <Text>{person.name}</Text>
+            <Pressable key={person.id} onPress={() => setPicked(person)} style={personEdge(person.color)}>
+              <Text style={{ color: colors.ink }}>{person.name}</Text>
             </Pressable>
           ))}
         </>
       ) : null}
       {picked ? (
         <>
-          <Text style={{ fontSize: 22, color: "#3D2416" }}>{picked.name}</Text>
+          <Text style={h2}>{picked.name}</Text>
           <TextInput
             value={pin}
             onChangeText={setPin}
             keyboardType="number-pad"
             secureTextEntry
-            style={{ borderWidth: 1, borderColor: "#3D2416", padding: 14, minHeight: 48, backgroundColor: "#FBF6EA" }}
+            style={input}
           />
-          <Pressable
-            onPress={() => void (familyToken ? login() : bootstrapLogin())}
-            style={{ backgroundColor: "#C24A2A", padding: 16 }}
-          >
-            <Text style={{ color: "#FBF6EA", textAlign: "center" }}>Open</Text>
+          <Pressable onPress={() => void (familyToken ? login() : bootstrapLogin())} style={btn}>
+            <Text style={btnLabel}>Open</Text>
           </Pressable>
         </>
       ) : null}
       {!familyToken && !picked && claim ? (
-        <View style={{ alignItems: "center", gap: 12 }}>
-          <Text style={{ color: "#5C3A24" }}>A parent can scan this or type the code under Add a device.</Text>
+        <View style={{ alignItems: "center", gap: 12, backgroundColor: colors.paper2, padding: 20 }}>
+          <Text style={muted}>A parent can scan this or type the code under Add a device.</Text>
           <Image source={{ uri: claim.qrDataUrl }} style={{ width: 220, height: 220 }} />
-          <Text style={{ fontFamily: "Georgia", fontSize: 36, letterSpacing: 4 }}>{claim.displayCode}</Text>
+          <Text style={{ fontFamily: type.display, fontSize: 36, letterSpacing: 4, color: colors.ink }}>{claim.displayCode}</Text>
         </View>
       ) : null}
-      {error ? <Text style={{ color: "#9B2C1A" }}>{error}</Text> : null}
+      {error ? <Text style={{ color: colors.error }}>{error}</Text> : null}
     </ScrollView>
   );
 }

@@ -83,9 +83,9 @@ export function UnpairedFamily({
               <button
                 key={person.id}
                 type="button"
-                className="btn-secondary btn"
+                className="btn person-pick"
                 data-testid={`bootstrap-${person.slug}`}
-                style={{ borderLeft: `6px solid ${person.color}`, justifyContent: "flex-start" }}
+                style={{ ["--person" as string]: person.color }}
                 onClick={() => setPicked(person)}
               >
                 {person.name}

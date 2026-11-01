@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, Text } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import type { DisplaySnapshot, Reward } from "@liendo/shared";
 import { weekDates } from "@liendo/shared";
 import { api } from "@/lib/api";
+import { colors, h1, h2, muted, personEdge, screen } from "@/lib/theme";
 
 export default function StarsScreen() {
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
@@ -18,14 +19,16 @@ export default function StarsScreen() {
     void load();
   }, [load]);
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-      <Text style={{ fontFamily: "Georgia", fontSize: 32 }}>Stars</Text>
+    <ScrollView contentContainerStyle={screen}>
+      <Text style={h1}>Stars</Text>
       {snapshot?.stars.map((row) => (
-        <Text key={row.personId}>
-          {row.personName}: {row.balance} to spend, {row.weekEarned} this week
-        </Text>
+        <View key={row.personId} style={personEdge(row.color)}>
+          <Text style={{ color: colors.ink }}>{row.personName}</Text>
+          <Text style={muted}>{row.balance} to spend</Text>
+          <Text style={muted}>{row.weekEarned} this week</Text>
+        </View>
       ))}
-      <Text style={{ fontFamily: "Georgia", fontSize: 24, marginTop: 12 }}>Ask for a reward</Text>
+      <Text style={h2}>Ask for a reward</Text>
       {rewards
         .filter((reward) => reward.active)
         .map((reward) => (
@@ -35,11 +38,10 @@ export default function StarsScreen() {
               await api("rewards/requests", { method: "POST", body: JSON.stringify({ rewardId: reward.id }) });
               await load();
             }}
-            style={{ backgroundColor: "#FBF6EA", padding: 16 }}
+            style={{ backgroundColor: colors.paper2, padding: 16, minHeight: 64, justifyContent: "center" }}
           >
-            <Text>
-              {reward.name} · {reward.starCost}
-            </Text>
+            <Text style={{ color: colors.ink }}>{reward.name}</Text>
+            <Text style={muted}>{reward.starCost} stars</Text>
           </Pressable>
         ))}
     </ScrollView>

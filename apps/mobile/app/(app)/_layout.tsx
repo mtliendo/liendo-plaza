@@ -1,14 +1,15 @@
 import { Tabs } from "expo-router";
+import { colors, type } from "@/lib/theme";
 
 export default function AppLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: "#F3E6C8" },
-        headerTitleStyle: { fontFamily: "Georgia" },
-        tabBarStyle: { backgroundColor: "#F3E6C8", borderTopColor: "#3D2416", height: 64 },
-        tabBarActiveTintColor: "#C24A2A",
-        tabBarInactiveTintColor: "#5C3A24",
+        headerStyle: { backgroundColor: colors.paper },
+        headerTitleStyle: { fontFamily: type.display, color: colors.ink },
+        tabBarStyle: { backgroundColor: colors.paper, borderTopColor: colors.rule, height: 64 },
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: { fontSize: 12 },
       }}
     >

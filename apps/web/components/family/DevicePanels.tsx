@@ -111,7 +111,7 @@ export function AddDevicePanel() {
       </button>
 
       {invite ? (
-        <div className="pair-card well pair-card-compact" id="invite-card">
+        <div className="pair-card pair-card-compact" id="invite-card">
           <p className="small">New phone scans this</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={invite.qrDataUrl} alt="Invite QR code" className="pair-qr" data-testid="invite-qr" />
@@ -167,11 +167,11 @@ export function DevicesPanel() {
           <article key={device.id} className="row" data-testid="device-row">
             <div>
               <strong>{device.label}</strong>
-              <p className="small">
-                {device.kind}
-                {device.personName ? ` · ${device.personName}` : ""}
-                {device.lastSeenAt ? ` · last seen ${new Date(device.lastSeenAt).toLocaleString("en-US")}` : ""}
-              </p>
+              <p className="small">{device.kind}</p>
+              {device.personName ? <p className="small">{device.personName}</p> : null}
+              {device.lastSeenAt ? (
+                <p className="small">last seen {new Date(device.lastSeenAt).toLocaleString("en-US")}</p>
+              ) : null}
             </div>
             <button type="button" className="btn-secondary btn" onClick={() => void revoke(device.id)}>
               Revoke

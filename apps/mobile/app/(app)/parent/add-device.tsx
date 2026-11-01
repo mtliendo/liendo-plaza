@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { api } from "@/lib/api";
+import { body, btn, btnLabel, colors, h2, input, muted, screen } from "@/lib/theme";
 
 type Pending = { id: string; displayCode: string; label: string | null; deviceKind: string };
 type Invite = { webUrl: string; deepLink: string; qrDataUrl: string };
@@ -39,22 +40,22 @@ export default function AddDeviceScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
-      <Text>Type the short code from the kitchen frame or another phone.</Text>
+    <ScrollView contentContainerStyle={screen}>
+      <Text style={body}>Type the short code from the kitchen frame or another phone.</Text>
       <TextInput
         value={code}
         onChangeText={(value) => setCode(value.toUpperCase())}
         autoCapitalize="characters"
         placeholder="AB3-K7M"
-        style={{ borderWidth: 1, borderColor: "#3D2416", padding: 14, minHeight: 48, backgroundColor: "#FBF6EA" }}
+        style={input}
       />
-      <Pressable onPress={() => void approve(code)} style={{ backgroundColor: "#C24A2A", padding: 16 }}>
-        <Text style={{ color: "#FBF6EA", textAlign: "center" }}>Approve this device</Text>
+      <Pressable onPress={() => void approve(code)} style={btn}>
+        <Text style={btnLabel}>Approve this device</Text>
       </Pressable>
       {pending.map((item) => (
-        <Pressable key={item.id} onPress={() => void approve(item.displayCode)} style={{ padding: 12, backgroundColor: "#FBF6EA" }}>
-          <Text style={{ fontSize: 22 }}>{item.displayCode}</Text>
-          <Text>{item.label ?? item.deviceKind}</Text>
+        <Pressable key={item.id} onPress={() => void approve(item.displayCode)} style={{ padding: 16, backgroundColor: colors.paper2, minHeight: 64 }}>
+          <Text style={h2}>{item.displayCode}</Text>
+          <Text style={muted}>{item.label ?? item.deviceKind}</Text>
         </Pressable>
       ))}
       <Pressable
@@ -65,19 +66,19 @@ export default function AddDeviceScreen() {
             setError(err instanceof Error ? err.message : "Could not make an invite.");
           }
         }}
-        style={{ borderBottomWidth: 2, borderBottomColor: "#3D2416", paddingVertical: 12 }}
+        style={{ borderBottomWidth: 1, borderBottomColor: colors.ink, paddingVertical: 16, minHeight: 64, justifyContent: "center" }}
       >
-        <Text>Invite a new phone</Text>
+        <Text style={{ color: colors.ink }}>Invite a new phone</Text>
       </Pressable>
       {invite ? (
-        <View style={{ alignItems: "center", gap: 12 }}>
+        <View style={{ alignItems: "center", gap: 12, backgroundColor: colors.paper2, padding: 20 }}>
           <Image source={{ uri: invite.qrDataUrl }} style={{ width: 240, height: 240 }} />
-          <Text selectable>{invite.webUrl}</Text>
-          <Text selectable>{invite.deepLink}</Text>
+          <Text selectable style={muted}>{invite.webUrl}</Text>
+          <Text selectable style={muted}>{invite.deepLink}</Text>
         </View>
       ) : null}
-      {message ? <Text>{message}</Text> : null}
-      {error ? <Text style={{ color: "#9B2C1A" }}>{error}</Text> : null}
+      {message ? <Text style={body}>{message}</Text> : null}
+      {error ? <Text style={{ color: colors.error }}>{error}</Text> : null}
     </ScrollView>
   );
 }

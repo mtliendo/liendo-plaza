@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, Text, TextInput } from "react-native";
 import { weekDates } from "@liendo/shared";
 import { api } from "@/lib/api";
+import { input, muted, screen } from "@/lib/theme";
 
 export default function ParentMealsScreen() {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -14,7 +15,7 @@ export default function ParentMealsScreen() {
     })();
   }, [week]);
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+    <ScrollView contentContainerStyle={screen}>
       {week.map((iso) => (
         <TextInput
           key={iso}
@@ -24,10 +25,10 @@ export default function ParentMealsScreen() {
           onEndEditing={() => {
             void api("meals", { method: "PUT", body: JSON.stringify({ date: iso, name: names[iso] ?? "" }) });
           }}
-          style={{ borderWidth: 1, padding: 12 }}
+          style={input}
         />
       ))}
-      <Text style={{ color: "#5C3A24" }}>Type a dinner. Names you have used before will match on the web planner.</Text>
+      <Text style={muted}>Type a dinner. Names you have used before will match on the web planner.</Text>
     </ScrollView>
   );
 }

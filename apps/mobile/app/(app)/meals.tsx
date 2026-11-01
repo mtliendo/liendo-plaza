@@ -3,6 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import type { DisplaySnapshot } from "@liendo/shared";
 import { weekDates } from "@liendo/shared";
 import { api } from "@/lib/api";
+import { body, colors, h1, screen, type } from "@/lib/theme";
 
 export default function MealsScreen() {
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
@@ -15,12 +16,14 @@ export default function MealsScreen() {
   }, []);
   const week = weekDates(snapshot?.now.slice(0, 10) ?? "");
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-      <Text style={{ fontFamily: "Georgia", fontSize: 32 }}>Dinner</Text>
+    <ScrollView contentContainerStyle={screen}>
+      <Text style={h1}>Dinner</Text>
       {week.map((iso) => (
         <View key={iso} style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text>{iso.slice(5)}</Text>
-          <Text>{snapshot?.meals.find((meal) => meal.date === iso)?.name ?? "—"}</Text>
+          <Text style={body}>{iso.slice(5)}</Text>
+          <Text style={{ fontFamily: type.display, fontSize: 20, color: colors.ink }}>
+            {snapshot?.meals.find((meal) => meal.date === iso)?.name ?? "—"}
+          </Text>
         </View>
       ))}
     </ScrollView>

@@ -108,12 +108,12 @@ export function DisplayApp({ view }: { view: View }) {
 
   if (paired === false) {
     return (
-      <main className="display pair-display">
-        <header className="folio">
+      <main className="kitchen pair-kitchen">
+        <header className="mast">
           <h1>Liendo Plaza</h1>
           <p className="small">Kitchen board</p>
         </header>
-        <section className="pair-display-body">
+        <section className="pair-kitchen-body">
           <div>
             <h2>Pair this frame</h2>
             <p className="lead" style={{ marginTop: "var(--space-md)" }}>
@@ -139,8 +139,8 @@ export function DisplayApp({ view }: { view: View }) {
 
   if (!snapshot) {
     return (
-      <main className="display">
-        <header className="folio">
+      <main className="kitchen">
+        <header className="mast">
           <h1>Liendo Plaza</h1>
           <p className="small">{offline ? "Waiting on the house network." : "Getting today ready."}</p>
         </header>
@@ -151,7 +151,7 @@ export function DisplayApp({ view }: { view: View }) {
   const todayEvents = snapshot.events.filter((event) => eventDay(event.start) === today);
   const dinner = snapshot.meals.find((meal) => meal.date === today)?.name ?? "Nothing written yet";
   const nav = (
-    <nav className="display-nav" aria-label="Board">
+    <nav className="kitchen-nav" aria-label="Board">
       <Link href="/display" aria-current={view === "home" ? "page" : undefined}>
         Today
       </Link>
@@ -168,48 +168,45 @@ export function DisplayApp({ view }: { view: View }) {
   );
 
   return (
-    <main className="display">
-      <header className="folio">
+    <main className="kitchen">
+      <header className="mast">
         <div>
-          <p className="small">Liendo Plaza</p>
           <p className="clock" data-testid="clock">{clockLabel(snapshot.now)}</p>
-          <p>{dateLabel(snapshot.now)}</p>
+          <p className="date">{dateLabel(snapshot.now)}</p>
         </div>
-        <div style={{ textAlign: "right" }}>
-          <p className="small">Davenport</p>
-          <p className="num" style={{ fontSize: "var(--text-section)" }}>
+        <div className="mast-aside">
+          <p className="weather num">
             {snapshot.weather ? `${snapshot.weather.temperatureF}° ${snapshot.weather.label}` : "Weather later"}
           </p>
+          <p className="small">Davenport</p>
           {nav}
         </div>
       </header>
 
       {view === "home" ? (
-        <>
-          <section className="board">
-            <div>
-              <h2>Today</h2>
-              <div className="list" style={{ marginTop: "var(--space-md)" }}>
-                {todayEvents.length === 0 ? <p>Nothing on the calendar.</p> : null}
-                {todayEvents.map((event) => (
-                  <article key={`${event.uid}-${event.start}`} className="row">
-                    <span>{event.title}</span>
-                    <span className="small num">{eventTime(event.start, event.allDay)}</span>
-                  </article>
-                ))}
-              </div>
+        <section className="bento">
+          <div className="events">
+            <h2>Today</h2>
+            <div className="list" style={{ marginTop: "var(--space-md)" }}>
+              {todayEvents.length === 0 ? <p>Nothing on the calendar.</p> : null}
+              {todayEvents.map((event) => (
+                <article key={`${event.uid}-${event.start}`} className="row">
+                  <span>{event.title}</span>
+                  <span className="small num">{eventTime(event.start, event.allDay)}</span>
+                </article>
+              ))}
             </div>
-            <aside className="dinner-card well">
-              <p className="small">Tonight’s dinner</p>
-              <p className="dinner-name">{dinner}</p>
-              <div className="dinner-foot">
-                <p className="small">Tomorrow</p>
-                <p className="dinner-next">
-                  {snapshot.meals.find((meal) => meal.date === addDays(today, 1))?.name ?? "Not written yet"}
-                </p>
-              </div>
-            </aside>
-          </section>
+          </div>
+          <aside className="dinner">
+            <p className="small">Tonight’s dinner</p>
+            <p className="dinner-name">{dinner}</p>
+            <div className="dinner-foot">
+              <p className="small">Tomorrow</p>
+              <p className="dinner-next">
+                {snapshot.meals.find((meal) => meal.date === addDays(today, 1))?.name ?? "Not written yet"}
+              </p>
+            </div>
+          </aside>
           <section className="kids">
             {kids.map((kid) => {
               const chores = snapshot.chores.filter((item) => item.personId === kid.id && item.date === today);
@@ -217,9 +214,8 @@ export function DisplayApp({ view }: { view: View }) {
               return (
                 <article key={kid.id} className="kid" style={{ ["--person" as string]: kid.color }}>
                   <h3>{kid.name}</h3>
-                  <p className="small">
-                    {stars?.weekEarned ?? 0} this week · {stars?.balance ?? 0} to spend
-                  </p>
+                  <p className="small">{stars?.weekEarned ?? 0} this week</p>
+                  <p className="small">{stars?.balance ?? 0} to spend</p>
                   {chores.length === 0 ? <p className="small">No chores today.</p> : null}
                   {chores.map((chore) => {
                     const canTap = !chore.requiresPhoto && chore.status === "open";
@@ -230,15 +226,14 @@ export function DisplayApp({ view }: { view: View }) {
                         className="chore-btn tap"
                         data-status={chore.status}
                         disabled={!canTap}
+                        aria-label={chore.title}
                         onClick={() => void complete(chore.id)}
                       >
-                        <strong>{chore.title}</strong>
-                        <span className="small">
-                          {chore.stars} stars
-                          {chore.requiresPhoto ? " · photo on the phone" : ""}
-                          {chore.status === "pending" ? " · waiting" : ""}
-                          {chore.status === "done" ? " · done" : ""}
-                        </span>
+                        <span>{chore.title}</span>
+                        <span className="small">{chore.stars} stars</span>
+                        {chore.requiresPhoto ? <span className="small">photo on the phone</span> : null}
+                        {chore.status === "pending" ? <span className="small">waiting</span> : null}
+                        {chore.status === "done" ? <span className="small">done</span> : null}
                       </button>
                     );
                   })}
@@ -246,14 +241,14 @@ export function DisplayApp({ view }: { view: View }) {
               );
             })}
           </section>
-        </>
+        </section>
       ) : null}
 
       {view === "week" ? (
         <section className="week-grid">
           {week.map((iso, index) => (
             <div key={iso} className="day-col">
-              <p className="small">{WEEKDAY_LABELS[index]} {iso.slice(8)}</p>
+              <p className="day-name">{WEEKDAY_LABELS[index]} {iso.slice(8)}</p>
               {snapshot.events
                 .filter((event) => eventDay(event.start) === iso)
                 .map((event) => (
@@ -268,13 +263,17 @@ export function DisplayApp({ view }: { view: View }) {
         <section className="week-grid">
           {week.map((iso, index) => (
             <div key={iso} className="day-col">
-              <p className="small">{WEEKDAY_LABELS[index]}</p>
+              <p className="day-name">{WEEKDAY_LABELS[index]}</p>
               {snapshot.chores
                 .filter((item) => item.date === iso)
                 .map((chore) => {
                   const person = snapshot.people.find((row) => row.id === chore.personId);
                   return (
-                    <p key={chore.id} style={{ borderLeft: `4px solid ${person?.color ?? "var(--color-ink)"}`, paddingLeft: 8 }}>
+                    <p
+                      key={chore.id}
+                      className="chore-chip"
+                      style={{ ["--person" as string]: person?.color ?? "var(--color-ink)" }}
+                    >
                       {chore.title}
                       <span className="small"> {person?.name}</span>
                     </p>
@@ -289,7 +288,7 @@ export function DisplayApp({ view }: { view: View }) {
         <section className="week-grid">
           {week.map((iso, index) => (
             <div key={iso} className="day-col">
-              <p className="small">{WEEKDAY_LABELS[index]}</p>
+              <p className="day-name">{WEEKDAY_LABELS[index]}</p>
               <h3>{snapshot.meals.find((meal) => meal.date === iso)?.name ?? "—"}</h3>
             </div>
           ))}

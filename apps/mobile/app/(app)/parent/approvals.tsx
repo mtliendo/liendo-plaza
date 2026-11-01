@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text } from "react-native";
 import type { DisplaySnapshot, RewardRequest } from "@liendo/shared";
 import { weekDates } from "@liendo/shared";
 import { api } from "@/lib/api";
+import { colors, row, screen } from "@/lib/theme";
 
 export default function ApprovalsScreen() {
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
@@ -17,7 +18,7 @@ export default function ApprovalsScreen() {
     void load();
   }, [load]);
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+    <ScrollView contentContainerStyle={screen}>
       {snapshot?.chores
         .filter((item) => item.status === "pending")
         .map((item) => (
@@ -30,9 +31,9 @@ export default function ApprovalsScreen() {
               });
               await load();
             }}
-            style={{ backgroundColor: "#FBF6EA", padding: 16 }}
+            style={row}
           >
-            <Text>Approve {item.title}</Text>
+            <Text style={{ color: colors.ink }}>Approve {item.title}</Text>
           </Pressable>
         ))}
       {requests
@@ -47,9 +48,9 @@ export default function ApprovalsScreen() {
               });
               await load();
             }}
-            style={{ backgroundColor: "#FBF6EA", padding: 16 }}
+            style={row}
           >
-            <Text>
+            <Text style={{ color: colors.ink }}>
               Approve {item.rewardName} for {item.personName}
             </Text>
           </Pressable>

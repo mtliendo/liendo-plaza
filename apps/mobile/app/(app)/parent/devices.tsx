@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { api } from "@/lib/api";
+import { colors, muted, screen } from "@/lib/theme";
 
 type Device = { id: string; kind: string; label: string; personName: string | null; lastSeenAt: string | null };
 
@@ -18,14 +19,12 @@ export default function DevicesScreen() {
   }, [load]);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+    <ScrollView contentContainerStyle={screen}>
       {devices.map((device) => (
-        <View key={device.id} style={{ borderBottomWidth: 1, borderBottomColor: "#3D2416", paddingBottom: 12 }}>
-          <Text style={{ fontSize: 18 }}>{device.label}</Text>
-          <Text style={{ color: "#5C3A24" }}>
-            {device.kind}
-            {device.personName ? ` · ${device.personName}` : ""}
-          </Text>
+        <View key={device.id} style={{ borderBottomWidth: 1, borderBottomColor: colors.rule, paddingBottom: 12, minHeight: 64 }}>
+          <Text style={{ fontSize: 18, color: colors.ink }}>{device.label}</Text>
+          <Text style={muted}>{device.kind}</Text>
+          {device.personName ? <Text style={muted}>{device.personName}</Text> : null}
           <Pressable
             onPress={async () => {
               try {
@@ -35,13 +34,13 @@ export default function DevicesScreen() {
                 setError(err instanceof Error ? err.message : "Could not revoke that device.");
               }
             }}
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 8, minHeight: 48, justifyContent: "center" }}
           >
-            <Text style={{ color: "#C24A2A" }}>Revoke</Text>
+            <Text style={{ color: colors.accent }}>Revoke</Text>
           </Pressable>
         </View>
       ))}
-      {error ? <Text style={{ color: "#9B2C1A" }}>{error}</Text> : null}
+      {error ? <Text style={{ color: colors.error }}>{error}</Text> : null}
     </ScrollView>
   );
 }

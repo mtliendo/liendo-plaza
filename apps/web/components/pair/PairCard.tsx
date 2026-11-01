@@ -12,7 +12,7 @@ export function PairCard({
   compact?: boolean;
 }) {
   return (
-    <div className={`pair-card well ${compact ? "pair-card-compact" : ""}`}>
+    <div className={`pair-card ${compact ? "pair-card-compact" : ""}`}>
       <p className="small">{title}</p>
       {/* data URL from the pairing API; not a hosted image */}
       {/* eslint-disable-next-line @next/next/no-img-element */}

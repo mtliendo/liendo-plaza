@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput } from "react-native";
 import type { Person } from "@liendo/shared";
 import { api } from "@/lib/api";
+import { body, btn, btnLabel, colors, input, screen } from "@/lib/theme";
 
 export default function PinsScreen() {
   const [people, setPeople] = useState<Person[]>([]);
@@ -16,13 +17,13 @@ export default function PinsScreen() {
     })();
   }, []);
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+    <ScrollView contentContainerStyle={screen}>
       {people.map((person) => (
-        <Pressable key={person.id} onPress={() => setPersonId(person.id)}>
-          <Text style={{ fontWeight: person.id === personId ? "700" : "400" }}>{person.name}</Text>
+        <Pressable key={person.id} onPress={() => setPersonId(person.id)} style={{ minHeight: 48, justifyContent: "center" }}>
+          <Text style={{ fontWeight: person.id === personId ? "700" : "400", color: colors.ink }}>{person.name}</Text>
         </Pressable>
       ))}
-      <TextInput value={pin} onChangeText={setPin} keyboardType="number-pad" placeholder="New PIN" style={{ borderWidth: 1, padding: 12 }} />
+      <TextInput value={pin} onChangeText={setPin} keyboardType="number-pad" placeholder="New PIN" style={input} />
       <Pressable
         onPress={async () => {
           try {
@@ -33,11 +34,11 @@ export default function PinsScreen() {
             setMessage(error instanceof Error ? error.message : "Could not save that PIN.");
           }
         }}
-        style={{ backgroundColor: "#C24A2A", padding: 14 }}
+        style={btn}
       >
-        <Text style={{ color: "#FBF6EA", textAlign: "center" }}>Save PIN</Text>
+        <Text style={btnLabel}>Save PIN</Text>
       </Pressable>
-      {message ? <Text>{message}</Text> : null}
+      {message ? <Text style={body}>{message}</Text> : null}
     </ScrollView>
   );
 }

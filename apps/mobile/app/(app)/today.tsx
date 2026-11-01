@@ -8,6 +8,7 @@ import { weekDates } from "@liendo/shared";
 import { api } from "@/lib/api";
 import { API_URL } from "@/lib/config";
 import { getSession } from "@/lib/session";
+import { body, colors, h1, muted, row, screen } from "@/lib/theme";
 
 export default function TodayScreen() {
   const [me, setMe] = useState<Person | null>(null);
@@ -55,15 +56,15 @@ export default function TodayScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-      <Text style={{ fontFamily: "Georgia", fontSize: 32, color: "#3D2416" }}>Today</Text>
+    <ScrollView contentContainerStyle={screen}>
+      <Text style={h1}>Today</Text>
       {me?.role === "parent" ? (
-        <View style={{ gap: 10 }}>
+        <View style={{ gap: 8 }}>
           <Link href="/parent/add-device">
-            <Text style={{ fontSize: 18, color: "#C24A2A" }}>Add a device</Text>
+            <Text style={{ fontSize: 18, color: colors.accent, minHeight: 48 }}>Add a device</Text>
           </Link>
           <Link href="/parent/devices">
-            <Text style={{ fontSize: 18, color: "#C24A2A" }}>Paired devices</Text>
+            <Text style={{ fontSize: 18, color: colors.accent, minHeight: 48 }}>Paired devices</Text>
           </Link>
         </View>
       ) : null}
@@ -74,13 +75,12 @@ export default function TodayScreen() {
             if (chore.requiresPhoto && chore.status === "open") void sendPhoto(chore.id);
             else if (!chore.requiresPhoto && chore.status === "open") void complete(chore.id);
           }}
-          style={{ backgroundColor: "#FBF6EA", padding: 16, borderLeftWidth: 6, borderLeftColor: "#C24A2A", minHeight: 64 }}
+          style={row}
         >
-          <Text style={{ fontSize: 18 }}>{chore.title}</Text>
-          <Text style={{ color: "#5C3A24" }}>
-            {chore.status}
-            {chore.requiresPhoto ? " · photo" : ""} · {chore.stars} stars
-          </Text>
+          <Text style={{ fontSize: 18, color: colors.ink }}>{chore.title}</Text>
+          <Text style={muted}>{chore.status}</Text>
+          {chore.requiresPhoto ? <Text style={muted}>photo</Text> : null}
+          <Text style={body}>{chore.stars} stars</Text>
         </Pressable>
       ))}
     </ScrollView>

@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F3E6C8"
+      "backgroundColor": "#FAF6EF"
     },
     "ios": {
       "supportsTablet": false,
@@ -24,7 +24,7 @@
       "package": "com.focusotter.liendoplaza",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F3E6C8"
+        "backgroundColor": "#FAF6EF"
       }
     },
     "plugins": [
@@ -33,7 +33,7 @@
       [
         "expo-notifications",
         {
-          "color": "#C24A2A"
+          "color": "#8C4A22"
         }
       ],
       [

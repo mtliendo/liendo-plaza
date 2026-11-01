@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { api } from "@/lib/api";
 import { getSession } from "@/lib/session";
+import { body, colors, h1, screen } from "@/lib/theme";
 
 export default function PairScreen() {
   const router = useRouter();
@@ -32,10 +33,10 @@ export default function PairScreen() {
   }, [code, params.invite, router]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F3E6C8", padding: 24, justifyContent: "center", gap: 16 }}>
-      <Text style={{ fontFamily: "Georgia", fontSize: 32, color: "#3D2416" }}>Add a device</Text>
-      <Text>{message}</Text>
-      {error ? <Text style={{ color: "#9B2C1A" }}>{error}</Text> : null}
+    <View style={{ ...screen, flex: 1, justifyContent: "center" }}>
+      <Text style={h1}>Add a device</Text>
+      <Text style={body}>{message}</Text>
+      {error ? <Text style={{ color: colors.error }}>{error}</Text> : null}
       <Pressable onPress={() => router.replace("/(app)/today")}>
         <Text>Back to today</Text>
       </Pressable>

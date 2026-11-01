@@ -157,8 +157,8 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
             <button
               key={person.id}
               type="button"
-              className="btn-secondary btn"
-              style={{ borderLeft: `6px solid ${person.color}`, justifyContent: "flex-start" }}
+              className="btn person-pick"
+              style={{ ["--person" as string]: person.color }}
               onClick={() => {
                 setPicked(person);
                 setPhase("pin");
@@ -220,7 +220,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         <>
           <h1>Today</h1>
           {isParent ? (
-            <div className="list">
+            <div className="parent-links">
               <Link href="/family/approvals">Approvals</Link>
               <Link href="/family/chores">Edit chores</Link>
               <Link href="/family/rewards">Rewards</Link>
@@ -236,6 +236,10 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                 key={chore.id}
                 type="button"
                 className="chore-btn"
+                style={{
+                  ["--person" as string]:
+                    snapshot?.people.find((person) => person.id === chore.personId)?.color ?? "var(--color-accent)",
+                }}
                 onClick={async () => {
                   if (chore.requiresPhoto || chore.status !== "open") return;
                   await fetch(`/api/chores/instances/${chore.id}/complete`, { method: "POST" });
@@ -243,10 +247,8 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                 }}
               >
                 {chore.title}
-                <span className="small">
-                  {chore.status}
-                  {chore.requiresPhoto ? " · photo" : ""}
-                </span>
+                <span className="small">{chore.status}</span>
+                {chore.requiresPhoto ? <span className="small">photo</span> : null}
               </button>
             ))}
           </div>
@@ -285,10 +287,12 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         <>
           <h1>Stars</h1>
           {snapshot.stars.map((row) => (
-            <p key={row.personId} className="row" style={{ borderLeft: `6px solid ${row.color}`, paddingLeft: 12 }}>
+            <p key={row.personId} className="row person-row" style={{ ["--person" as string]: row.color }}>
               <span>{row.personName}</span>
-              <span>
-                {row.balance} to spend · {row.weekEarned} this week
+              <span className="small">
+                {row.balance} to spend
+                <br />
+                {row.weekEarned} this week
               </span>
             </p>
           ))}
@@ -399,7 +403,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
           />
           {rewards.map((reward) => (
             <p key={reward.id} className="row">
-              {reward.name} · {reward.starCost}
+              {reward.name} {reward.starCost}
             </p>
           ))}
         </>

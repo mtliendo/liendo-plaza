@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput } from "react-native";
 import type { Reward } from "@liendo/shared";
 import { api } from "@/lib/api";
+import { body, btn, btnLabel, input, screen } from "@/lib/theme";
 
 export default function ParentRewardsScreen() {
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -11,21 +12,21 @@ export default function ParentRewardsScreen() {
     void load();
   }, []);
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-      <TextInput value={name} onChangeText={setName} placeholder="Reward name" style={{ borderWidth: 1, padding: 12 }} />
+    <ScrollView contentContainerStyle={screen}>
+      <TextInput value={name} onChangeText={setName} placeholder="Reward name" style={input} />
       <Pressable
         onPress={async () => {
           await api("rewards", { method: "POST", body: JSON.stringify({ name, starCost: 8 }) });
           setName("");
           await load();
         }}
-        style={{ backgroundColor: "#C24A2A", padding: 14 }}
+        style={btn}
       >
-        <Text style={{ color: "#FBF6EA", textAlign: "center" }}>Add reward</Text>
+        <Text style={btnLabel}>Add reward</Text>
       </Pressable>
       {rewards.map((reward) => (
-        <Text key={reward.id}>
-          {reward.name} · {reward.starCost}
+        <Text key={reward.id} style={body}>
+          {reward.name} {reward.starCost}
         </Text>
       ))}
     </ScrollView>
