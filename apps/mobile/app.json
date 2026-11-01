@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Liendo Plaza",
+    "slug": "liendo-plaza",
+    "scheme": "liendoplaza",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F3E6C8"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.focusotter.liendoplaza",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Liendo Plaza uses the camera so a kid can send a chore photo.",
+        "NSPhotoLibraryUsageDescription": "Liendo Plaza can use a photo from the library for a chore."
+      }
+    },
+    "android": {
+      "package": "com.focusotter.liendoplaza",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F3E6C8"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#C24A2A"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Liendo Plaza can use a photo from the library for a chore.",
+          "cameraPermission": "Liendo Plaza uses the camera so a kid can send a chore photo."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "replace-after-eas-init"
+      }
+    },
+    "owner": "focusotter"
+  }
+}
