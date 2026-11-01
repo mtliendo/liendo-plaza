@@ -1,0 +1,19 @@
+{
+  "name": "liendo-plaza",
+  "private": true,
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @liendo/web dev",
+    "build": "pnpm --filter @liendo/web build",
+    "lint": "pnpm --filter @liendo/web lint",
+    "typecheck": "pnpm --filter @liendo/web typecheck && pnpm --filter @liendo/mobile typecheck",
+    "db:migrate": "pnpm --filter @liendo/web db:migrate",
+    "db:seed": "pnpm --filter @liendo/web db:seed",
+    "db:reset": "pnpm --filter @liendo/web db:reset",
+    "test:e2e": "pnpm --filter @liendo/web test:e2e",
+    "mobile": "pnpm --filter @liendo/mobile start"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp"]
+  }
+}
