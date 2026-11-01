@@ -1,0 +1,197 @@
+/* Hallmark · shape: app screen · genre: editorial · theme: Solstice (deal 1/3, seed warm-calm-kitchen-wall-14d7·efb41d89·2026-11-01·r0)
+ * nav: edge folio · signature: the today board · states: loading, empty, error, full · solstice: long-light
+ * axes: light/high-contrast-serif/warm · posture: restrained · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H5 E4 S5 R4 V4 · weakest: R, cut a photo band so the clock and person color carry the board */
+/* Hallmark · waive 39b · kitchen 15.6in touchscreen · tap targets stay 64px so a step away still hits */
+@import url("https://fonts.googleapis.com/css2?family=Yeseva+One&family=Archivo:wght@400;500&family=Archivo+Narrow:wght@600&display=swap");
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./base.css" layer(base);
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: var(--space-md) var(--space-xl);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-family: var(--font-outlier);
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn:hover { background: color-mix(in oklab, var(--color-accent) 88%, var(--color-ink)); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-secondary {
+  background: transparent;
+  color: var(--color-ink);
+  border-radius: 0;
+  padding-inline: 0;
+  border-bottom: var(--rule-bar) solid var(--color-ink);
+}
+.btn-secondary:hover { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+.field {
+  display: grid;
+  gap: var(--space-2xs);
+}
+.field span { font-size: var(--text-sm); color: var(--color-ink-2); }
+.input, .select {
+  min-height: 48px;
+  border: var(--rule-hair) solid var(--color-ink);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  padding: var(--space-sm) var(--space-md);
+  outline: 2px solid transparent;
+  outline-offset: -3px;
+  border-radius: var(--radius-card);
+}
+.input:focus-visible, .select:focus-visible { outline-color: var(--color-focus); }
+.well {
+  background: var(--color-paper-2);
+  border: var(--rule-bar) solid var(--color-ink);
+  outline: var(--rule-hair) solid var(--color-gold);
+  outline-offset: -7px;
+  box-shadow: var(--shadow-card);
+}
+.small { font: 600 13px var(--font-outlier); color: var(--color-muted); }
+.folio {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  border-bottom: var(--rule-bar) solid var(--color-ink);
+  padding-block: var(--space-sm);
+}
+
+.display {
+  --text-md: 1.25rem;
+  --text-lg: 1.5rem;
+  --text-display: 4.5rem;
+  --text-section: 2rem;
+  --text-title: 1.35rem;
+  min-height: 100svh;
+  padding: var(--space-lg) var(--space-xl);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-lg);
+}
+.display .tap {
+  min-height: 64px;
+  min-width: 64px;
+}
+.display-nav { display: flex; gap: var(--space-md); }
+.display-nav a {
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-md);
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  border-bottom: var(--rule-bar) solid transparent;
+}
+.display-nav a[aria-current="page"] { border-bottom-color: var(--color-accent); }
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
+  gap: var(--space-lg);
+  min-height: 0;
+}
+.kids {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+.kid {
+  border-top: 6px solid var(--person, var(--color-ink));
+  background: var(--color-paper-2);
+  padding: var(--space-md);
+  display: grid;
+  align-content: start;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.chore-btn {
+  width: 100%;
+  text-align: left;
+  min-height: 64px;
+  padding: var(--space-sm);
+  background: var(--color-paper);
+  border: var(--rule-hair) solid var(--color-rule);
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3xs);
+}
+.chore-btn:hover { border-color: var(--color-ink); }
+.chore-btn[data-status="done"] { text-decoration: line-through; color: var(--color-muted); }
+.chore-btn[disabled] { cursor: default; opacity: 1; }
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-sm);
+  min-height: 0;
+}
+.day-col {
+  min-width: 0;
+  border-top: var(--rule-bar) solid var(--color-ink);
+  padding-top: var(--space-sm);
+  display: grid;
+  align-content: start;
+  gap: var(--space-xs);
+}
+.clock { font-family: var(--font-display); font-size: var(--text-display); line-height: 1; }
+.dim {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in oklab, var(--color-ink) 72%, transparent);
+  color: var(--color-paper);
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.banner {
+  position: fixed;
+  inset: auto var(--space-xl) var(--space-md);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  padding: var(--space-sm) var(--space-md);
+  z-index: var(--z-toast);
+}
+.phone {
+  width: min(430px, 100%);
+  min-height: 100svh;
+  margin-inline: auto;
+  padding: var(--space-lg) var(--space-md) 96px;
+  display: grid;
+  align-content: start;
+  gap: var(--space-lg);
+}
+.tabs {
+  position: fixed;
+  inset: auto 0 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--color-paper);
+  border-top: var(--rule-bar) solid var(--color-ink);
+  z-index: var(--z-sticky-nav);
+}
+.tabs a {
+  min-height: 64px;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+.tabs a[aria-current="page"] { color: var(--color-accent); }
+.list { display: grid; gap: var(--space-xs); }
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}

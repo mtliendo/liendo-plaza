@@ -1,0 +1,301 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { DisplaySnapshot } from "@liendo/shared";
+import { isDimHours, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+
+type View = "home" | "week" | "chores" | "meals";
+
+function eventDay(iso: string) {
+  return iso.slice(0, 10);
+}
+
+function eventTime(iso: string, allDay: boolean) {
+  if (allDay) return "All day";
+  const date = new Date(iso);
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" });
+}
+
+function clockLabel(now: string) {
+  return new Date(now).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Chicago",
+  });
+}
+
+function dateLabel(now: string) {
+  return new Date(now).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "America/Chicago",
+  });
+}
+
+function hourInChicago(now: string) {
+  const hour = new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "America/Chicago" }).format(
+    new Date(now),
+  );
+  return Number(hour);
+}
+
+export function DisplayApp({ view }: { view: View }) {
+  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
+  const [paired, setPaired] = useState<boolean | null>(null);
+  const [secret, setSecret] = useState("");
+  const [error, setError] = useState("");
+  const [offline, setOffline] = useState(false);
+  const [awakeUntil, setAwakeUntil] = useState(0);
+  const [tick, setTick] = useState(Date.now());
+
+  const load = useCallback(async () => {
+    try {
+      const me = await fetch("/api/me", { cache: "no-store" });
+      if (me.status === 401) {
+        setPaired(false);
+        return;
+      }
+      setPaired(true);
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+      const week = weekDates(today);
+      const res = await fetch(`/api/snapshot?from=${week[0]}&to=${week[6]}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("snapshot");
+      setSnapshot((await res.json()) as DisplaySnapshot);
+      setOffline(false);
+    } catch {
+      setOffline(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const poll = setInterval(() => void load(), 30_000);
+    const clock = setInterval(() => setTick(Date.now()), 15_000);
+    return () => {
+      clearInterval(poll);
+      clearInterval(clock);
+    };
+  }, [load]);
+
+  async function pair(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    const res = await fetch("/api/auth/display", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ secret }),
+    });
+    const body = (await res.json()) as { error?: string };
+    if (!res.ok) {
+      setError(body.error ?? "That code did not work.");
+      return;
+    }
+    setPaired(true);
+    await load();
+  }
+
+  async function complete(id: string) {
+    const res = await fetch(`/api/chores/instances/${id}/complete`, { method: "POST" });
+    if (res.ok) await load();
+  }
+
+  const today = snapshot ? eventDay(snapshot.now) : new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  const week = weekDates(today);
+  const forceDim = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dim") === "1";
+  const dim =
+    snapshot && (forceDim || isDimHours(hourInChicago(snapshot.now))) && Date.now() > awakeUntil;
+
+  const kids = useMemo(() => {
+    const order = ["sofia", "noah", "xavier"];
+    return (snapshot?.people ?? [])
+      .filter((person) => person.role === "kid")
+      .sort((a, b) => order.indexOf(a.slug) - order.indexOf(b.slug));
+  }, [snapshot]);
+
+  if (paired === false) {
+    return (
+      <main className="display">
+        <header className="folio">
+          <h1>Liendo Plaza</h1>
+        </header>
+        <form className="well" onSubmit={pair} style={{ alignSelf: "center", padding: "var(--space-xl)", maxWidth: 520 }}>
+          <h2>Pair this frame</h2>
+          <p style={{ marginBlock: "var(--space-md)" }}>Paste the family code once. This board will remember it.</p>
+          <label className="field">
+            <span>Family code</span>
+            <input className="input" value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="off" />
+          </label>
+          {error ? <p style={{ color: "var(--color-error)", marginTop: "var(--space-sm)" }}>{error}</p> : null}
+          <button className="btn tap" type="submit" style={{ marginTop: "var(--space-lg)" }}>
+            Pair the board
+          </button>
+        </form>
+      </main>
+    );
+  }
+
+  if (!snapshot) {
+    return (
+      <main className="display">
+        <header className="folio">
+          <h1>Liendo Plaza</h1>
+          <p className="small">{offline ? "Waiting on the house network." : "Getting today ready."}</p>
+        </header>
+      </main>
+    );
+  }
+
+  const todayEvents = snapshot.events.filter((event) => eventDay(event.start) === today);
+  const dinner = snapshot.meals.find((meal) => meal.date === today)?.name ?? "Nothing written yet";
+  const nav = (
+    <nav className="display-nav" aria-label="Board">
+      <Link href="/display" aria-current={view === "home" ? "page" : undefined}>
+        Today
+      </Link>
+      <Link href="/display/week" aria-current={view === "week" ? "page" : undefined}>
+        Week
+      </Link>
+      <Link href="/display/chores" aria-current={view === "chores" ? "page" : undefined}>
+        Chores
+      </Link>
+      <Link href="/display/meals" aria-current={view === "meals" ? "page" : undefined}>
+        Dinners
+      </Link>
+    </nav>
+  );
+
+  return (
+    <main className="display">
+      <header className="folio">
+        <div>
+          <p className="small">Liendo Plaza</p>
+          <p className="clock" data-testid="clock">{clockLabel(snapshot.now)}</p>
+          <p>{dateLabel(snapshot.now)}</p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p className="small">Davenport</p>
+          <p className="num" style={{ fontSize: "var(--text-section)" }}>
+            {snapshot.weather ? `${snapshot.weather.temperatureF}° ${snapshot.weather.label}` : "Weather later"}
+          </p>
+          {nav}
+        </div>
+      </header>
+
+      {view === "home" ? (
+        <>
+          <section className="board">
+            <div>
+              <h2>Today</h2>
+              <div className="list" style={{ marginTop: "var(--space-md)" }}>
+                {todayEvents.length === 0 ? <p>Nothing on the calendar.</p> : null}
+                {todayEvents.map((event) => (
+                  <article key={`${event.uid}-${event.start}`} className="row">
+                    <span>{event.title}</span>
+                    <span className="small num">{eventTime(event.start, event.allDay)}</span>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <aside className="well" style={{ padding: "var(--space-lg)" }}>
+              <p className="small">Tonight</p>
+              <h2>{dinner}</h2>
+            </aside>
+          </section>
+          <section className="kids">
+            {kids.map((kid) => {
+              const chores = snapshot.chores.filter((item) => item.personId === kid.id && item.date === today);
+              const stars = snapshot.stars.find((item) => item.personId === kid.id);
+              return (
+                <article key={kid.id} className="kid" style={{ ["--person" as string]: kid.color }}>
+                  <h3>{kid.name}</h3>
+                  <p className="small">
+                    {stars?.weekEarned ?? 0} this week · {stars?.balance ?? 0} to spend
+                  </p>
+                  {chores.length === 0 ? <p className="small">No chores today.</p> : null}
+                  {chores.map((chore) => {
+                    const canTap = !chore.requiresPhoto && chore.status === "open";
+                    return (
+                      <button
+                        key={chore.id}
+                        type="button"
+                        className="chore-btn tap"
+                        data-status={chore.status}
+                        disabled={!canTap}
+                        onClick={() => void complete(chore.id)}
+                      >
+                        <strong>{chore.title}</strong>
+                        <span className="small">
+                          {chore.stars} stars
+                          {chore.requiresPhoto ? " · photo on the phone" : ""}
+                          {chore.status === "pending" ? " · waiting" : ""}
+                          {chore.status === "done" ? " · done" : ""}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </article>
+              );
+            })}
+          </section>
+        </>
+      ) : null}
+
+      {view === "week" ? (
+        <section className="week-grid">
+          {week.map((iso, index) => (
+            <div key={iso} className="day-col">
+              <p className="small">{WEEKDAY_LABELS[index]} {iso.slice(8)}</p>
+              {snapshot.events
+                .filter((event) => eventDay(event.start) === iso)
+                .map((event) => (
+                  <p key={`${event.uid}-${event.start}`}>{event.title}</p>
+                ))}
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {view === "chores" ? (
+        <section className="week-grid">
+          {week.map((iso, index) => (
+            <div key={iso} className="day-col">
+              <p className="small">{WEEKDAY_LABELS[index]}</p>
+              {snapshot.chores
+                .filter((item) => item.date === iso)
+                .map((chore) => {
+                  const person = snapshot.people.find((row) => row.id === chore.personId);
+                  return (
+                    <p key={chore.id} style={{ borderLeft: `4px solid ${person?.color ?? "var(--color-ink)"}`, paddingLeft: 8 }}>
+                      {chore.title}
+                      <span className="small"> {person?.name}</span>
+                    </p>
+                  );
+                })}
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {view === "meals" ? (
+        <section className="week-grid">
+          {week.map((iso, index) => (
+            <div key={iso} className="day-col">
+              <p className="small">{WEEKDAY_LABELS[index]}</p>
+              <h3>{snapshot.meals.find((meal) => meal.date === iso)?.name ?? "—"}</h3>
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {offline ? <p className="banner">The board will catch up when the network does.</p> : null}
+      {dim ? (
+        <button type="button" className="dim" onClick={() => setAwakeUntil(Date.now() + 5 * 60 * 1000)}>
+          <span className="clock">{clockLabel(snapshot.now)}</span>
+        </button>
+      ) : null}
+      <span className="visually-hidden">{tick}</span>
+    </main>
+  );
+}
