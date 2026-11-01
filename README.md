@@ -83,7 +83,7 @@ Set these on the Vercel project. Root directory can be the repo root (this `verc
 | `CRON_SECRET` | yes in prod | Protects the reminder cron |
 | `NEXT_PUBLIC_APP_URL` | yes | `https://<deployment>` |
 | `EXPO_PUBLIC_API_URL` | for the phone build | Same origin as the web app |
-| `NEXT_PUBLIC_ALLOW_EVENT_FIXTURES` | no | Set to `1` to allow `?fixture=events-0\|events-3\|events-12` on production-like deploys. Local `next dev` already allows it. |
+| `NEXT_PUBLIC_ALLOW_EVENT_FIXTURES` | no | Set to `1` to allow `?fixture=events-0`, `events-3`, or `events-12` on production-like deploys. Local `next dev` already allows it. |
 
 Do not commit secrets. This repo is public.
 
