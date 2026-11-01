@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { Chore, DisplaySnapshot, Person, Reward, RewardRequest } from "@liendo/shared";
 import { WEEKDAY_LABELS, weekDates } from "@liendo/shared";
+import { AddDevicePanel, DevicesPanel } from "@/components/family/DevicePanels";
+import { UnpairedFamily } from "@/components/family/UnpairedFamily";
 
 type Screen =
   | "gate"
@@ -17,18 +20,29 @@ type Screen =
   | "approvals"
   | "rewards"
   | "plan-meals"
-  | "pins";
+  | "pins"
+  | "devices"
+  | "add-device";
 
 function eventDay(iso: string) {
   return iso.slice(0, 10);
 }
 
 export function FamilyApp({ screen }: { screen: Exclude<Screen, "gate" | "people" | "pin"> }) {
+  return (
+    <Suspense fallback={<main className="phone"><p>Getting ready.</p></main>}>
+      <FamilyAppInner screen={screen} />
+    </Suspense>
+  );
+}
+
+function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" | "pin"> }) {
+  const params = useSearchParams();
+  const invite = params.get("invite");
   const [familyToken, setFamilyToken] = useState<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [me, setMe] = useState<Person | null>(null);
   const [phase, setPhase] = useState<Screen>("gate");
-  const [secret, setSecret] = useState("");
   const [pin, setPin] = useState("");
   const [picked, setPicked] = useState<Person | null>(null);
   const [error, setError] = useState("");
@@ -76,33 +90,25 @@ export function FamilyApp({ screen }: { screen: Exclude<Screen, "gate" | "people
         setPhase(screen);
         return;
       }
-      const peopleRes = await fetch("/api/people", { headers: familyToken ? { "x-family-token": familyToken } : undefined });
+      if (!familyToken) return;
+      const peopleRes = await fetch("/api/people", { headers: { "x-family-token": familyToken } });
       if (peopleRes.ok) {
         const body = (await peopleRes.json()) as { people: Person[] };
         setPeople(body.people);
+        setPhase("people");
       }
     })();
   }, [familyToken, loadAll, screen]);
 
-  async function enterFamily(event: React.FormEvent) {
-    event.preventDefault();
-    setError("");
-    const res = await fetch("/api/auth/family", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret }),
-    });
-    const body = (await res.json()) as { familyToken?: string; error?: string };
-    if (!res.ok || !body.familyToken) {
-      setError(body.error ?? "That code did not work.");
+  const onPaired = useCallback((token: string | null) => {
+    if (token) {
+      setFamilyToken(token);
       return;
     }
-    setFamilyToken(body.familyToken);
-    const peopleRes = await fetch("/api/people", { headers: { "x-family-token": body.familyToken } });
-    const peopleBody = (await peopleRes.json()) as { people: Person[] };
-    setPeople(peopleBody.people);
-    setPhase("people");
-  }
+    void (async () => {
+      if (await loadAll()) setPhase(screen);
+    })();
+  }, [loadAll, screen]);
 
   async function submitPin(event: React.FormEvent) {
     event.preventDefault();
@@ -111,7 +117,7 @@ export function FamilyApp({ screen }: { screen: Exclude<Screen, "gate" | "people
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers,
-      body: JSON.stringify({ familyToken, personId: picked.id, pin, cookie: true }),
+      body: JSON.stringify({ familyToken, personId: picked.id, pin, cookie: true, deviceKind: "browser" }),
     });
     const body = (await res.json()) as { error?: string };
     if (!res.ok) {
@@ -127,22 +133,7 @@ export function FamilyApp({ screen }: { screen: Exclude<Screen, "gate" | "people
     snapshot?.chores.filter((item) => (isParent ? true : item.personId === me?.id) && item.date === today) ?? [];
 
   if (phase === "gate") {
-    return (
-      <main className="phone">
-        <p className="small">Liendo Plaza</p>
-        <h1>Who is home?</h1>
-        <form onSubmit={enterFamily} className="list">
-          <label className="field">
-            <span>Family code</span>
-            <input className="input" value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="off" />
-          </label>
-          {error ? <p style={{ color: "var(--color-error)" }}>{error}</p> : null}
-          <button className="btn" type="submit">
-            Continue
-          </button>
-        </form>
-      </main>
-    );
+    return <UnpairedFamily invite={invite} onReady={onPaired} />;
   }
 
   if (phase === "people") {
@@ -222,6 +213,8 @@ export function FamilyApp({ screen }: { screen: Exclude<Screen, "gate" | "people
               <Link href="/family/chores">Edit chores</Link>
               <Link href="/family/rewards">Rewards</Link>
               <Link href="/family/plan">Plan dinners</Link>
+              <Link href="/family/add-device">Add a device</Link>
+              <Link href="/family/devices">Devices</Link>
               <Link href="/family/pins">PINs</Link>
             </div>
           ) : null}
@@ -432,6 +425,10 @@ export function FamilyApp({ screen }: { screen: Exclude<Screen, "gate" | "people
           </datalist>
         </>
       ) : null}
+
+      {screen === "add-device" && isParent ? <AddDevicePanel /> : null}
+
+      {screen === "devices" && isParent ? <DevicesPanel /> : null}
 
       {screen === "pins" && isParent ? (
         <>

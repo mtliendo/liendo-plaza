@@ -20,7 +20,7 @@ The kitchen frame opens `/display` full-screen (landscape, 15.6"). A 10" frame c
 - **Data:** Postgres (Neon in production, local Postgres on this machine) through Drizzle. Migrations live in `apps/web/drizzle`.
 - **Calendar:** Server reads `FAMILY_ICAL_URL` (webcal becomes https). The feed is parsed once, cached for about four minutes, and only expanded from today through five weeks. The URL never goes to a browser. If the env var is empty, a small synthetic `apps/web/data/sample.ics` is used. Real iCloud data is not in the repo.
 - **Photos:** Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set (private or an unguessable path). Local disk under `apps/web/data/uploads` otherwise. Images are resized and compressed on upload.
-- **Auth:** A long family code first (`FAMILY_ACCESS_SECRET`). Then a name and PIN. Kids use 4 digits, parents 6. PINs are bcrypt hashes. Five wrong tries lock that person for 15 minutes. The phone keeps a session token in SecureStore. The kitchen board stores a long-lived httpOnly cookie after one pairing. Parent-only writes are checked on the server.
+- **Auth:** QR pairing, not a typed family code. An unpaired frame or phone shows a QR and a short TV-style code (`AB3-K7M`). A signed-in parent approves it (scan or type the code). New phones can also scan a one-time parent invite (`liendoplaza://` or `/family?invite=`). The first parent phone bootstraps with that parent’s 6-digit PIN when no parent device is paired yet. Kids use 4 digits, parents 6. PINs are bcrypt hashes. Five wrong tries lock that person for 15 minutes. `FAMILY_ACCESS_SECRET` stays on the server for signing; nobody types it. The phone keeps a session token in SecureStore. The kitchen board stores a long-lived httpOnly cookie after pairing. Parents can list and revoke devices.
 - **Push:** Expo push tokens. Vercel Cron hits `/api/cron/reminders` every 15 minutes and, at the parent-set hour (default 6 PM Chicago), pings kids who still have open chores. Parents get a ping when a photo is waiting. The kid gets a ping when it is approved.
 
 ## Local setup
@@ -37,7 +37,7 @@ cp .env.example .env.local
 cp .env.local apps/web/.env.local
 
 pnpm install
-pnpm db:migrate
+pnpm db:migrate   # applies every apps/web/drizzle/*.sql, including pairing tables
 pnpm db:seed
 pnpm dev
 ```
@@ -47,16 +47,28 @@ Seed PINs (change these after first login):
 - Focus, Jess: `123456`
 - Sofia, Noah, Xavier: `1234`
 
-Open [http://localhost:3000/display](http://localhost:3000/display) and paste the family code once. Open [http://localhost:3000/family](http://localhost:3000/family) for the phone screens.
+Open [http://localhost:3000/display](http://localhost:3000/display) on the frame. Open [http://localhost:3000/family](http://localhost:3000/family) for the phone screens.
+
+## Pairing (no typed family secret)
+
+`FAMILY_ACCESS_SECRET` is a server signing key only. Do not send it through chat or type it on the frame.
+
+**Kitchen frame / unpaired browser.** The unpaired screen shows a QR and a short code. A parent who is already signed in scans it, or opens **Add a device** and types the code. The waiting screen polls and receives a long-lived cookie. Codes expire in about ten minutes and are single-use.
+
+**New phone.** A signed-in parent opens **Add a device** and taps **Invite a new phone**. The new phone scans that QR with the camera. The app deep link is `liendoplaza://?invite=...`. The web fallback is `/family?invite=...` (also `/join?invite=...`). That phone is then paired to the family and picks a name + PIN as before.
+
+**First parent device (bootstrap).** If no parent device is paired yet, an unpaired phone can pick Focus or Jess and enter that parent’s 6-digit PIN (same lockout as a normal login). This is physical-presence plus a secret the family already knows. After one parent phone exists, bootstrap closes; new devices need a QR or short-code approval. Revoking every parent device opens bootstrap again.
+
+**Revoke.** Parents see paired phones and frames under **Devices** and can revoke one. That session or display cookie stops working.
 
 ## Pair the kitchen display
 
-1. Set `FAMILY_ACCESS_SECRET` in Vercel (and locally).
-2. On the frame, open `https://<your-app>/display`.
-3. Type or paste the family code. The board sets a cookie and remembers the pairing.
-4. A public visitor without that cookie sees only the pairing form.
+1. On the frame, open `https://<your-app>/display`.
+2. On a parent phone, open **Add a device** (or scan the frame QR).
+3. Approve the short code. The board keeps a cookie and remembers the pairing.
+4. A public visitor without that cookie sees only the QR.
 
-To pair again on another frame, use the same code. Deep link for phones: `liendoplaza://?code=...` or `https://<your-app>/join?code=...`.
+Deep link for a new phone: `liendoplaza://?invite=...` or `https://<your-app>/family?invite=...`.
 
 ## Environment variables (Vercel)
 
@@ -65,7 +77,7 @@ Set these on the Vercel project. Root directory can be the repo root (this `verc
 | Name | Required | Notes |
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Neon pooled URL in production |
-| `FAMILY_ACCESS_SECRET` | yes | Long random family code |
+| `FAMILY_ACCESS_SECRET` | yes | Server signing key only. Never typed or sent through chat |
 | `FAMILY_ICAL_URL` | no | iCloud public-share URL (`webcal://` or `https://`). Leave empty for the sample calendar |
 | `BLOB_READ_WRITE_TOKEN` | yes in prod | Vercel Blob |
 | `CRON_SECRET` | yes in prod | Protects the reminder cron |
@@ -94,7 +106,7 @@ pnpm --filter @liendo/mobile typecheck
 pnpm --filter @liendo/mobile export
 pnpm db:migrate
 pnpm db:seed
-pnpm test:e2e
+pnpm db:reset && pnpm db:seed && pnpm test:e2e   # e2e expects bootstrap to be open
 ```
 
 ## Design

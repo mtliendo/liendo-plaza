@@ -1,11 +1,16 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getPool } from "../lib/db";
 
 async function main() {
-  const sql = await readFile(join(process.cwd(), "drizzle", "0000_init.sql"), "utf8");
+  const dir = join(process.cwd(), "drizzle");
+  const files = (await readdir(dir)).filter((name) => name.endsWith(".sql")).sort();
   const pool = getPool();
-  await pool.query(sql);
+  for (const file of files) {
+    const sql = await readFile(join(dir, file), "utf8");
+    await pool.query(sql);
+    console.log(`applied ${file}`);
+  }
   await pool.end();
   console.log("migrations applied");
 }

@@ -14,6 +14,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="pair" options={{ title: "Add a device" }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
     </>

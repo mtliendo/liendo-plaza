@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
+import { Link } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Notifications from "expo-notifications";
 import type { DisplaySnapshot, Person } from "@liendo/shared";
@@ -56,6 +57,16 @@ export default function TodayScreen() {
   return (
     <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
       <Text style={{ fontFamily: "Georgia", fontSize: 32, color: "#3D2416" }}>Today</Text>
+      {me?.role === "parent" ? (
+        <View style={{ gap: 10 }}>
+          <Link href="/parent/add-device">
+            <Text style={{ fontSize: 18, color: "#C24A2A" }}>Add a device</Text>
+          </Link>
+          <Link href="/parent/devices">
+            <Text style={{ fontSize: 18, color: "#C24A2A" }}>Paired devices</Text>
+          </Link>
+        </View>
+      ) : null}
       {chores.map((chore) => (
         <Pressable
           key={chore.id}

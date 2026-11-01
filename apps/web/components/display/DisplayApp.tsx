@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DisplaySnapshot } from "@liendo/shared";
-import { isDimHours, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+import { addDays, isDimHours, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+import { PairCard } from "@/components/pair/PairCard";
+import { useClaim } from "@/components/pair/useClaim";
 
 type View = "home" | "week" | "chores" | "meals";
 
@@ -44,9 +46,8 @@ function hourInChicago(now: string) {
 export function DisplayApp({ view }: { view: View }) {
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
   const [paired, setPaired] = useState<boolean | null>(null);
-  const [secret, setSecret] = useState("");
-  const [error, setError] = useState("");
   const [offline, setOffline] = useState(false);
+  const claim = useClaim("display");
   const [awakeUntil, setAwakeUntil] = useState(0);
   const [tick, setTick] = useState(Date.now());
 
@@ -79,22 +80,13 @@ export function DisplayApp({ view }: { view: View }) {
     };
   }, [load]);
 
-  async function pair(event: React.FormEvent) {
-    event.preventDefault();
-    setError("");
-    const res = await fetch("/api/auth/display", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret }),
-    });
-    const body = (await res.json()) as { error?: string };
-    if (!res.ok) {
-      setError(body.error ?? "That code did not work.");
-      return;
-    }
-    setPaired(true);
-    await load();
-  }
+  useEffect(() => {
+    if (!claim.paired || paired) return;
+    void (async () => {
+      setPaired(true);
+      await load();
+    })();
+  }, [claim.paired, load, paired]);
 
   async function complete(id: string) {
     const res = await fetch(`/api/chores/instances/${id}/complete`, { method: "POST" });
@@ -116,22 +108,31 @@ export function DisplayApp({ view }: { view: View }) {
 
   if (paired === false) {
     return (
-      <main className="display">
+      <main className="display pair-display">
         <header className="folio">
           <h1>Liendo Plaza</h1>
+          <p className="small">Kitchen board</p>
         </header>
-        <form className="well" onSubmit={pair} style={{ alignSelf: "center", padding: "var(--space-xl)", maxWidth: 520 }}>
-          <h2>Pair this frame</h2>
-          <p style={{ marginBlock: "var(--space-md)" }}>Paste the family code once. This board will remember it.</p>
-          <label className="field">
-            <span>Family code</span>
-            <input className="input" value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="off" />
-          </label>
-          {error ? <p style={{ color: "var(--color-error)", marginTop: "var(--space-sm)" }}>{error}</p> : null}
-          <button className="btn tap" type="submit" style={{ marginTop: "var(--space-lg)" }}>
-            Pair the board
-          </button>
-        </form>
+        <section className="pair-display-body">
+          <div>
+            <h2>Pair this frame</h2>
+            <p className="lead" style={{ marginTop: "var(--space-md)" }}>
+              A parent who is already signed in scans the code, or types the short code under Add a device. This board
+              then remembers the house.
+            </p>
+            {claim.error ? <p style={{ color: "var(--color-error)", marginTop: "var(--space-md)" }}>{claim.error}</p> : null}
+          </div>
+          {claim.claim ? (
+            <PairCard
+              qrDataUrl={claim.claim.qrDataUrl}
+              displayCode={claim.claim.displayCode}
+              title="Scan or type"
+              hint="Expires in about ten minutes. One use."
+            />
+          ) : (
+            <p className="small">Getting a pairing code ready.</p>
+          )}
+        </section>
       </main>
     );
   }
@@ -198,9 +199,15 @@ export function DisplayApp({ view }: { view: View }) {
                 ))}
               </div>
             </div>
-            <aside className="well" style={{ padding: "var(--space-lg)" }}>
-              <p className="small">Tonight</p>
-              <h2>{dinner}</h2>
+            <aside className="dinner-card well">
+              <p className="small">Tonight’s dinner</p>
+              <p className="dinner-name">{dinner}</p>
+              <div className="dinner-foot">
+                <p className="small">Tomorrow</p>
+                <p className="dinner-next">
+                  {snapshot.meals.find((meal) => meal.date === addDays(today, 1))?.name ?? "Not written yet"}
+                </p>
+              </div>
             </aside>
           </section>
           <section className="kids">

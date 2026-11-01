@@ -67,11 +67,11 @@
 }
 
 .display {
-  --text-md: 1.25rem;
-  --text-lg: 1.5rem;
+  --text-md: 1.45rem;
+  --text-lg: 1.75rem;
   --text-display: 4.5rem;
-  --text-section: 2rem;
-  --text-title: 1.35rem;
+  --text-section: 2.4rem;
+  --text-title: 1.7rem;
   min-height: 100svh;
   padding: var(--space-lg) var(--space-xl);
   display: grid;
@@ -94,9 +94,43 @@
 .display-nav a[aria-current="page"] { border-bottom-color: var(--color-accent); }
 .board {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
   gap: var(--space-lg);
   min-height: 0;
+}
+.board .row {
+  font-size: 1.55rem;
+  line-height: 1.25;
+  padding: var(--space-md) 0;
+}
+.board .row .small {
+  font-size: 1.05rem;
+}
+.dinner-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: var(--space-xl);
+  gap: var(--space-md);
+}
+.dinner-name {
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 4.4vw, 3.8rem);
+  line-height: 1.05;
+  letter-spacing: var(--tracking-display);
+  overflow-wrap: break-word;
+}
+.dinner-foot {
+  margin-top: auto;
+  padding-top: var(--space-lg);
+  border-top: var(--rule-hair) solid var(--color-gold);
+  display: grid;
+  gap: var(--space-xs);
+}
+.dinner-next {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  line-height: 1.15;
 }
 .kids {
   display: grid;
@@ -111,6 +145,23 @@
   align-content: start;
   gap: var(--space-sm);
   min-width: 0;
+}
+.kid h3 { font-size: 2rem; }
+.kid .small { font-size: 1rem; }
+.display .chore-btn {
+  width: 100%;
+  text-align: left;
+  min-height: 88px;
+  padding: var(--space-md);
+  background: var(--color-paper);
+  border: var(--rule-hair) solid var(--color-rule);
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2xs);
+  font-size: 1.4rem;
+  line-height: 1.2;
 }
 .chore-btn {
   width: 100%;
@@ -194,4 +245,36 @@
   gap: var(--space-md);
   padding: var(--space-sm) 0;
   border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.pair-display { align-content: start; }
+.pair-display-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-xl);
+  align-items: center;
+}
+.pair-card {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  max-width: 420px;
+}
+.pair-card-compact { padding: var(--space-lg); }
+.pair-qr {
+  width: min(280px, 70vw);
+  height: auto;
+  background: var(--color-paper-2);
+}
+.pair-code {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+@media (max-width: 50rem) {
+  .pair-display-body { grid-template-columns: 1fr; }
+  .board { grid-template-columns: 1fr; }
+  .kids { grid-template-columns: 1fr; }
 }

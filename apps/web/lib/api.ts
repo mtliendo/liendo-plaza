@@ -4,19 +4,28 @@ import { FAMILY } from "@liendo/shared";
 import { addDays, weekDates } from "@liendo/shared";
 import {
   clearAuthCookies,
-  issueFamilyToken,
   loginWithPin,
-  pairDisplay,
   requireActor,
   requireParent,
   requirePerson,
   revokeSession,
-  setDisplayCookie,
   setPersonPin,
   setSessionCookie,
-  verifyFamilySecret,
   verifyFamilyToken,
 } from "./auth";
+import {
+  approveClaim,
+  bootstrapParent,
+  bootstrapStatus,
+  createClaim,
+  createInvite,
+  defaultDeviceLabel,
+  listDevices,
+  listPendingClaims,
+  pollClaim,
+  redeemInvite,
+  revokeDevice,
+} from "./pair";
 import { getCalendarEvents } from "./calendar";
 import {
   completeInstance,
@@ -69,19 +78,32 @@ export async function handleApi(req: Request): Promise<Response> {
   }
 
   if (path === "auth/family" && method === "POST") {
-    rateLimit(`family:${clientIp(req)}`, 10, 60_000);
-    const body = await readJson<{ secret?: string }>(req);
-    verifyFamilySecret(body.secret ?? "");
-    return json({ familyToken: issueFamilyToken() });
+    throw new HttpError(410, "Family codes are retired. Pair with a QR, a short code, or a parent PIN.");
+  }
+
+  if (path === "auth/display" && method === "POST") {
+    throw new HttpError(410, "Family codes are retired. Pair this frame with the QR on the board.");
   }
 
   if (path === "auth/login" && method === "POST") {
     rateLimit(`login:${clientIp(req)}`, 20, 60_000);
-    const body = await readJson<{ familyToken?: string; secret?: string; personId?: string; pin?: string; cookie?: boolean }>(req);
-    if (body.familyToken) verifyFamilyToken(body.familyToken);
-    else verifyFamilySecret(body.secret ?? "");
+    const body = await readJson<{
+      familyToken?: string;
+      personId?: string;
+      pin?: string;
+      cookie?: boolean;
+      deviceKind?: "phone" | "browser";
+      deviceLabel?: string;
+    }>(req);
+    if (!body.familyToken) throw new HttpError(401, "This device is not paired yet.");
+    verifyFamilyToken(body.familyToken);
     if (!body.personId || !body.pin) throw new HttpError(400, "Pick a name and enter a PIN.");
-    const result = await loginWithPin(body.personId, body.pin);
+    const kind = body.deviceKind === "phone" ? "phone" : "browser";
+    const result = await loginWithPin(body.personId, body.pin, {
+      kind,
+      label: body.deviceLabel?.trim() || defaultDeviceLabel(kind, req.headers.get("user-agent") ?? ""),
+      cookie: body.cookie,
+    });
     if (body.cookie) await setSessionCookie(result.token);
     return json(result);
   }
@@ -93,13 +115,88 @@ export async function handleApi(req: Request): Promise<Response> {
     return json({ ok: true });
   }
 
-  if (path === "auth/display" && method === "POST") {
-    rateLimit(`display:${clientIp(req)}`, 10, 60_000);
-    const body = await readJson<{ secret?: string }>(req);
-    verifyFamilySecret(body.secret ?? "");
-    const token = await pairDisplay();
-    await setDisplayCookie(token);
-    return json({ ok: true, token });
+  if (path === "pair/status" && method === "GET") {
+    return json(await bootstrapStatus());
+  }
+
+  if (path === "pair/bootstrap" && method === "POST") {
+    rateLimit(`bootstrap:${clientIp(req)}`, 10, 60_000);
+    const body = await readJson<{
+      personId?: string;
+      pin?: string;
+      deviceKind?: "phone" | "browser";
+      deviceLabel?: string;
+      cookie?: boolean;
+    }>(req);
+    if (!body.personId || !body.pin) throw new HttpError(400, "Pick a parent and enter their PIN.");
+    const result = await bootstrapParent({
+      personId: body.personId,
+      pin: body.pin,
+      deviceKind: body.deviceKind,
+      deviceLabel: body.deviceLabel,
+      userAgent: req.headers.get("user-agent") ?? "",
+      cookie: body.cookie,
+    });
+    return json(result);
+  }
+
+  if (path === "pair/claim" && method === "POST") {
+    rateLimit(`claim:${clientIp(req)}`, 20, 60_000);
+    const body = await readJson<{ deviceKind?: "display" | "phone" | "browser"; label?: string }>(req);
+    const deviceKind = body.deviceKind === "phone" || body.deviceKind === "browser" ? body.deviceKind : "display";
+    return json(
+      await createClaim({
+        deviceKind,
+        label: body.label,
+        userAgent: req.headers.get("user-agent") ?? "",
+      }),
+    );
+  }
+
+  if (path === "pair/poll" && method === "POST") {
+    rateLimit(`poll:${clientIp(req)}`, 120, 60_000);
+    const body = await readJson<{ id?: string; pollSecret?: string }>(req);
+    if (!body.id || !body.pollSecret) throw new HttpError(400, "Missing pairing poll.");
+    return json(await pollClaim(body.id, body.pollSecret));
+  }
+
+  if (path === "pair/approve" && method === "POST") {
+    const actor = await requireActor(req, ["person"]);
+    const parent = requireParent(actor);
+    const body = await readJson<{ code?: string }>(req);
+    return json(await approveClaim(body.code ?? "", parent));
+  }
+
+  if (path === "pair/pending" && method === "GET") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    return json({ requests: await listPendingClaims() });
+  }
+
+  if (path === "pair/invite" && method === "POST") {
+    const actor = await requireActor(req, ["person"]);
+    const parent = requireParent(actor);
+    const body = await readJson<{ deviceKind?: "phone" | "browser" }>(req);
+    return json(await createInvite(parent, body.deviceKind === "browser" ? "browser" : "phone"));
+  }
+
+  if (path === "pair/redeem" && method === "POST") {
+    rateLimit(`redeem:${clientIp(req)}`, 20, 60_000);
+    const body = await readJson<{ invite?: string }>(req);
+    return json(await redeemInvite(body.invite ?? ""));
+  }
+
+  if (path === "devices" && method === "GET") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    return json({ devices: await listDevices() });
+  }
+
+  const deviceMatch = path.match(/^devices\/([^/]+)$/);
+  if (deviceMatch && method === "DELETE") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    return json(await revokeDevice(deviceMatch[1]));
   }
 
   if (path === "people" && method === "GET") {

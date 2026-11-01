@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import type { Person } from "@liendo/shared";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
@@ -60,22 +60,13 @@ function readSigned(token: string, kind: string): boolean {
   }
 }
 
-export function verifyFamilySecret(input: string): void {
-  const expected = secret();
-  const a = Buffer.from(input);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    throw new HttpError(401, "That family code does not match.");
-  }
-}
-
 export function issueFamilyToken(): string {
   return signedToken("family", FAMILY_TTL_MS);
 }
 
 export function verifyFamilyToken(token: string): void {
   if (!readSigned(token, "family")) {
-    throw new HttpError(401, "That family code expired. Enter it again.");
+    throw new HttpError(401, "That pairing expired. Scan a new invite or ask a parent to approve this device again.");
   }
 }
 
@@ -97,7 +88,18 @@ function asPerson(row: typeof schema.people.$inferSelect): Person {
   };
 }
 
-export async function loginWithPin(personId: string, pin: string): Promise<{ token: string; person: Person }> {
+export type DeviceAttach = {
+  kind: "phone" | "browser";
+  label: string;
+  createdById?: string;
+  cookie?: boolean;
+};
+
+export async function loginWithPin(
+  personId: string,
+  pin: string,
+  device?: DeviceAttach,
+): Promise<{ token: string; person: Person }> {
   const db = getDb();
   const [person] = await db.select().from(schema.people).where(eq(schema.people.id, personId)).limit(1);
   if (!person || !person.pinHash) {
@@ -129,11 +131,34 @@ export async function loginWithPin(personId: string, pin: string): Promise<{ tok
 
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await db.insert(schema.sessions).values({
-    personId: person.id,
-    tokenHash: sha256(token),
-    expiresAt,
-  });
+  const [session] = await db
+    .insert(schema.sessions)
+    .values({
+      personId: person.id,
+      tokenHash: sha256(token),
+      expiresAt,
+    })
+    .returning();
+
+  if (device) {
+    const [created] = await db
+      .insert(schema.devices)
+      .values({
+        kind: device.kind,
+        label: device.label,
+        personId: person.id,
+        sessionId: session.id,
+        createdById: device.createdById ?? person.id,
+        lastSeenAt: new Date(),
+      })
+      .returning();
+    await db.update(schema.sessions).set({ deviceId: created.id }).where(eq(schema.sessions.id, session.id));
+  }
+
+  if (device?.cookie) {
+    await setSessionCookie(token);
+  }
+
   return { token, person: asPerson(person) };
 }
 
@@ -142,6 +167,7 @@ export async function personFromSession(token: string): Promise<Person | null> {
   const [row] = await db
     .select({
       sessionId: schema.sessions.id,
+      deviceId: schema.sessions.deviceId,
       expiresAt: schema.sessions.expiresAt,
       person: schema.people,
     })
@@ -149,7 +175,17 @@ export async function personFromSession(token: string): Promise<Person | null> {
     .innerJoin(schema.people, eq(schema.sessions.personId, schema.people.id))
     .where(and(eq(schema.sessions.tokenHash, sha256(token)), gt(schema.sessions.expiresAt, new Date())))
     .limit(1);
-  return row ? asPerson(row.person) : null;
+  if (!row) return null;
+  if (row.deviceId) {
+    const [device] = await db
+      .select()
+      .from(schema.devices)
+      .where(and(eq(schema.devices.id, row.deviceId), isNull(schema.devices.revokedAt)))
+      .limit(1);
+    if (!device) return null;
+    await db.update(schema.devices).set({ lastSeenAt: new Date() }).where(eq(schema.devices.id, device.id));
+  }
+  return asPerson(row.person);
 }
 
 export async function revokeSession(token: string) {
@@ -157,10 +193,24 @@ export async function revokeSession(token: string) {
   await db.delete(schema.sessions).where(eq(schema.sessions.tokenHash, sha256(token)));
 }
 
-export async function pairDisplay(): Promise<string> {
+export async function pairDisplay(label = "Kitchen frame", createdById?: string): Promise<string> {
   const db = getDb();
   const token = randomBytes(32).toString("base64url");
-  await db.insert(schema.displayPairings).values({ tokenHash: sha256(token) });
+  const [pairing] = await db
+    .insert(schema.displayPairings)
+    .values({ tokenHash: sha256(token), label })
+    .returning();
+  const [device] = await db
+    .insert(schema.devices)
+    .values({
+      kind: "display",
+      label,
+      displayPairingId: pairing.id,
+      createdById: createdById ?? null,
+      lastSeenAt: new Date(),
+    })
+    .returning();
+  await db.update(schema.displayPairings).set({ deviceId: device.id }).where(eq(schema.displayPairings.id, pairing.id));
   return token;
 }
 
@@ -169,13 +219,14 @@ export async function displayFromToken(token: string): Promise<boolean> {
   const [row] = await db
     .select()
     .from(schema.displayPairings)
-    .where(eq(schema.displayPairings.tokenHash, sha256(token)))
+    .where(and(eq(schema.displayPairings.tokenHash, sha256(token)), isNull(schema.displayPairings.revokedAt)))
     .limit(1);
   if (!row) return false;
-  await db
-    .update(schema.displayPairings)
-    .set({ lastSeenAt: new Date() })
-    .where(eq(schema.displayPairings.id, row.id));
+  const now = new Date();
+  await db.update(schema.displayPairings).set({ lastSeenAt: now }).where(eq(schema.displayPairings.id, row.id));
+  if (row.deviceId) {
+    await db.update(schema.devices).set({ lastSeenAt: now }).where(eq(schema.devices.id, row.deviceId));
+  }
   return true;
 }
 

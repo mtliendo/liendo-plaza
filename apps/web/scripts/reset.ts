@@ -10,6 +10,8 @@ async function main() {
       chore_instances,
       chores,
       meals,
+      pairing_requests,
+      devices,
       sessions,
       display_pairings,
       settings,

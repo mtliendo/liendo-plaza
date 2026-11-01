@@ -4,8 +4,6 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
-const SECRET = process.env.FAMILY_ACCESS_SECRET;
-if (!SECRET) throw new Error("FAMILY_ACCESS_SECRET is required for e2e");
 
 type Json = Record<string, unknown>;
 
@@ -31,25 +29,44 @@ function assert(condition: unknown, message: string): asserts condition {
 async function main() {
   const artifacts = process.env.E2E_ARTIFACTS ?? "/opt/cursor/artifacts";
 
-  const family = await json("auth/family", "POST", { secret: SECRET });
-  assert(family.res.ok, `family auth failed: ${JSON.stringify(family.data)}`);
-  const familyToken = String(family.data.familyToken);
-  const peopleRes = await req("people", { headers: { "x-family-token": familyToken } });
-  const people = (peopleRes.data.people as { id: string; slug: string; role: string }[]) ?? [];
-  const focus = people.find((p) => p.slug === "focus");
-  const sofia = people.find((p) => p.slug === "sofia");
-  const xavier = people.find((p) => p.slug === "xavier");
-  assert(focus && sofia && xavier, "seed people missing");
+  const retired = await json("auth/family", "POST", { secret: "nope" });
+  assert(retired.res.status === 410, "family secret route should be retired");
 
-  const login = await json("auth/login", "POST", { familyToken, personId: focus.id, pin: "123456" });
-  assert(login.res.ok, `parent login failed: ${JSON.stringify(login.data)}`);
-  const parentToken = String(login.data.token);
+  const status = await req("pair/status");
+  const parents = (status.data.parents as { id: string; slug: string }[]) ?? [];
+  const focus = parents.find((p) => p.slug === "focus");
+  assert(status.data.available === true && focus, "bootstrap should be open on a fresh database");
+
+  const bootstrap = await json("pair/bootstrap", "POST", {
+    personId: focus.id,
+    pin: "123456",
+    deviceKind: "browser",
+    deviceLabel: "e2e parent",
+  });
+  assert(bootstrap.res.ok, `bootstrap failed: ${JSON.stringify(bootstrap.data)}`);
+  const parentToken = String(bootstrap.data.token);
   const auth = { authorization: `Bearer ${parentToken}` };
 
-  const kidLogin = await json("auth/login", "POST", { familyToken, personId: sofia.id, pin: "1234" });
+  const peopleRes = await req("people", { headers: auth });
+  const people = (peopleRes.data.people as { id: string; slug: string; role: string }[]) ?? [];
+  const sofia = people.find((p) => p.slug === "sofia");
+  const xavier = people.find((p) => p.slug === "xavier");
+  const noah = people.find((p) => p.slug === "noah");
+  assert(sofia && xavier && noah, "seed people missing");
+
+  const invite = await json("pair/invite", "POST", { deviceKind: "phone" }, auth);
+  assert(invite.res.ok, `invite failed: ${JSON.stringify(invite.data)}`);
+  const inviteUrl = String(invite.data.webUrl);
+  const inviteToken = new URL(inviteUrl).searchParams.get("invite");
+  assert(inviteToken, "invite URL missing token");
+  const redeemed = await json("pair/redeem", "POST", { invite: inviteToken });
+  assert(redeemed.res.ok, `invite redeem failed: ${JSON.stringify(redeemed.data)}`);
+  const familyToken = String(redeemed.data.familyToken);
+
+  const kidLogin = await json("auth/login", "POST", { familyToken, personId: sofia.id, pin: "1234", deviceKind: "phone" });
   assert(kidLogin.res.ok, "kid login failed");
   const kidToken = String(kidLogin.data.token);
-  const xavierLogin = await json("auth/login", "POST", { familyToken, personId: xavier.id, pin: "1234" });
+  const xavierLogin = await json("auth/login", "POST", { familyToken, personId: xavier.id, pin: "1234", deviceKind: "phone" });
   assert(xavierLogin.res.ok, "xavier login failed");
   const xavierToken = String(xavierLogin.data.token);
 
@@ -94,9 +111,13 @@ async function main() {
   const sink = instances.find((item) => item.title === "Clean the sink" && item.date === today);
   assert(table && sink, "today instances missing");
 
-  const displayPair = await json("auth/display", "POST", { secret: SECRET });
-  assert(displayPair.res.ok, "display pair failed");
-  const displayToken = String(displayPair.data.token);
+  const claim = await json("pair/claim", "POST", { deviceKind: "display", label: "e2e frame" });
+  assert(claim.res.ok, `claim failed: ${JSON.stringify(claim.data)}`);
+  const approve = await json("pair/approve", "POST", { code: claim.data.displayCode }, auth);
+  assert(approve.res.ok, `approve failed: ${JSON.stringify(approve.data)}`);
+  const poll = await json("pair/poll", "POST", { id: claim.data.id, pollSecret: claim.data.pollSecret });
+  assert(poll.res.ok && poll.data.status === "paired", `poll failed: ${JSON.stringify(poll.data)}`);
+  const displayToken = String(poll.data.token);
 
   const done = await json(`chores/instances/${table.id}/complete`, "POST", {}, { "x-display-token": displayToken });
   assert(done.res.ok, `display complete failed: ${JSON.stringify(done.data)}`);
@@ -117,9 +138,9 @@ async function main() {
   });
   assert(upload.ok, `photo upload failed: ${await upload.text()}`);
 
-  const approve = await json(`chores/instances/${sink.id}/review`, "POST", { action: "approve" }, auth);
-  assert(approve.res.ok, "photo approve failed");
-  assert((approve.data.instance as { starsAwarded: number }).starsAwarded === 3, "stars not awarded");
+  const photoApprove = await json(`chores/instances/${sink.id}/review`, "POST", { action: "approve" }, auth);
+  assert(photoApprove.res.ok, "photo approve failed");
+  assert((photoApprove.data.instance as { starsAwarded: number }).starsAwarded === 3, "stars not awarded");
 
   const reward = await json("rewards", "POST", { name: "Pick the playlist", starCost: 2 }, auth);
   const rewardId = String((reward.data.reward as { id: string }).id);
@@ -132,14 +153,15 @@ async function main() {
   const meal = await json("meals", "PUT", { date: today, name: "Roast chicken" }, auth);
   assert(meal.res.ok, "meal write failed");
 
-  const noah = people.find((p) => p.slug === "noah");
-  assert(noah, "noah missing");
   let locked = false;
   for (let i = 0; i < 6; i += 1) {
     const attempt = await json("auth/login", "POST", { familyToken, personId: noah.id, pin: "0000" });
     if (attempt.res.status === 423) locked = true;
   }
   assert(locked, "PIN lockout did not trigger");
+
+  const devices = await req("devices", { headers: auth });
+  assert(Array.isArray(devices.data.devices), "devices list missing");
 
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
@@ -171,6 +193,8 @@ async function main() {
     ["mobile_stars.png", "/family/stars"],
     ["mobile_approvals.png", "/family/approvals"],
     ["mobile_chores.png", "/family/chores"],
+    ["mobile_add_device.png", "/family/add-device"],
+    ["mobile_devices.png", "/family/devices"],
   ] as const;
   for (const [name, path] of phoneShots) {
     await phonePage.goto(`${BASE}${path}`, { waitUntil: "load" });
@@ -179,7 +203,7 @@ async function main() {
   }
 
   await browser.close();
-  await writeFile(join(artifacts, "e2e-summary.txt"), "e2e passed: chore, display done, photo approve, reward, meal, pin lockout\n");
+  await writeFile(join(artifacts, "e2e-summary.txt"), "e2e passed: bootstrap, QR pair, chore, display done, photo approve, reward, meal, pin lockout\n");
   console.log("e2e passed");
 }
 

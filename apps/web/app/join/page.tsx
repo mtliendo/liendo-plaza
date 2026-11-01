@@ -1,36 +1,21 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
 
-function JoinForm() {
+function JoinRedirect() {
   const params = useSearchParams();
-  const [secret, setSecret] = useState(params.get("code") ?? "");
-  const [message, setMessage] = useState("");
+  const router = useRouter();
+  const invite = params.get("invite") ?? params.get("code") ?? "";
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const res = await fetch("/api/auth/family", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret }),
-    });
-    setMessage(res.ok ? "Code accepted. Open the phone app or /family next." : "That code did not work.");
-  }
+  useEffect(() => {
+    router.replace(invite ? `/family?invite=${encodeURIComponent(invite)}` : "/family");
+  }, [invite, router]);
 
   return (
     <main className="phone">
-      <h1>Join Liendo Plaza</h1>
-      <form onSubmit={submit} className="list">
-        <label className="field">
-          <span>Family code</span>
-          <input className="input" value={secret} onChange={(e) => setSecret(e.target.value)} />
-        </label>
-        <button className="btn" type="submit">
-          Save the code
-        </button>
-        {message ? <p>{message}</p> : null}
-      </form>
+      <h1>Opening Liendo Plaza</h1>
+      <p>This invite opens the family app. Pick your name and PIN next.</p>
     </main>
   );
 }
@@ -38,7 +23,7 @@ function JoinForm() {
 export default function JoinPage() {
   return (
     <Suspense>
-      <JoinForm />
+      <JoinRedirect />
     </Suspense>
   );
 }

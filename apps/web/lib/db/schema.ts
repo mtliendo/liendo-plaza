@@ -27,6 +27,7 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => people.id, { onDelete: "cascade" }),
   tokenHash: text("token_hash").notNull().unique(),
+  deviceId: uuid("device_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -34,8 +35,43 @@ export const sessions = pgTable("sessions", {
 export const displayPairings = pgTable("display_pairings", {
   id: uuid("id").primaryKey().defaultRandom(),
   tokenHash: text("token_hash").notNull().unique(),
+  deviceId: uuid("device_id"),
+  label: text("label").notNull().default("Kitchen frame"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+export const pairingRequests = pgTable(
+  "pairing_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(),
+    deviceKind: text("device_kind").notNull(),
+    shortCode: text("short_code"),
+    requestSecretHash: text("request_secret_hash").notNull(),
+    inviteTokenHash: text("invite_token_hash"),
+    status: text("status").notNull().default("pending"),
+    approvedById: uuid("approved_by_id").references(() => people.id),
+    deviceLabel: text("device_label"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
+  },
+  (table) => [uniqueIndex("pairing_requests_invite_token").on(table.inviteTokenHash)],
+);
+
+export const devices = pgTable("devices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  kind: text("kind").notNull(),
+  label: text("label").notNull(),
+  personId: uuid("person_id").references(() => people.id, { onDelete: "set null" }),
+  sessionId: uuid("session_id").references(() => sessions.id, { onDelete: "set null" }),
+  displayPairingId: uuid("display_pairing_id").references(() => displayPairings.id, { onDelete: "set null" }),
+  createdById: uuid("created_by_id").references(() => people.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
 
 export const chores = pgTable("chores", {
