@@ -3,20 +3,22 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DisplaySnapshot } from "@liendo/shared";
-import { isDimHours, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+import { isDimHours, mealPhotoSrc, parseEventFixture, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+import { EventBoard } from "@/components/EventBoard";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { PairCard } from "@/components/pair/PairCard";
 import { useClaim } from "@/components/pair/useClaim";
+
+function fixtureQuery() {
+  if (typeof window === "undefined") return "";
+  const fixture = parseEventFixture(new URLSearchParams(window.location.search).get("fixture"));
+  return fixture ? `&fixture=${fixture}` : "";
+}
 
 type View = "home" | "week" | "chores" | "meals";
 
 function eventDay(iso: string) {
   return iso.slice(0, 10);
-}
-
-function eventTime(iso: string, allDay: boolean) {
-  if (allDay) return "All day";
-  const date = new Date(iso);
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" });
 }
 
 function clockLabel(now: string) {
@@ -65,7 +67,7 @@ export function DisplayApp({ view }: { view: View }) {
       setPaired(true);
       const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
       const week = weekDates(today);
-      const res = await fetch(`/api/snapshot?from=${week[0]}&to=${week[6]}`, { cache: "no-store" });
+      const res = await fetch(`/api/snapshot?from=${week[0]}&to=${week[6]}${fixtureQuery()}`, { cache: "no-store" });
       if (!res.ok) throw new Error("snapshot");
       setSnapshot((await res.json()) as DisplaySnapshot);
       setOffline(false);
@@ -152,8 +154,9 @@ export function DisplayApp({ view }: { view: View }) {
     );
   }
 
-  const todayEvents = snapshot.events.filter((event) => eventDay(event.start) === today);
-  const dinner = snapshot.meals.find((meal) => meal.date === today)?.name ?? "Nothing written yet";
+  const tonight = snapshot.meals.find((meal) => meal.date === today);
+  const dinner = tonight?.name ?? "Nothing written yet";
+  const dinnerPhoto = mealPhotoSrc(tonight?.photoPath);
   const nav = (
     <nav className="kitchen-nav" aria-label="Board">
       <Link href="/display" aria-current={view === "home" ? "page" : undefined}>
@@ -189,18 +192,14 @@ export function DisplayApp({ view }: { view: View }) {
 
       {view === "home" ? (
         <>
-          <section className="events">
-            <h2>Today</h2>
-            <div className="list" style={{ marginTop: "var(--space-md)" }}>
-              {todayEvents.length === 0 ? <p>Nothing on the calendar.</p> : null}
-              {todayEvents.map((event) => (
-                <article key={`${event.uid}-${event.start}`} className="row">
-                  <span>{event.title}</span>
-                  <span className="small num">{eventTime(event.start, event.allDay)}</span>
-                </article>
-              ))}
-            </div>
-          </section>
+          <EventBoard
+            heading="Today"
+            events={snapshot.events}
+            now={snapshot.now}
+            people={snapshot.people}
+            maxVisible={4}
+            moreHref={`/display/week${fixtureQuery().replace("&", "?")}`}
+          />
           <section className="bento">
             <section className="kids">
               {kids.map((kid) => {
@@ -208,7 +207,10 @@ export function DisplayApp({ view }: { view: View }) {
                 const stars = snapshot.stars.find((item) => item.personId === kid.id);
                 return (
                   <article key={kid.id} className="kid" style={{ ["--person" as string]: kid.color }}>
-                    <h3>{kid.name}</h3>
+                    <div className="kid-head">
+                      <PersonAvatar person={kid} size={80} />
+                      <h3>{kid.name}</h3>
+                    </div>
                     <p className="stars">{stars?.weekEarned ?? 0} this week</p>
                     <p className="stars">{stars?.balance ?? 0} to spend</p>
                     {chores.length === 0 ? <p className="stars">No chores today.</p> : null}
@@ -236,18 +238,30 @@ export function DisplayApp({ view }: { view: View }) {
                 );
               })}
             </section>
-            <aside className="dinner">
+            <aside className="dinner" data-has-photo={dinnerPhoto ? "true" : "false"}>
+              {dinnerPhoto ? (
+                <div className="dinner-poster">
+                  <img src={dinnerPhoto} alt="" className="dinner-photo" />
+                </div>
+              ) : null}
               <p className="place">Tonight’s dinner</p>
               <p className="dinner-name">{dinner}</p>
               <div className="dinner-week">
                 {week
                   .filter((iso) => iso !== today)
-                  .map((iso) => (
-                    <p key={iso} className="dinner-week-row">
-                      <span className="day-name">{WEEKDAY_LABELS[week.indexOf(iso)]}</span>
-                      <span>{snapshot.meals.find((meal) => meal.date === iso)?.name ?? "Not written yet"}</span>
-                    </p>
-                  ))}
+                  .map((iso) => {
+                    const meal = snapshot.meals.find((row) => row.date === iso);
+                    const thumb = mealPhotoSrc(meal?.photoPath);
+                    return (
+                      <p key={iso} className="dinner-week-row">
+                        <span className="day-name">{WEEKDAY_LABELS[week.indexOf(iso)]}</span>
+                        <span className="meal-line">
+                          {thumb ? <img src={thumb} alt="" className="meal-thumb" /> : null}
+                          <span>{meal?.name ?? "Not written yet"}</span>
+                        </span>
+                      </p>
+                    );
+                  })}
               </div>
             </aside>
           </section>
@@ -285,7 +299,12 @@ export function DisplayApp({ view }: { view: View }) {
                       style={{ ["--person" as string]: person?.color ?? "var(--color-ink)" }}
                     >
                       {chore.title}
-                      <span className="small"> {person?.name}</span>
+                      {person ? (
+                        <span className="name-line small">
+                          <PersonAvatar person={person} size={40} />
+                          {person.name}
+                        </span>
+                      ) : null}
                     </p>
                   );
                 })}
@@ -299,7 +318,16 @@ export function DisplayApp({ view }: { view: View }) {
           {week.map((iso, index) => (
             <div key={iso} className="day-col">
               <p className="day-name">{WEEKDAY_LABELS[index]}</p>
-              <h3>{snapshot.meals.find((meal) => meal.date === iso)?.name ?? "—"}</h3>
+              {(() => {
+                const meal = snapshot.meals.find((row) => row.date === iso);
+                const thumb = mealPhotoSrc(meal?.photoPath);
+                return (
+                  <div className="meal-line">
+                    {thumb ? <img src={thumb} alt="" className="meal-thumb" /> : null}
+                    <h3>{meal?.name ?? "—"}</h3>
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </section>

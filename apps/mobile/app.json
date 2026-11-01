@@ -15,6 +15,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.focusotter.liendoplaza",
+      "appleTeamId": "QEP46P7WF2",
+      "associatedDomains": [
+        "applinks:liendo-plaza.vercel.app",
+        "applinks:liendo-plaza-git-cursor-liendo-pla-c65a88-focus-otters-projects.vercel.app"
+      ],
       "infoPlist": {
         "NSCameraUsageDescription": "Liendo Plaza uses the camera so a kid can send a chore photo.",
         "NSPhotoLibraryUsageDescription": "Liendo Plaza can use a photo from the library for a chore."

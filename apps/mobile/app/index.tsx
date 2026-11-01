@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import type { Person } from "@liendo/shared";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { API_URL } from "@/lib/config";
 import { getSession, saveFamilyToken, saveSession } from "@/lib/session";
 import { body, btn, btnLabel, colors, h1, h2, input, muted, personEdge, screen, type } from "@/lib/theme";
@@ -130,18 +131,28 @@ export default function AuthScreen() {
         <>
           <Text style={body}>First parent phone. Pick your name and enter your PIN.</Text>
           {parents.map((person) => (
-            <Pressable key={person.id} onPress={() => setPicked(person)} style={personEdge(person.color)}>
-              <Text style={{ color: colors.ink }}>{person.name}</Text>
+            <Pressable
+              key={person.id}
+              onPress={() => setPicked(person)}
+              style={{ ...personEdge(person.color), flexDirection: "row", alignItems: "center", gap: 16 }}
+            >
+              <PersonAvatar person={person} size={72} />
+              <Text style={{ color: colors.ink, fontFamily: type.body, fontSize: 20 }}>{person.name}</Text>
             </Pressable>
           ))}
         </>
       ) : null}
       {familyToken && !picked ? (
         <>
-          <Text style={h2}>Pick your name</Text>
+          <Text style={h2}>Who are you?</Text>
           {people.map((person) => (
-            <Pressable key={person.id} onPress={() => setPicked(person)} style={personEdge(person.color)}>
-              <Text style={{ color: colors.ink }}>{person.name}</Text>
+            <Pressable
+              key={person.id}
+              onPress={() => setPicked(person)}
+              style={{ ...personEdge(person.color), flexDirection: "row", alignItems: "center", gap: 16 }}
+            >
+              <PersonAvatar person={person} size={112} />
+              <Text style={{ color: colors.ink, fontFamily: type.body, fontSize: 22 }}>{person.name}</Text>
             </Pressable>
           ))}
         </>

@@ -25,6 +25,7 @@ async function main() {
         name: person.name,
         role: person.role,
         color: person.color,
+        avatarKey: person.avatarKey,
         pinHash: await hashPin(pin),
       })
       .onConflictDoUpdate({
@@ -33,6 +34,7 @@ async function main() {
           name: person.name,
           role: person.role,
           color: person.color,
+          avatarKey: person.avatarKey,
           pinHash: await hashPin(pin),
           pinFailedAttempts: 0,
           pinLockedUntil: null,
@@ -113,6 +115,14 @@ async function main() {
       .insert(schema.meals)
       .values({ date, name: dinners[i] ?? "Dinner" })
       .onConflictDoNothing({ target: schema.meals.date });
+  }
+
+  const [tonight] = await db.select().from(schema.meals).where(eq(schema.meals.date, today)).limit(1);
+  if (tonight && !tonight.photoPath) {
+    await db
+      .update(schema.meals)
+      .set({ photoPath: "/meals/tacos.jpg", updatedAt: new Date() })
+      .where(eq(schema.meals.date, today));
   }
 
   await db

@@ -10,7 +10,7 @@ export default function AppLayout() {
         tabBarStyle: { backgroundColor: colors.paper, borderTopColor: colors.rule, height: 64 },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontSize: 12 },
+        tabBarLabelStyle: { fontSize: 12, fontFamily: type.body },
       }}
     >
       <Tabs.Screen name="today" options={{ title: "Today" }} />

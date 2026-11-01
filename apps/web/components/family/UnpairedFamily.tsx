@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Person } from "@liendo/shared";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { PairCard } from "@/components/pair/PairCard";
 import { useClaim } from "@/components/pair/useClaim";
 
@@ -88,6 +89,7 @@ export function UnpairedFamily({
                 style={{ ["--person" as string]: person.color }}
                 onClick={() => setPicked(person)}
               >
+                <PersonAvatar person={person} size={72} />
                 {person.name}
               </button>
             ))

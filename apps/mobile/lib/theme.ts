@@ -14,8 +14,9 @@ export const colors = {
 };
 
 export const type = {
-  display: "Georgia",
-  body: "System",
+  display: "Fraunces",
+  displayItalic: "Fraunces-Italic",
+  body: "Figtree",
 };
 
 export const tap = 64;
@@ -33,6 +34,13 @@ export const h1: TextStyle = {
   color: colors.ink,
 };
 
+export const accentLabel: TextStyle = {
+  fontFamily: type.displayItalic,
+  fontSize: 16,
+  color: colors.ink2,
+  fontStyle: "italic",
+};
+
 export const h2: TextStyle = {
   fontFamily: type.display,
   fontSize: 24,
@@ -40,6 +48,7 @@ export const h2: TextStyle = {
 };
 
 export const body: TextStyle = {
+  fontFamily: type.body,
   fontSize: 16,
   color: colors.ink2,
 };

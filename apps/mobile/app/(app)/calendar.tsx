@@ -3,7 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import type { DisplaySnapshot } from "@liendo/shared";
 import { WEEKDAY_LABELS, weekDates } from "@liendo/shared";
 import { api } from "@/lib/api";
-import { body, h1, h2, screen } from "@/lib/theme";
+import { accentLabel, body, h1, screen } from "@/lib/theme";
 
 export default function CalendarScreen() {
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
@@ -21,7 +21,7 @@ export default function CalendarScreen() {
       <Text style={h1}>This week</Text>
       {week.map((iso, index) => (
         <View key={iso} style={{ gap: 4 }}>
-          <Text style={h2}>{WEEKDAY_LABELS[index]}</Text>
+          <Text style={accentLabel}>{WEEKDAY_LABELS[index]}</Text>
           {snapshot?.events
             .filter((event) => event.start.slice(0, 10) === iso)
             .map((event) => (

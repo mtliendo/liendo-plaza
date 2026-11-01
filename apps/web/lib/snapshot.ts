@@ -7,18 +7,13 @@ import { getDb, schema } from "./db";
 import { getSettings } from "./settings";
 import { starSummaries } from "./stars";
 import { calendarWindow, nowCt, todayIso } from "./time";
+import { asPerson, toMeal } from "./person";
 import { getWeather } from "./weather";
 
 export async function peopleList(): Promise<Person[]> {
   const db = getDb();
   const rows = await db.select().from(schema.people);
-  return rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    role: row.role as Person["role"],
-    color: row.color,
-  }));
+  return rows.map(asPerson);
 }
 
 export async function mealsInRange(from: string, to: string): Promise<Meal[]> {
@@ -27,7 +22,7 @@ export async function mealsInRange(from: string, to: string): Promise<Meal[]> {
     .select()
     .from(schema.meals)
     .where(and(gte(schema.meals.date, from), lte(schema.meals.date, to)));
-  return rows.map((row) => ({ date: row.date, name: row.name }));
+  return rows.map(toMeal);
 }
 
 export async function mealSuggestions(q: string): Promise<string[]> {

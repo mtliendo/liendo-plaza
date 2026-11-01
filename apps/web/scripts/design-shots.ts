@@ -11,7 +11,7 @@ async function shot(page: import("playwright").Page, name: string) {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   await page.waitForTimeout(400);
   const fonts = await page.evaluate(() => {
-    const clock = document.querySelector("[data-testid='clock'], [data-testid='pair-code'], h1");
+    const clock = document.querySelector("[data-testid='clock'], [data-testid='name-picker'] h1, [data-testid='pair-code'], h1");
     const body = document.body;
     return {
       body: getComputedStyle(body).fontFamily,
@@ -35,9 +35,6 @@ async function main() {
   if (!alreadyPaired) {
     await framePage.waitForSelector('[data-testid="pair-code"]');
     pairCode = (await framePage.locator('[data-testid="pair-code"]').innerText()).trim();
-    await shot(framePage, "unpaired_qr");
-  } else {
-    await shot(framePage, "unpaired_qr");
   }
 
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -55,10 +52,6 @@ async function main() {
   await phonePage.waitForSelector('a[href="/family/add-device"]', { timeout: 20000 });
   await shot(phonePage, "phone_today");
 
-  await phonePage.goto(`${BASE}/family/chores`, { waitUntil: "load" });
-  await phonePage.waitForSelector("text=Add chore", { timeout: 20000 });
-  await shot(phonePage, "phone_chores");
-
   if (pairCode) {
     await phonePage.goto(`${BASE}/family/add-device`, { waitUntil: "domcontentloaded" });
     await phonePage.waitForSelector('[data-testid="approve-code"]', { timeout: 20000 });
@@ -67,10 +60,67 @@ async function main() {
     await framePage.waitForSelector('[data-testid="clock"]', { timeout: 20000 });
   }
 
+  const today = await phonePage.evaluate(() =>
+    new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" }),
+  );
+  await phonePage.evaluate(async (date) => {
+    await fetch("/api/meals", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ date, name: "Tacos" }),
+    });
+    const file = await fetch("/meals/tacos.jpg");
+    const blob = await file.blob();
+    const form = new FormData();
+    form.append("photo", blob, "tacos.jpg");
+    await fetch(`/api/meals/${date}/photo`, { method: "POST", body: form });
+  }, today);
+
   if (alreadyPaired || pairCode) {
+    await framePage.goto(`${BASE}/display?fixture=events-0`, { waitUntil: "load" });
+    await framePage.waitForSelector('[data-testid="events"][data-count="0"]', { timeout: 20000 });
+    await shot(framePage, "kitchen_events_0");
+
+    await framePage.goto(`${BASE}/display?fixture=events-3`, { waitUntil: "load" });
+    await framePage.waitForSelector('[data-testid="events"][data-count="few"]', { timeout: 20000 });
+    await shot(framePage, "kitchen_events_3");
+
+    await framePage.goto(`${BASE}/display?fixture=events-12`, { waitUntil: "load" });
+    await framePage.waitForSelector('[data-testid="events"][data-count="many"]', { timeout: 20000 });
+    await shot(framePage, "kitchen_events_12");
+
     await framePage.goto(`${BASE}/display`, { waitUntil: "load" });
     await framePage.waitForSelector('[data-testid="clock"]', { timeout: 20000 });
+    await shot(framePage, "kitchen_board_photo");
+
+    await phonePage.evaluate(async (date) => {
+      await fetch(`/api/meals/${date}/photo`, { method: "DELETE" });
+    }, today);
+    await framePage.reload({ waitUntil: "load" });
+    await framePage.waitForSelector('[data-testid="clock"]', { timeout: 20000 });
     await shot(framePage, "kitchen_board");
+  }
+
+  await phonePage.goto(`${BASE}/family?fixture=events-12`, { waitUntil: "load" });
+  await phonePage.waitForSelector('[data-testid="events"][data-count="many"]', { timeout: 20000 });
+  await shot(phonePage, "phone_today_events_12");
+
+  const invite = (await phonePage.evaluate(async () => {
+    const res = await fetch("/api/pair/invite", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceKind: "browser" }),
+    });
+    return res.json();
+  })) as { webUrl?: string };
+  const inviteToken = invite.webUrl ? new URL(invite.webUrl).searchParams.get("invite") : null;
+  if (inviteToken) {
+    const picker = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const pickerPage = await picker.newPage();
+    await pickerPage.goto(`${BASE}/family?invite=${inviteToken}`, { waitUntil: "load" });
+    await pickerPage.waitForSelector('[data-testid="name-picker"]', { timeout: 20000 });
+    await shot(pickerPage, "name_picker");
+    await picker.close();
   }
 
   await browser.close();

@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { api } from "@/lib/api";
 import { colors, muted, screen } from "@/lib/theme";
 
-type Device = { id: string; kind: string; label: string; personName: string | null; lastSeenAt: string | null };
+type Device = {
+  id: string;
+  kind: string;
+  label: string;
+  personName: string | null;
+  personColor: string | null;
+  personAvatarKey: string | null;
+  lastSeenAt: string | null;
+};
 
 export default function DevicesScreen() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -24,7 +33,19 @@ export default function DevicesScreen() {
         <View key={device.id} style={{ borderBottomWidth: 1, borderBottomColor: colors.rule, paddingBottom: 12, minHeight: 64 }}>
           <Text style={{ fontSize: 18, color: colors.ink }}>{device.label}</Text>
           <Text style={muted}>{device.kind}</Text>
-          {device.personName ? <Text style={muted}>{device.personName}</Text> : null}
+          {device.personName ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <PersonAvatar
+                person={{
+                  name: device.personName,
+                  color: device.personColor ?? colors.ink,
+                  avatarKey: device.personAvatarKey,
+                }}
+                size={40}
+              />
+              <Text style={muted}>{device.personName}</Text>
+            </View>
+          ) : null}
           <Pressable
             onPress={async () => {
               try {

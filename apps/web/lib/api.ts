@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { FAMILY } from "@liendo/shared";
+import { FAMILY, fixturesAllowed, parseEventFixture, buildEventFixture } from "@liendo/shared";
 import { addDays, weekDates } from "@liendo/shared";
 import {
   clearAuthCookies,
@@ -213,7 +213,12 @@ export async function handleApi(req: Request): Promise<Response> {
     await requireActor(req, ["person", "display"]);
     const from = url.searchParams.get("from") ?? undefined;
     const to = url.searchParams.get("to") ?? undefined;
-    return json(await buildSnapshot(from, to));
+    const snapshot = await buildSnapshot(from, to);
+    const fixture = parseEventFixture(url.searchParams.get("fixture"));
+    if (fixture && fixturesAllowed()) {
+      snapshot.events = buildEventFixture(fixture, snapshot.now, snapshot.people);
+    }
+    return json(snapshot);
   }
 
   if (path === "calendar" && method === "GET") {
@@ -392,7 +397,39 @@ export async function handleApi(req: Request): Promise<Response> {
       .values({ date: body.date, name, updatedAt: new Date() })
       .onConflictDoUpdate({ target: schema.meals.date, set: { name, updatedAt: new Date() } })
       .returning();
-    return json({ meal: { date: meal.date, name: meal.name } });
+    return json({ meal: { date: meal.date, name: meal.name, photoPath: meal.photoPath ?? null } });
+  }
+
+  const mealPhoto = path.match(/^meals\/(\d{4}-\d{2}-\d{2})\/photo$/);
+  if (mealPhoto && method === "POST") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    const date = mealPhoto[1];
+    const stored = await storePhoto(await readUpload(req), "meals");
+    const db = getDb();
+    const [existing] = await db.select().from(schema.meals).where(eq(schema.meals.date, date)).limit(1);
+    const [meal] = existing
+      ? await db
+          .update(schema.meals)
+          .set({ photoPath: stored, updatedAt: new Date() })
+          .where(eq(schema.meals.date, date))
+          .returning()
+      : await db
+          .insert(schema.meals)
+          .values({ date, name: "Dinner", photoPath: stored, updatedAt: new Date() })
+          .returning();
+    return json({ meal: { date: meal.date, name: meal.name, photoPath: meal.photoPath ?? null } });
+  }
+  if (mealPhoto && method === "DELETE") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    const db = getDb();
+    const [meal] = await db
+      .update(schema.meals)
+      .set({ photoPath: null, updatedAt: new Date() })
+      .where(eq(schema.meals.date, mealPhoto[1]))
+      .returning();
+    return json({ meal: meal ? { date: meal.date, name: meal.name, photoPath: null } : null });
   }
 
   if (path === "meals/suggest" && method === "GET") {
@@ -436,7 +473,7 @@ export async function handleApi(req: Request): Promise<Response> {
 
   const photoGet = path.match(/^photos\/(.+)$/);
   if (photoGet && method === "GET") {
-    await requireActor(req, ["person"]);
+    await requireActor(req, ["person", "display"]);
     const stored = decodeURIComponent(photoGet[1]);
     const file = await readPhoto(stored);
     return new Response(file.body as unknown as BodyInit, {

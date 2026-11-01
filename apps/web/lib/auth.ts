@@ -5,6 +5,7 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import type { Person } from "@liendo/shared";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
+import { asPerson } from "./person";
 
 export const DISPLAY_COOKIE = "lp_display";
 export const SESSION_COOKIE = "lp_session";
@@ -76,16 +77,6 @@ export async function hashPin(pin: string): Promise<string> {
 
 export function pinLooksValid(pin: string, length: 4 | 6): boolean {
   return new RegExp(`^\\d{${length}}$`).test(pin);
-}
-
-function asPerson(row: typeof schema.people.$inferSelect): Person {
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    role: row.role as Person["role"],
-    color: row.color,
-  };
 }
 
 export type DeviceAttach = {

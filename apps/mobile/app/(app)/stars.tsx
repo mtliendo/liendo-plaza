@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { DisplaySnapshot, Reward } from "@liendo/shared";
 import { weekDates } from "@liendo/shared";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { api } from "@/lib/api";
 import { colors, h1, h2, muted, personEdge, screen } from "@/lib/theme";
 
@@ -21,13 +22,19 @@ export default function StarsScreen() {
   return (
     <ScrollView contentContainerStyle={screen}>
       <Text style={h1}>Stars</Text>
-      {snapshot?.stars.map((row) => (
-        <View key={row.personId} style={personEdge(row.color)}>
-          <Text style={{ color: colors.ink }}>{row.personName}</Text>
-          <Text style={muted}>{row.balance} to spend</Text>
-          <Text style={muted}>{row.weekEarned} this week</Text>
-        </View>
-      ))}
+      {snapshot?.stars.map((row) => {
+        const person = snapshot.people.find((item) => item.id === row.personId);
+        return (
+          <View key={row.personId} style={{ ...personEdge(row.color), flexDirection: "row", alignItems: "center", gap: 12 }}>
+            {person ? <PersonAvatar person={person} size={56} /> : null}
+            <View>
+              <Text style={{ color: colors.ink }}>{row.personName}</Text>
+              <Text style={muted}>{row.balance} to spend</Text>
+              <Text style={muted}>{row.weekEarned} this week</Text>
+            </View>
+          </View>
+        );
+      })}
       <Text style={h2}>Ask for a reward</Text>
       {rewards
         .filter((reward) => reward.active)

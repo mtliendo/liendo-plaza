@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import type { Person } from "@liendo/shared";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { formatPairCode } from "@/lib/pair-format";
 
 function PairApprove() {
@@ -63,7 +64,10 @@ function PairApprove() {
 
   return (
     <main className="phone">
-      <p className="small">{me.name}</p>
+      <p className="small phone-who">
+        <PersonAvatar person={me} size={40} />
+        {me.name}
+      </p>
       <h1>Approve a device</h1>
       <p className="pair-code num">{formatPairCode(code)}</p>
       {done ? (

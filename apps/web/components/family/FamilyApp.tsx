@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { Chore, DisplaySnapshot, Person, Reward, RewardRequest } from "@liendo/shared";
-import { WEEKDAY_LABELS, weekDates } from "@liendo/shared";
+import { mealPhotoSrc, parseEventFixture, WEEKDAY_LABELS, weekDates } from "@liendo/shared";
+import { EventBoard } from "@/components/EventBoard";
 import { AddDevicePanel, DevicesPanel } from "@/components/family/DevicePanels";
 import { UnpairedFamily } from "@/components/family/UnpairedFamily";
+import { PersonAvatar } from "@/components/PersonAvatar";
 
 type Screen =
   | "gate"
@@ -39,6 +41,8 @@ export function FamilyApp({ screen }: { screen: Exclude<Screen, "gate" | "people
 function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" | "pin"> }) {
   const params = useSearchParams();
   const invite = params.get("invite");
+  const fixture = parseEventFixture(params.get("fixture"));
+  const fixtureQuery = fixture ? `&fixture=${fixture}` : "";
   const [familyToken, setFamilyToken] = useState<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [me, setMe] = useState<Person | null>(null);
@@ -70,7 +74,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
       const from = weekDates(today)[0];
       const to = weekDates(today)[6];
       const [snap, choreRes, rewardRes, requestRes] = await Promise.all([
-        fetch(`/api/snapshot?from=${from}&to=${to}`).then((r) => r.json()) as Promise<DisplaySnapshot>,
+        fetch(`/api/snapshot?from=${from}&to=${to}${fixtureQuery}`).then((r) => r.json()) as Promise<DisplaySnapshot>,
         fetch("/api/chores").then((r) => r.json()) as Promise<{ chores: Chore[] }>,
         fetch("/api/rewards").then((r) => r.json()) as Promise<{ rewards: Reward[] }>,
         fetch("/api/rewards/requests").then((r) => r.json()) as Promise<{ requests: RewardRequest[] }>,
@@ -82,7 +86,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
       return true;
     }
     return false;
-  }, [today]);
+  }, [fixtureQuery, today]);
 
   useEffect(() => {
     void (async () => {
@@ -150,8 +154,8 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
 
   if (phase === "people") {
     return (
-      <main className="phone">
-        <h1>Pick your name</h1>
+      <main className="phone" data-testid="name-picker">
+        <h1>Who are you?</h1>
         <div className="list">
           {people.map((person) => (
             <button
@@ -164,6 +168,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                 setPhase("pin");
               }}
             >
+              <PersonAvatar person={person} size={112} />
               {person.name}
             </button>
           ))}
@@ -214,11 +219,25 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   );
 
   return (
-    <main className="phone">
-      <p className="small">{me?.name}</p>
+      <main className="phone">
+        {me ? (
+          <p className="small phone-who">
+            <PersonAvatar person={me} size={40} />
+            {me.name}
+          </p>
+        ) : null}
       {screen === "today" ? (
         <>
           <h1>Today</h1>
+          {snapshot ? (
+            <EventBoard
+              events={snapshot.events}
+              now={snapshot.now}
+              people={snapshot.people}
+              maxVisible={5}
+              moreHref={`/family/calendar${fixture ? `?fixture=${fixture}` : ""}`}
+            />
+          ) : null}
           {isParent ? (
             <div className="parent-links">
               <Link href="/family/approvals">Approvals</Link>
@@ -231,26 +250,34 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
             </div>
           ) : null}
           <div className="list">
-            {visibleChores.map((chore) => (
-              <button
-                key={chore.id}
-                type="button"
-                className="chore-btn"
-                style={{
-                  ["--person" as string]:
-                    snapshot?.people.find((person) => person.id === chore.personId)?.color ?? "var(--color-accent)",
-                }}
-                onClick={async () => {
-                  if (chore.requiresPhoto || chore.status !== "open") return;
-                  await fetch(`/api/chores/instances/${chore.id}/complete`, { method: "POST" });
-                  await loadAll();
-                }}
-              >
-                {chore.title}
-                <span className="small">{chore.status}</span>
-                {chore.requiresPhoto ? <span className="small">photo</span> : null}
-              </button>
-            ))}
+            {visibleChores.map((chore) => {
+              const person = snapshot?.people.find((row) => row.id === chore.personId);
+              return (
+                <button
+                  key={chore.id}
+                  type="button"
+                  className="chore-btn"
+                  style={{
+                    ["--person" as string]: person?.color ?? "var(--color-accent)",
+                  }}
+                  onClick={async () => {
+                    if (chore.requiresPhoto || chore.status !== "open") return;
+                    await fetch(`/api/chores/instances/${chore.id}/complete`, { method: "POST" });
+                    await loadAll();
+                  }}
+                >
+                  {person && isParent ? (
+                    <span className="name-line">
+                      <PersonAvatar person={person} size={48} />
+                      {person.name}
+                    </span>
+                  ) : null}
+                  {chore.title}
+                  <span className="small">{chore.status}</span>
+                  {chore.requiresPhoto ? <span className="small">photo</span> : null}
+                </button>
+              );
+            })}
           </div>
         </>
       ) : null}
@@ -274,28 +301,41 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
       {screen === "meals" && snapshot ? (
         <>
           <h1>Dinners</h1>
-          {week.map((iso) => (
-            <p key={iso} className="row">
-              <span>{iso.slice(5)}</span>
-              <span>{snapshot.meals.find((meal) => meal.date === iso)?.name ?? "—"}</span>
-            </p>
-          ))}
+          {week.map((iso) => {
+            const meal = snapshot.meals.find((row) => row.date === iso);
+            const thumb = mealPhotoSrc(meal?.photoPath);
+            return (
+              <p key={iso} className="row">
+                <span className="day-name">{iso.slice(5)}</span>
+                <span className="meal-line">
+                  {thumb ? <img src={thumb} alt="" className="meal-thumb" /> : null}
+                  <span>{meal?.name ?? "—"}</span>
+                </span>
+              </p>
+            );
+          })}
         </>
       ) : null}
 
       {screen === "stars" && snapshot ? (
         <>
           <h1>Stars</h1>
-          {snapshot.stars.map((row) => (
-            <p key={row.personId} className="row person-row" style={{ ["--person" as string]: row.color }}>
-              <span>{row.personName}</span>
-              <span className="small">
-                {row.balance} to spend
-                <br />
-                {row.weekEarned} this week
-              </span>
-            </p>
-          ))}
+          {snapshot.stars.map((row) => {
+            const person = snapshot.people.find((item) => item.id === row.personId);
+            return (
+              <p key={row.personId} className="row person-row" style={{ ["--person" as string]: row.color }}>
+                <span className="name-line">
+                  {person ? <PersonAvatar person={person} size={56} /> : null}
+                  {row.personName}
+                </span>
+                <span className="small">
+                  {row.balance} to spend
+                  <br />
+                  {row.weekEarned} this week
+                </span>
+              </p>
+            );
+          })}
           <h2>Ask for a reward</h2>
           {rewards
             .filter((reward) => reward.active)
@@ -370,7 +410,12 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
             .filter((item) => item.status === "pending")
             .map((item) => (
               <div key={item.id} className="row">
-                <span>
+                <span className="name-line">
+                  {snapshot.people
+                    .filter((person) => person.id === item.personId)
+                    .map((person) => (
+                      <PersonAvatar key={person.id} person={person} size={48} />
+                    ))}
                   {item.personName}: {item.rewardName}
                 </span>
                 <button
@@ -412,28 +457,48 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
       {screen === "plan-meals" && isParent ? (
         <>
           <h1>Write dinners</h1>
-          {week.map((iso) => (
-            <label key={iso} className="field">
-              <span>{iso}</span>
-              <input
-                className="input"
-                defaultValue={snapshot?.meals.find((meal) => meal.date === iso)?.name ?? ""}
-                list="meal-names"
-                onFocus={async () => {
-                  const res = await fetch("/api/meals/suggest");
-                  const body = (await res.json()) as { names: string[] };
-                  setSuggestions(body.names);
-                }}
-                onBlur={async (event) => {
-                  await fetch("/api/meals", {
-                    method: "PUT",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ date: iso, name: event.target.value }),
-                  });
-                }}
-              />
-            </label>
-          ))}
+          {week.map((iso) => {
+            const meal = snapshot?.meals.find((row) => row.date === iso);
+            const thumb = mealPhotoSrc(meal?.photoPath);
+            return (
+              <label key={iso} className="field">
+                <span className="day-name">{iso}</span>
+                <input
+                  className="input"
+                  defaultValue={meal?.name ?? ""}
+                  list="meal-names"
+                  onFocus={async () => {
+                    const res = await fetch("/api/meals/suggest");
+                    const body = (await res.json()) as { names: string[] };
+                    setSuggestions(body.names);
+                  }}
+                  onBlur={async (event) => {
+                    await fetch("/api/meals", {
+                      method: "PUT",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ date: iso, name: event.target.value }),
+                    });
+                    await loadAll();
+                  }}
+                />
+                <span className="meal-line">
+                  {thumb ? <img src={thumb} alt="" className="meal-thumb" /> : null}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      const form = new FormData();
+                      form.append("photo", file);
+                      await fetch(`/api/meals/${iso}/photo`, { method: "POST", body: form });
+                      await loadAll();
+                    }}
+                  />
+                </span>
+              </label>
+            );
+          })}
           <datalist id="meal-names">
             {suggestions.map((name) => (
               <option key={name} value={name} />

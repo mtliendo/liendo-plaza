@@ -5,6 +5,8 @@ import * as ImagePicker from "expo-image-picker";
 import * as Notifications from "expo-notifications";
 import type { DisplaySnapshot, Person } from "@liendo/shared";
 import { weekDates } from "@liendo/shared";
+import { EventBoard } from "@/components/EventBoard";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { api } from "@/lib/api";
 import { API_URL } from "@/lib/config";
 import { getSession } from "@/lib/session";
@@ -57,7 +59,15 @@ export default function TodayScreen() {
 
   return (
     <ScrollView contentContainerStyle={screen}>
-      <Text style={h1}>Today</Text>
+      {me ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <PersonAvatar person={me} size={48} />
+          <Text style={h1}>Today</Text>
+        </View>
+      ) : (
+        <Text style={h1}>Today</Text>
+      )}
+      {snapshot ? <EventBoard events={snapshot.events} now={snapshot.now} people={snapshot.people} /> : null}
       {me?.role === "parent" ? (
         <View style={{ gap: 8 }}>
           <Link href="/parent/add-device">
@@ -68,21 +78,30 @@ export default function TodayScreen() {
           </Link>
         </View>
       ) : null}
-      {chores.map((chore) => (
-        <Pressable
-          key={chore.id}
-          onPress={() => {
-            if (chore.requiresPhoto && chore.status === "open") void sendPhoto(chore.id);
-            else if (!chore.requiresPhoto && chore.status === "open") void complete(chore.id);
-          }}
-          style={row}
-        >
-          <Text style={{ fontSize: 18, color: colors.ink }}>{chore.title}</Text>
-          <Text style={muted}>{chore.status}</Text>
-          {chore.requiresPhoto ? <Text style={muted}>photo</Text> : null}
-          <Text style={body}>{chore.stars === 1 ? "1 star" : `${chore.stars} stars`}</Text>
-        </Pressable>
-      ))}
+      {chores.map((chore) => {
+        const person = snapshot?.people.find((row) => row.id === chore.personId);
+        return (
+          <Pressable
+            key={chore.id}
+            onPress={() => {
+              if (chore.requiresPhoto && chore.status === "open") void sendPhoto(chore.id);
+              else if (!chore.requiresPhoto && chore.status === "open") void complete(chore.id);
+            }}
+            style={row}
+          >
+            {person && me?.role === "parent" ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <PersonAvatar person={person} size={48} />
+                <Text style={{ fontSize: 16, color: colors.ink }}>{person.name}</Text>
+              </View>
+            ) : null}
+            <Text style={{ fontSize: 18, color: colors.ink }}>{chore.title}</Text>
+            <Text style={muted}>{chore.status}</Text>
+            {chore.requiresPhoto ? <Text style={muted}>photo</Text> : null}
+            <Text style={body}>{chore.stars === 1 ? "1 star" : `${chore.stars} stars`}</Text>
+          </Pressable>
+        );
+      })}
     </ScrollView>
   );
 }

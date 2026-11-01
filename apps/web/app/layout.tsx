@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Fraunces } from "next/font/google";
+import { Figtree, Fraunces } from "next/font/google";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -7,12 +7,13 @@ const fraunces = Fraunces({
   display: "swap",
   variable: "--font-fraunces",
   axes: ["SOFT", "opsz", "WONK"],
+  style: ["normal", "italic"],
 });
 
-const dmSans = DM_Sans({
+const figtree = Figtree({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-dm-sans",
+  variable: "--font-figtree",
 });
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${dmSans.variable}`}>
+    <html lang="en" className={`${fraunces.variable} ${figtree.variable}`}>
       <body>{children}</body>
     </html>
   );

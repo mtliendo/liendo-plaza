@@ -15,6 +15,7 @@ export const people = pgTable("people", {
   name: text("name").notNull(),
   role: text("role").notNull(),
   color: text("color").notNull(),
+  avatarKey: text("avatar_key"),
   pinHash: text("pin_hash"),
   pinFailedAttempts: integer("pin_failed_attempts").notNull().default(0),
   pinLockedUntil: timestamp("pin_locked_until", { withTimezone: true }),
@@ -139,6 +140,7 @@ export const meals = pgTable("meals", {
   id: uuid("id").primaryKey().defaultRandom(),
   date: date("date").notNull().unique(),
   name: text("name").notNull(),
+  photoPath: text("photo_path"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

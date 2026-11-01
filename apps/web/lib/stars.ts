@@ -47,6 +47,7 @@ export async function starSummaries(): Promise<StarSummary[]> {
         personId: person.id,
         personName: person.name,
         color: person.color,
+        avatarKey: person.avatarKey ?? person.slug,
         balance: earnedTotal - spentTotal,
         weekEarned: week.find((row) => row.personId === person.id)?.total ?? 0,
       };

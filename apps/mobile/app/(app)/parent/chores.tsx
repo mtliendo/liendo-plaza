@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Link } from "expo-router";
 import type { Chore, Person } from "@liendo/shared";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { api } from "@/lib/api";
 import { body, btn, btnLabel, colors, input, screen } from "@/lib/theme";
 
@@ -51,9 +52,20 @@ export default function ParentChoresScreen() {
       >
         <Text style={btnLabel}>Add chore</Text>
       </Pressable>
-      {chores.filter((chore) => chore.active).map((chore) => (
-        <Text key={chore.id} style={body}>{chore.title}</Text>
-      ))}
+      {chores
+        .filter((chore) => chore.active)
+        .map((chore) => {
+          const person = people.find((row) => row.id === chore.assignedPersonId);
+          return (
+            <View key={chore.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              {person ? <PersonAvatar person={person} size={40} /> : null}
+              <Text style={body}>
+                {person ? `${person.name} · ` : ""}
+                {chore.title}
+              </Text>
+            </View>
+          );
+        })}
     </ScrollView>
   );
 }

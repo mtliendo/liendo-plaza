@@ -1,9 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PersonAvatar } from "@/components/PersonAvatar";
 
 type Pending = { id: string; displayCode: string; label: string | null; deviceKind: string; expiresAt: string };
-type Device = { id: string; kind: string; label: string; personName: string | null; lastSeenAt: string | null; createdAt: string };
+type Device = {
+  id: string;
+  kind: string;
+  label: string;
+  personName: string | null;
+  personColor: string | null;
+  personAvatarKey: string | null;
+  lastSeenAt: string | null;
+  createdAt: string;
+};
 type Invite = { webUrl: string; deepLink: string; qrDataUrl: string; expiresAt: string };
 
 export function AddDevicePanel() {
@@ -168,7 +178,19 @@ export function DevicesPanel() {
             <div>
               <strong>{device.label}</strong>
               <p className="small">{device.kind}</p>
-              {device.personName ? <p className="small">{device.personName}</p> : null}
+              {device.personName ? (
+                <p className="small name-line">
+                  <PersonAvatar
+                    person={{
+                      name: device.personName,
+                      color: device.personColor ?? "var(--color-ink)",
+                      avatarKey: device.personAvatarKey,
+                    }}
+                    size={40}
+                  />
+                  {device.personName}
+                </p>
+              ) : null}
               {device.lastSeenAt ? (
                 <p className="small">last seen {new Date(device.lastSeenAt).toLocaleString("en-US")}</p>
               ) : null}

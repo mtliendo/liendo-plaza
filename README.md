@@ -37,7 +37,7 @@ cp .env.example .env.local
 cp .env.local apps/web/.env.local
 
 pnpm install
-pnpm db:migrate   # applies every apps/web/drizzle/*.sql, including pairing tables
+pnpm db:migrate   # applies every apps/web/drizzle/*.sql, including pairing, avatars, and meal photos
 pnpm db:seed
 pnpm dev
 ```
@@ -83,6 +83,7 @@ Set these on the Vercel project. Root directory can be the repo root (this `verc
 | `CRON_SECRET` | yes in prod | Protects the reminder cron |
 | `NEXT_PUBLIC_APP_URL` | yes | `https://<deployment>` |
 | `EXPO_PUBLIC_API_URL` | for the phone build | Same origin as the web app |
+| `NEXT_PUBLIC_ALLOW_EVENT_FIXTURES` | no | Set to `1` to allow `?fixture=events-0\|events-3\|events-12` on production-like deploys. Local `next dev` already allows it. |
 
 Do not commit secrets. This repo is public.
 
@@ -96,7 +97,7 @@ npx eas build -p ios --profile preview
 npx eas submit -p ios --profile production
 ```
 
-Bundle id is `com.focusotter.liendoplaza`. Point `EXPO_PUBLIC_API_URL` at the Vercel URL before the build. This repo does not run EAS builds.
+Bundle id is `com.focusotter.liendoplaza`. Apple Team ID is `QEP46P7WF2`. Universal links use `/.well-known/apple-app-site-association` (`appID` `QEP46P7WF2.com.focusotter.liendoplaza`) and `applinks:` on `liendo-plaza.vercel.app` plus the current preview host. Point `EXPO_PUBLIC_API_URL` at the Vercel URL before the build. This repo does not run EAS builds.
 
 ## Scripts
 
@@ -111,7 +112,7 @@ pnpm db:reset && pnpm db:seed && pnpm test:e2e   # e2e expects bootstrap to be o
 
 ## Design
 
-Kitchen UI follows Hallmark theme **Solstice**: cream paper, Yeseva One, Archivo, gold hairlines, one vermilion signal. Person colors do the rest. Copy is plain.
+Kitchen UI follows Hallmark theme **Solstice**: cream paper, Fraunces (SOFT 100, WONK, high opsz) and Figtree, gold hairlines, one vermilion signal. Person colors do the rest. Copy is plain.
 
 ## What is stubbed
 

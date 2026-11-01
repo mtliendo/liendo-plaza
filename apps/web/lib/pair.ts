@@ -5,6 +5,7 @@ import type { Person } from "@liendo/shared";
 import { issueFamilyToken, loginWithPin, pairDisplay, setDisplayCookie } from "./auth";
 import { getDb, getPool, schema } from "./db";
 import { HttpError } from "./http";
+import { asPerson } from "./person";
 
 export const PAIR_TTL_MS = 10 * 60 * 1000;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -41,16 +42,6 @@ async function qrDataUrl(value: string): Promise<string> {
     errorCorrectionLevel: "M",
     color: { dark: "#3D2416", light: "#FBF6EA" },
   });
-}
-
-function asPerson(row: typeof schema.people.$inferSelect): Person {
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    role: row.role as Person["role"],
-    color: row.color,
-  };
 }
 
 export function defaultDeviceLabel(kind: DeviceKind, userAgent = ""): string {
@@ -311,6 +302,8 @@ export async function listDevices() {
       label: schema.devices.label,
       personName: schema.people.name,
       personRole: schema.people.role,
+      personColor: schema.people.color,
+      personAvatarKey: schema.people.avatarKey,
       createdAt: schema.devices.createdAt,
       lastSeenAt: schema.devices.lastSeenAt,
       revokedAt: schema.devices.revokedAt,
@@ -325,6 +318,8 @@ export async function listDevices() {
     label: row.label,
     personName: row.personName,
     personRole: row.personRole,
+    personColor: row.personColor,
+    personAvatarKey: row.personAvatarKey,
     createdAt: row.createdAt.toISOString(),
     lastSeenAt: row.lastSeenAt?.toISOString() ?? null,
   }));

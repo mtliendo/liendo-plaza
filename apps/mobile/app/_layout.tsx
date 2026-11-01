@@ -1,8 +1,20 @@
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { View } from "react-native";
 import { colors, type } from "@/lib/theme";
 
 export default function RootLayout() {
+  const [loaded] = useFonts({
+    Fraunces: require("../assets/fonts/Fraunces.ttf"),
+    "Fraunces-Italic": require("../assets/fonts/Fraunces-Italic.ttf"),
+    Figtree: require("../assets/fonts/Figtree.ttf"),
+  });
+
+  if (!loaded) {
+    return <View style={{ flex: 1, backgroundColor: colors.paper }} />;
+  }
+
   return (
     <>
       <StatusBar style="dark" />

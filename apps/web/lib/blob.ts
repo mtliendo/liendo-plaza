@@ -19,12 +19,12 @@ export async function compressPhoto(buffer: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-export async function storePhoto(buffer: Buffer): Promise<string> {
+export async function storePhoto(buffer: Buffer, folder = "chores"): Promise<string> {
   const jpeg = await compressPhoto(buffer);
   const name = `${randomBytes(18).toString("hex")}.jpg`;
 
   if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(`chores/${name}`, jpeg, {
+    const blob = await put(`${folder}/${name}`, jpeg, {
       access: "public",
       token: process.env.BLOB_READ_WRITE_TOKEN,
       contentType: "image/jpeg",

@@ -10,6 +10,7 @@ export type Person = {
   name: string;
   role: "parent" | "kid";
   color: string;
+  avatarKey: string | null;
 };
 
 export type CalendarEvent = {
@@ -19,6 +20,7 @@ export type CalendarEvent = {
   end: string;
   allDay: boolean;
   location?: string;
+  color?: string;
 };
 
 export type WeatherSnapshot = {
@@ -75,12 +77,14 @@ export type RewardRequest = {
 export type Meal = {
   date: string;
   name: string;
+  photoPath: string | null;
 };
 
 export type StarSummary = {
   personId: string;
   personName: string;
   color: string;
+  avatarKey: string | null;
   balance: number;
   weekEarned: number;
 };
