@@ -26,9 +26,7 @@
   },
   "submit": {
     "production": {
-      "ios": {
-        "ascAppId": "replace-with-app-store-connect-id"
-      }
+      "ios": {}
     }
   }
 }
