@@ -1,6 +1,9 @@
 import { errorResponse } from "@/lib/http";
 import { handleApi } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 async function run(req: Request) {
   try {
     return await handleApi(req);

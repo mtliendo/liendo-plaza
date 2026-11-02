@@ -1,5 +1,8 @@
+import { eq } from "drizzle-orm";
 import type { FamilySettings } from "@liendo/shared";
 import { getDb, schema } from "./db";
+
+const REFRESH_KEY = "displayRefreshRequestedAt";
 
 const DEFAULTS: FamilySettings = {
   choreReminderHour: 18,
@@ -27,4 +30,20 @@ export async function updateSettings(patch: Partial<FamilySettings>): Promise<Fa
       .onConflictDoUpdate({ target: schema.settings.key, set: { value: String(value) } });
   }
   return next;
+}
+
+export async function getDisplayRefreshRequestedAt(): Promise<string | null> {
+  const db = getDb();
+  const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, REFRESH_KEY));
+  return rows[0]?.value ?? null;
+}
+
+export async function requestDisplayRefresh(): Promise<string> {
+  const at = new Date().toISOString();
+  const db = getDb();
+  await db
+    .insert(schema.settings)
+    .values({ key: REFRESH_KEY, value: at })
+    .onConflictDoUpdate({ target: schema.settings.key, set: { value: at } });
+  return at;
 }

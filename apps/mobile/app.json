@@ -10,7 +10,8 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FAF6EF"
+      "backgroundColor": "#FAF6EF",
+      "imageWidth": 200
     },
     "ios": {
       "supportsTablet": false,
@@ -50,6 +51,14 @@
         {
           "photosPermission": "Liendo Plaza can use a photo from the library for a chore.",
           "cameraPermission": "Liendo Plaza uses the camera so a kid can send a chore photo."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FAF6EF",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
         }
       ]
     ],

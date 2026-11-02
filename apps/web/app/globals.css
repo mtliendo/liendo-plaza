@@ -587,13 +587,24 @@ html:has(.pair-kitchen) body {
   display: grid;
   gap: 0;
 }
-.parent-links a {
+.parent-links a,
+.parent-links .parent-action {
   min-height: 64px;
   display: flex;
   align-items: center;
   text-decoration: none;
   font-size: var(--text-lg);
+  border: 0;
   border-bottom: var(--rule-hair) solid var(--color-rule);
+  background: transparent;
+  color: inherit;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+.parent-links .parent-action:disabled {
+  opacity: 0.6;
 }
 .person-pick {
   min-height: 64px;

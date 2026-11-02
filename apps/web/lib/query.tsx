@@ -278,6 +278,15 @@ export function useRewardReview() {
   });
 }
 
+export function useRequestFrameRefresh() {
+  const toast = useToast();
+  return useMutation({
+    mutationFn: () => readJson<{ ok: boolean }>("/api/display/refresh", { method: "POST" }),
+    onSuccess: () => toast("Frame will refresh in a moment"),
+    onError: () => toast("Could not reach the kitchen frame."),
+  });
+}
+
 export function useMealEdit() {
   const queryClient = useQueryClient();
   const toast = useToast();

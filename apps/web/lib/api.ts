@@ -41,7 +41,7 @@ import { readPhoto, readUpload, storePhoto } from "./blob";
 import { HttpError, json, readJson } from "./http";
 import { notifyParents, notifyPerson, registerPushToken } from "./push";
 import { clientIp, rateLimit } from "./rate-limit";
-import { getSettings, updateSettings } from "./settings";
+import { getDisplayRefreshRequestedAt, getSettings, requestDisplayRefresh, updateSettings } from "./settings";
 import { buildSnapshot } from "./snapshot";
 import { listRewardRequests, listRewards, requestReward, reviewReward, starSummaries } from "./stars";
 import { mealSuggestions, mealsInRange, peopleList } from "./snapshot";
@@ -76,6 +76,24 @@ export async function handleApi(req: Request): Promise<Response> {
 
   if (path === "health" && method === "GET") {
     return json({ ok: true });
+  }
+
+  if (path === "version" && method === "GET") {
+    const buildId = process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || "dev";
+    let refreshRequestedAt: string | null = null;
+    try {
+      refreshRequestedAt = await getDisplayRefreshRequestedAt();
+    } catch {
+      refreshRequestedAt = null;
+    }
+    return json({ buildId, refreshRequestedAt }, 200, { "cache-control": "no-store, must-revalidate" });
+  }
+
+  if (path === "display/refresh" && method === "POST") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    const refreshRequestedAt = await requestDisplayRefresh();
+    return json({ ok: true, refreshRequestedAt });
   }
 
   if (path === "auth/family" && method === "POST") {

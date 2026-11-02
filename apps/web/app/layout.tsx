@@ -20,6 +20,10 @@ const figtree = Figtree({
 export const metadata: Metadata = {
   title: "Liendo Plaza",
   description: "Kitchen board and family phone for the Liendos: calendar, chores, stars, and dinner.",
+  icons: {
+    icon: [{ url: "/icon.png", type: "image/png", sizes: "192x192" }],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180" }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
