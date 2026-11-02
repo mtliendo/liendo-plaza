@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Liendo Plaza",
+    "slug": "liendo-plaza",
+    "scheme": "liendoplaza",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF6EF"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.focusotter.liendoplaza",
+      "appleTeamId": "QEP46P7WF2",
+      "associatedDomains": [
+        "applinks:liendo-plaza.vercel.app",
+        "applinks:liendo-plaza-git-cursor-liendo-pla-c65a88-focus-otters-projects.vercel.app"
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Liendo Plaza uses the camera so a kid can send a chore photo.",
+        "NSPhotoLibraryUsageDescription": "Liendo Plaza can use a photo from the library for a chore."
+      }
+    },
+    "android": {
+      "package": "com.focusotter.liendoplaza",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FAF6EF"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#8C4A22"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Liendo Plaza can use a photo from the library for a chore.",
+          "cameraPermission": "Liendo Plaza uses the camera so a kid can send a chore photo."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b173dabf-290e-4cae-a312-492e9d48ad30"
+      },
+      "router": {}
+    },
+    "owner": "focus-otter"
+  }
+}

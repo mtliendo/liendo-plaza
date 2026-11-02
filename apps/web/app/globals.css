@@ -1,0 +1,721 @@
+/* Hallmark · shape: app screen · genre: editorial · theme: Solstice (by request) · deal 1/3, seed warm-paper-kitchen-wall-1e49·efb41d89·2026-11-01·r0
+ * nav: edge folio · signature: the tonight poster · states: loading, empty, error, full · solstice: long-light
+ * axes: light/high-contrast-serif/warm · posture: restrained · contrast: pass · redesign: full · scope: app · v2.0.0
+ * faces: Fraunces (SOFT 100, WONK, high opsz) + Figtree (brief over Solstice Yeseva/Archivo)
+ * today events: empty italic, few at board size, many capped with +N more
+ * kitchen home: 100svh lock, header|events top, kids|dinner fill, no page scroll
+ * paper: flat wash, no dotted grain (moiré on the kitchen panel) */
+/* Hallmark · pre-emit critique: P4 H5 E4 S5 R4 V4 · weakest: R, dropped the ruled well so person tints and the dinner poster carry the board */
+/* Hallmark · waive 39b · kitchen board · tap targets stay 64px so a step from the board still hits */
+/* Hallmark · waive 65 · theme asked · cream paper, serif display and warm ochre are pinned by the kitchen board brief */
+/* Hallmark · dismissed 49 · chore titles wrap on the kitchen board so they stay readable from across the room */
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./base.css" layer(base);
+
+body {
+  background-color: var(--color-paper);
+  background-image: var(--paper-wash);
+  background-attachment: fixed;
+}
+nextjs-portal,
+vercel-live-feedback,
+[data-vercel-toolbar],
+[data-nextjs-toast],
+[data-nextjs-dev-overlay] {
+  display: none !important;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: var(--space-md) var(--space-xl);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn:hover { background: color-mix(in oklab, var(--color-accent) 88%, var(--color-ink)); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-secondary {
+  background: transparent;
+  color: var(--color-ink);
+  border-radius: 0;
+  padding-inline: 0;
+  border-bottom: var(--rule-hair) solid var(--color-ink);
+}
+.btn-secondary:hover { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+.field {
+  display: grid;
+  gap: var(--space-2xs);
+}
+.field span { font-size: var(--text-sm); color: var(--color-ink-2); }
+.input, .select {
+  min-height: 64px;
+  border: 0;
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  padding: var(--space-sm) var(--space-md);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-radius: var(--radius-card);
+}
+.input:focus-visible, .select:focus-visible { outline-color: var(--color-focus); }
+.well {
+  background: var(--color-paper-2);
+  border: 0;
+  box-shadow: none;
+}
+.small { font: 500 0.95rem var(--font-body); color: var(--color-muted); }
+.folio, .mast {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding-block: var(--space-sm) var(--space-md);
+}
+.mast-aside {
+  text-align: right;
+  display: grid;
+  justify-items: end;
+  gap: var(--space-xs);
+}
+.date {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 3.2vw, 3.1rem);
+  line-height: 1.15;
+  margin-top: var(--space-xs);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 72;
+}
+.weather {
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 3.4vw, 3.4rem);
+  line-height: 1;
+}
+.place {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 2rem;
+  color: var(--color-ink-2);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 36;
+}
+
+.kitchen {
+  --text-md: 1.45rem;
+  --text-lg: 1.75rem;
+  --text-display: clamp(5.2rem, 8vw, 7.6rem);
+  --text-section: 3rem;
+  --text-title: 3.6rem;
+  height: 100svh;
+  max-height: 100svh;
+  overflow: hidden;
+  padding: var(--space-md) var(--space-xl);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-content: stretch;
+  gap: var(--space-md);
+}
+.kitchen.pair-kitchen {
+  height: 100svh;
+  max-height: 100svh;
+  overflow: hidden;
+  padding: var(--space-xl);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.pair-kitchen h1 {
+  font-size: clamp(3.2rem, 4.2vw, 4.6rem);
+  max-width: none;
+  min-width: 0;
+}
+.pair-kitchen h2 {
+  font-size: clamp(3.6rem, 5vw, 5.4rem);
+  max-width: 16ch;
+}
+.pair-kitchen .lead {
+  font-size: 2rem;
+  line-height: 1.4;
+  max-width: 22em;
+}
+.pair-kitchen .small { font-size: 1.5rem; }
+.kitchen-home {
+  grid-template-rows: minmax(0, auto) minmax(0, 1fr);
+}
+html:has(.kitchen-home),
+html:has(.pair-kitchen),
+html:has(.kitchen-home) body,
+html:has(.pair-kitchen) body {
+  height: 100%;
+  overflow-x: clip;
+}
+.kitchen-top {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.45fr);
+  gap: var(--space-xl);
+  align-items: stretch;
+  min-height: 0;
+  max-height: 40vh;
+  overflow: hidden;
+}
+.kitchen-top .mast {
+  display: grid;
+  align-content: start;
+  justify-content: start;
+  gap: var(--space-sm);
+}
+.kitchen-top .mast-aside {
+  text-align: left;
+  justify-items: start;
+}
+.kitchen-top .kitchen-nav { justify-content: flex-start; }
+.kitchen h2 {
+  font-size: 3rem;
+  max-width: none;
+}
+.kitchen .tap {
+  min-height: 64px;
+  min-width: 64px;
+}
+.kitchen-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+.kitchen-nav a {
+  min-height: 80px;
+  min-width: 8.5rem;
+  padding: var(--space-sm) var(--space-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  font-size: 2.15rem;
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+}
+.kitchen-nav a[aria-current="page"] {
+  background: color-mix(in oklab, var(--color-accent) 16%, var(--color-paper));
+  color: var(--color-ink);
+}
+.bento {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
+  grid-template-areas: "kids dinner";
+  gap: var(--space-xl);
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+.events { min-width: 0; display: grid; align-content: start; gap: var(--space-xs); }
+.events-folio {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.events-empty-block { display: grid; gap: var(--space-2xs); }
+.events-empty,
+.events-next {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 36;
+  color: var(--color-ink-2);
+}
+.event-list { display: grid; gap: var(--space-2xs); min-width: 0; }
+.events-folio .event-list {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-sm) var(--space-lg);
+  min-height: 0;
+  overflow: hidden;
+  align-content: start;
+}
+.event-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+  min-width: 0;
+  padding: var(--space-xs) 0 var(--space-xs) var(--space-md);
+  box-shadow: inset 5px 0 0 var(--person, var(--color-rule));
+}
+.event-time {
+  min-width: 7ch;
+  color: var(--color-ink-2);
+}
+.event-title {
+  min-width: 0;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.event-row[data-phase="past"] { color: var(--color-muted); }
+.event-row[data-phase="now"] .event-time { color: var(--color-accent); }
+.events-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  min-width: 64px;
+  padding-inline: var(--space-lg);
+  text-decoration: none;
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+}
+.kitchen .events-empty { font-size: 2rem; }
+.kitchen .events-next { font-size: 1.7rem; }
+.kitchen .events-folio h2 {
+  font-size: 1.8rem;
+  font-style: italic;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 36;
+}
+.kitchen .event-time { font-size: 1.7rem; padding-top: 0.2rem; }
+.kitchen .event-title { font-size: 2.15rem; line-height: 1.15; }
+.kitchen .event-row { padding-block: var(--space-2xs); }
+.kitchen .events-more {
+  grid-column: 1 / -1;
+  width: 100%;
+  font-size: 2.15rem;
+}
+.phone .events-empty { font-size: 1.15rem; }
+.phone .event-title { font-size: 1.2rem; line-height: 1.25; }
+.dinner { grid-area: dinner; min-width: 0; }
+.bento .kids { grid-area: kids; }
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: var(--space-lg);
+  min-height: 0;
+}
+.board .row,
+.events .row {
+  font-size: 3.2rem;
+  line-height: 1.15;
+  padding: var(--space-md) 0;
+  border-bottom-color: color-mix(in oklab, var(--color-rule) 70%, transparent);
+  align-items: baseline;
+}
+.board .row .small,
+.events .row .small {
+  font-size: 1.8rem;
+}
+.dinner-card,
+.dinner {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  padding: var(--space-lg);
+  gap: var(--space-sm);
+  min-height: 0;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-accent) 9%, var(--color-paper-2));
+}
+.dinner[data-has-photo="true"] {
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  padding-top: 0;
+}
+.dinner-poster {
+  margin-inline: calc(var(--space-lg) * -1);
+  min-height: 0;
+  height: 100%;
+  align-self: stretch;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-accent) 16%, var(--color-paper-3));
+}
+.dinner-photo {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+.meal-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: var(--color-paper-3);
+}
+.meal-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--person, var(--color-ink)) 22%, var(--color-paper));
+  color: var(--color-paper);
+  line-height: 1;
+}
+.avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.monogram {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 36;
+}
+.name-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.person-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.phone-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.dinner-name {
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 3.4vw, 3.8rem);
+  line-height: 1.05;
+  letter-spacing: var(--tracking-display);
+  overflow-wrap: break-word;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+}
+.dinner-week {
+  display: grid;
+  gap: var(--space-2xs);
+  margin-top: 0;
+  min-height: 0;
+}
+.dinner-week-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+.dinner-week-row .day-name {
+  font-size: 1.35rem;
+}
+.kitchen .dinner .meal-thumb {
+  width: 32px;
+  height: 32px;
+}
+.dinner-foot {
+  margin-top: auto;
+  padding-top: var(--space-lg);
+  display: grid;
+  gap: var(--space-xs);
+}
+.dinner-next {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  line-height: 1.15;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 72;
+}
+.kids {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  align-items: stretch;
+}
+.kid {
+  --person-tint: color-mix(in oklab, var(--person, var(--color-ink)) 11%, var(--color-paper));
+  background: var(--person-tint);
+  box-shadow: inset 5px 0 0 var(--person, var(--color-ink));
+  padding: var(--space-lg) var(--space-md) var(--space-lg) var(--space-lg);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-sm);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.kid-chores {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2xs);
+  min-height: 0;
+  overflow: hidden;
+}
+.kid-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.kid h3 {
+  font-size: 3.6rem;
+  max-width: none;
+}
+.kid .stars {
+  font-size: 1.85rem;
+  color: var(--color-ink-2);
+}
+.kitchen .chore-btn {
+  width: 100%;
+  text-align: left;
+  min-height: 72px;
+  padding: var(--space-xs) var(--space-sm);
+  background: color-mix(in oklab, var(--color-paper) 78%, transparent);
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: var(--space-3xs);
+  font-size: 1.85rem;
+  font-weight: 400;
+  line-height: 1.15;
+}
+.kitchen .chore-btn .small {
+  color: inherit;
+  font-weight: inherit;
+  font-size: 1.25rem;
+}
+.kitchen .chore-btn[data-status="done"] {
+  text-decoration: none;
+  min-height: 64px;
+  background: transparent;
+  color: var(--color-muted);
+}
+.chore-btn {
+  width: 100%;
+  text-align: left;
+  min-height: 64px;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-paper-2);
+  border: 0;
+  box-shadow: inset 4px 0 0 var(--person, var(--color-accent));
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3xs);
+}
+.chore-btn:hover { background: color-mix(in oklab, var(--color-paper-2) 70%, var(--color-paper-3)); }
+.chore-btn[data-status="done"] { text-decoration: none; color: var(--color-muted); }
+.chore-btn[disabled] {
+  cursor: default;
+  background: color-mix(in oklab, var(--color-paper) 70%, var(--color-paper-3));
+  color: var(--color-muted);
+}
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-sm);
+  min-height: 0;
+}
+.day-col {
+  min-width: 0;
+  padding-top: var(--space-sm);
+  display: grid;
+  align-content: start;
+  gap: var(--space-xs);
+}
+.day-name {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 36;
+}
+.chore-chip {
+  padding-left: var(--space-sm);
+  box-shadow: inset 4px 0 0 var(--person, var(--color-ink));
+}
+.clock {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  line-height: 0.88;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+}
+.dim {
+  position: fixed;
+  inset: 0;
+  background: var(--color-dusk);
+  color: var(--color-dusk-ink);
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.dim .clock {
+  color: var(--color-dusk-ink);
+  font-size: clamp(5rem, 11vw, 9rem);
+}
+.banner {
+  position: fixed;
+  inset: auto var(--space-xl) var(--space-md);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  padding: var(--space-sm) var(--space-md);
+  z-index: var(--z-toast);
+}
+.phone {
+  width: min(430px, 100%);
+  min-height: 100svh;
+  margin-inline: auto;
+  padding: var(--space-lg) var(--space-md) var(--space-3xl);
+  display: grid;
+  align-content: start;
+  gap: var(--space-lg);
+}
+.phone h1 {
+  font-size: 2.5rem;
+  max-width: none;
+}
+.parent-links {
+  display: grid;
+  gap: 0;
+}
+.parent-links a {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  font-size: var(--text-lg);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.person-pick {
+  min-height: 64px;
+  justify-content: flex-start;
+  padding-inline: var(--space-md);
+  border: 0;
+  border-bottom: 0;
+  background: color-mix(in oklab, var(--person, var(--color-ink)) 14%, var(--color-paper));
+  box-shadow: inset 5px 0 0 var(--person, var(--color-ink));
+  color: var(--color-ink);
+}
+.person-row {
+  box-shadow: inset 5px 0 0 var(--person, var(--color-ink));
+  padding-left: var(--space-md);
+  background: color-mix(in oklab, var(--person, var(--color-ink)) 10%, var(--color-paper));
+  border-bottom: 0;
+  min-height: 64px;
+  align-items: center;
+}
+.tabs {
+  position: fixed;
+  inset: auto 0 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--color-paper);
+  border-top: var(--rule-hair) solid var(--color-rule);
+  z-index: var(--z-sticky-nav);
+}
+.tabs-parent { grid-template-columns: repeat(5, 1fr); }
+.tabs a {
+  position: relative;
+  min-height: 64px;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+.tabs a[aria-current="page"] { color: var(--color-accent); }
+.tab-badge {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  padding-inline: var(--space-2xs);
+  display: grid;
+  place-items: center;
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+.approvals-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding-inline: var(--space-lg);
+  text-decoration: none;
+  background: color-mix(in oklab, var(--color-accent) 16%, var(--color-paper));
+}
+.phone .dinner-name { font-size: 1.8rem; }
+.list { display: grid; gap: var(--space-xs); }
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.pair-kitchen { align-content: stretch; }
+.pair-kitchen .mast,
+.pair-kitchen .folio { align-items: baseline; }
+.pair-kitchen-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, auto);
+  gap: var(--space-3xl);
+  align-items: center;
+  min-height: 0;
+}
+.pair-card {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  max-width: 420px;
+  background: var(--color-paper-2);
+}
+.pair-kitchen .pair-card {
+  max-width: none;
+  gap: var(--space-lg);
+}
+.pair-card-compact { padding: var(--space-lg); }
+.pair-qr {
+  width: min(280px, 70vw);
+  height: auto;
+  background: var(--color-paper-2);
+}
+.pair-kitchen .pair-qr {
+  width: 420px;
+  height: 420px;
+}
+.pair-code {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 72;
+}
+.pair-kitchen .pair-code {
+  font-size: clamp(5rem, 8vw, 7.2rem);
+}
+@media (max-width: 50rem) {
+  .pair-kitchen-body { grid-template-columns: 1fr; }
+  .board { grid-template-columns: 1fr; }
+  .bento {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "dinner"
+      "kids";
+  }
+  .kids { grid-template-columns: 1fr; }
+}

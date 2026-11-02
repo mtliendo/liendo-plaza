@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "QEP46P7WF2.com.focusotter.liendoplaza",
+        "paths": ["/family", "/family/*", "/join", "/join/*"]
+      }
+    ]
+  }
+}

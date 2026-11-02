@@ -1,0 +1,57 @@
+@theme static {
+  --color-paper: #faf6ef;
+  --color-paper-2: #f7f0e4;
+  --color-paper-3: #efe4d2;
+  --color-ink: #3a2418;
+  --color-ink-2: #5c3a24;
+  --color-muted: #7a5840;
+  --color-rule: #e4d6c4;
+  --color-accent: #8c4a22;
+  --color-accent-ink: #faf6ef;
+  --color-focus: #8c4a22;
+  --color-gold: #c4924a;
+  --color-gold-2: #e0c28a;
+  --color-error: #8c2f1f;
+  --color-success: #3f6a3a;
+  --color-person-focus: oklch(42% 0.12 28);
+  --color-person-jess: oklch(46% 0.08 150);
+  --color-person-sofia: oklch(52% 0.12 8);
+  --color-person-noah: oklch(46% 0.09 250);
+  --color-person-xavier: oklch(62% 0.13 80);
+  --color-dusk: oklch(27% 0.035 42);
+  --color-dusk-ink: oklch(93% 0.02 80);
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-body: var(--font-figtree), ui-sans-serif, sans-serif;
+  --font-outlier: var(--font-figtree), ui-sans-serif, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.44rem;
+  --text-2xl: 1.728rem;
+  --text-3xl: 2.074rem;
+  --text-display-s: 1.44rem;
+  --text-display: 1.728rem;
+  --text-section: 1.2rem;
+  --text-title: 1rem;
+  --text-lead: 1rem;
+  --tracking-display: -0.01em;
+  --radius-card: 0;
+  --radius-pill: 0;
+  --shadow-card: 0 18px 40px color-mix(in oklab, var(--color-ink) 6%, transparent);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+:root {
+  color-scheme: light;
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --container: 1440px; --gutter: 64px; --gap-columns: 32px; --section-gap-s: 120px; --section-gap: 144px; --section-gap-l: 176px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+  --color-slot: var(--color-gold);
+  --rule-hair: 1px; --rule-bar: 2px;
+  --display-weight: 400;
+  --paper-wash: linear-gradient(168deg, var(--color-paper) 0%, var(--color-paper-2) 100%);
+}
