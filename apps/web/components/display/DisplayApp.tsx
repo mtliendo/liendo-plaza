@@ -7,6 +7,7 @@ import { PersonAvatar } from "@/components/PersonAvatar";
 import { SoftLink } from "@/components/SoftLink";
 import { PairCard } from "@/components/pair/PairCard";
 import { useClaim } from "@/components/pair/useClaim";
+import { useKitchenReload } from "@/lib/display-refresh";
 import { useChoreToggle, useMe, usePrefetchHouse, useSnapshot, useSoftView } from "@/lib/query";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -82,8 +83,10 @@ export function DisplayApp({ view }: { view: View }) {
   const today = snapshot ? eventDay(snapshot.now) : new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const week = weekDates(today);
   const forceDim = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dim") === "1";
-  const dim =
-    snapshot && (forceDim || isDimHours(hourInChicago(snapshot.now))) && Date.now() > awakeUntil;
+  const dim = Boolean(
+    snapshot && (forceDim || isDimHours(hourInChicago(snapshot.now))) && Date.now() > awakeUntil,
+  );
+  useKitchenReload(dim);
 
   const kids = useMemo(() => {
     const order = ["sofia", "noah", "xavier"];

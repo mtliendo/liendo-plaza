@@ -17,6 +17,7 @@ import {
   useMe,
   useMealEdit,
   usePrefetchHouse,
+  useRequestFrameRefresh,
   useRewardRequest,
   useRewardReview,
   useSnapshot,
@@ -89,6 +90,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   const choreReview = useChoreReview();
   const rewardReview = useRewardReview();
   const mealEdit = useMealEdit();
+  const refreshFrame = useRequestFrameRefresh();
   const me = meQuery.data?.actor?.person ?? null;
   const askReward = useRewardRequest(me);
   const snapshot = snapshotQuery.data ?? null;
@@ -341,6 +343,15 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
             <SoftLink href="/family/pins" onGo={() => go("pins")} onPrefetch={prefetch}>
               PINs
             </SoftLink>
+            <button
+              type="button"
+              className="parent-action"
+              data-testid="refresh-frame"
+              onClick={() => refreshFrame.mutate()}
+              disabled={refreshFrame.isPending}
+            >
+              Refresh kitchen frame
+            </button>
           </div>
         </>
       ) : null}

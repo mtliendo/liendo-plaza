@@ -1,9 +1,13 @@
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { View } from "react-native";
 import { QueryProviders } from "@/lib/query";
 import { colors, type } from "@/lib/theme";
+
+void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -11,6 +15,10 @@ export default function RootLayout() {
     "Fraunces-Italic": require("../assets/fonts/Fraunces-Italic.ttf"),
     Figtree: require("../assets/fonts/Figtree.ttf"),
   });
+
+  useEffect(() => {
+    if (loaded) void SplashScreen.hideAsync();
+  }, [loaded]);
 
   if (!loaded) {
     return <View style={{ flex: 1, backgroundColor: colors.paper }} />;

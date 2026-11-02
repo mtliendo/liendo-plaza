@@ -3,6 +3,9 @@ import type { ChoreInstance, ChoreStatus, DisplaySnapshot, Meal, Reward, RewardR
 export const QUERY_STALE_MS = 45_000;
 export const QUERY_GC_MS = 30 * 60 * 1000;
 export const DISPLAY_REFETCH_MS = 60_000;
+export const DISPLAY_VERSION_POLL_MS = 60_000;
+export const DISPLAY_RELOAD_IDLE_MS = 30_000;
+export const DISPLAY_REMOTE_REFRESH_MAX_WAIT_MS = 120_000;
 
 export const queryKeys = {
   me: ["me"] as const,

@@ -4,12 +4,15 @@ import { Link } from "expo-router";
 import type { Chore, Person } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { api } from "@/lib/api";
-import { body, btn, btnLabel, colors, input, screen } from "@/lib/theme";
+import { useMe } from "@/lib/query";
+import { body, btn, btnLabel, colors, input, muted, row, screen } from "@/lib/theme";
 
 export default function ParentChoresScreen() {
+  const me = useMe().data?.actor.person ?? null;
   const [chores, setChores] = useState<Chore[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [title, setTitle] = useState("");
+  const [note, setNote] = useState("");
   useEffect(() => {
     void (async () => {
       setChores(((await api("chores")) as { chores: Chore[] }).chores);
@@ -19,6 +22,25 @@ export default function ParentChoresScreen() {
   const kid = people[0];
   return (
     <ScrollView contentContainerStyle={screen}>
+      {me?.role === "parent" ? (
+        <>
+          <Pressable
+            testID="refresh-frame"
+            onPress={async () => {
+              try {
+                await api("display/refresh", { method: "POST" });
+                setNote("Frame will refresh in a moment");
+              } catch {
+                setNote("Could not reach the kitchen frame.");
+              }
+            }}
+            style={row}
+          >
+            <Text style={{ fontSize: 18, color: colors.ink }}>Refresh kitchen frame</Text>
+          </Pressable>
+          {note ? <Text style={muted}>{note}</Text> : null}
+        </>
+      ) : null}
       <Link href="/parent/approvals">
         <Text style={{ color: colors.accent, minHeight: 48, fontSize: 18 }}>Approvals</Text>
       </Link>

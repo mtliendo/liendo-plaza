@@ -94,6 +94,11 @@ export type FamilySettings = {
   choreReminderMinute: number;
 };
 
+export type DisplayVersion = {
+  buildId: string;
+  refreshRequestedAt: string | null;
+};
+
 export type DisplaySnapshot = {
   now: string;
   timezone: string;
