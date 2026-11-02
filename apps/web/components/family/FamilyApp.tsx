@@ -1,14 +1,27 @@
 "use client";
 
-import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import type { Chore, DisplaySnapshot, Person, Reward, RewardRequest } from "@liendo/shared";
-import { mealPhotoSrc, parseEventFixture, WEEKDAY_LABELS, weekDates } from "@liendo/shared";
+import type { Person } from "@liendo/shared";
+import { mealPhotoSrc, parseEventFixture, queryKeys, WEEKDAY_LABELS, weekDates } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
+import { SoftLink } from "@/components/SoftLink";
 import { AddDevicePanel, DevicesPanel } from "@/components/family/DevicePanels";
 import { UnpairedFamily } from "@/components/family/UnpairedFamily";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import {
+  useChoreReview,
+  useChoreToggle,
+  useHouseLists,
+  useMe,
+  useMealEdit,
+  usePrefetchHouse,
+  useRewardRequest,
+  useRewardReview,
+  useSnapshot,
+  useSoftView,
+} from "@/lib/query";
 
 type Screen =
   | "gate"
@@ -18,6 +31,7 @@ type Screen =
   | "calendar"
   | "meals"
   | "stars"
+  | "manage"
   | "manage-chores"
   | "approvals"
   | "rewards"
@@ -38,23 +52,49 @@ export function FamilyApp({ screen }: { screen: Exclude<Screen, "gate" | "people
   );
 }
 
+const FAMILY_HREFS = {
+  today: "/family",
+  calendar: "/family/calendar",
+  meals: "/family/meals",
+  stars: "/family/stars",
+  manage: "/family/manage",
+  "manage-chores": "/family/chores",
+  approvals: "/family/approvals",
+  rewards: "/family/rewards",
+  "plan-meals": "/family/plan",
+  pins: "/family/pins",
+  devices: "/family/devices",
+  "add-device": "/family/add-device",
+} as const;
+
 function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" | "pin"> }) {
   const params = useSearchParams();
   const invite = params.get("invite");
   const fixture = parseEventFixture(params.get("fixture"));
-  const fixtureQuery = fixture ? `&fixture=${fixture}` : "";
+  const [board, go] = useSoftView(screen, FAMILY_HREFS);
   const [familyToken, setFamilyToken] = useState<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
-  const [me, setMe] = useState<Person | null>(null);
   const [phase, setPhase] = useState<Screen | "loading">("loading");
   const [pin, setPin] = useState("");
   const [picked, setPicked] = useState<Person | null>(null);
   const [error, setError] = useState("");
-  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
-  const [chores, setChores] = useState<Chore[]>([]);
-  const [rewards, setRewards] = useState<Reward[]>([]);
-  const [requests, setRequests] = useState<RewardRequest[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const queryClient = useQueryClient();
+  const meQuery = useMe();
+  const signedIn = meQuery.data?.actor?.kind === "person";
+  const snapshotQuery = useSnapshot(Boolean(signedIn));
+  const lists = useHouseLists(Boolean(signedIn));
+  const prefetch = usePrefetchHouse();
+  const toggle = useChoreToggle();
+  const choreReview = useChoreReview();
+  const rewardReview = useRewardReview();
+  const mealEdit = useMealEdit();
+  const me = meQuery.data?.actor?.person ?? null;
+  const askReward = useRewardRequest(me);
+  const snapshot = snapshotQuery.data ?? null;
+  const chores = lists.chores.data ?? [];
+  const rewards = lists.rewards.data ?? [];
+  const requests = lists.requests.data ?? [];
 
   const today = snapshot ? eventDay(snapshot.now) : new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const week = weekDates(today);
@@ -65,39 +105,21 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
     return next;
   }, [familyToken]);
 
-  const loadAll = useCallback(async () => {
-    const meRes = await fetch("/api/me", { cache: "no-store" });
-    if (!meRes.ok) return false;
-    const meBody = (await meRes.json()) as { actor?: { kind: string; person?: Person } };
-    if (meBody.actor?.kind === "person" && meBody.actor.person) {
-      setMe(meBody.actor.person);
-      const from = weekDates(today)[0];
-      const to = weekDates(today)[6];
-      const [snap, choreRes, rewardRes, requestRes] = await Promise.all([
-        fetch(`/api/snapshot?from=${from}&to=${to}${fixtureQuery}`).then((r) => r.json()) as Promise<DisplaySnapshot>,
-        fetch("/api/chores").then((r) => r.json()) as Promise<{ chores: Chore[] }>,
-        fetch("/api/rewards").then((r) => r.json()) as Promise<{ rewards: Reward[] }>,
-        fetch("/api/rewards/requests").then((r) => r.json()) as Promise<{ requests: RewardRequest[] }>,
-      ]);
-      setSnapshot(snap);
-      setChores(choreRes.chores);
-      setRewards(rewardRes.rewards);
-      setRequests(requestRes.requests);
-      return true;
-    }
-    return false;
-  }, [fixtureQuery, today]);
+  useEffect(() => {
+    if (signedIn) prefetch();
+  }, [prefetch, signedIn]);
 
   useEffect(() => {
+    if (meQuery.isPending && !meQuery.data) return;
+    if (signedIn) {
+      setPhase(board);
+      return;
+    }
+    if (!familyToken) {
+      setPhase("gate");
+      return;
+    }
     void (async () => {
-      if (await loadAll()) {
-        setPhase(screen);
-        return;
-      }
-      if (!familyToken) {
-        setPhase("gate");
-        return;
-      }
       const peopleRes = await fetch("/api/people", { headers: { "x-family-token": familyToken } });
       if (peopleRes.ok) {
         const body = (await peopleRes.json()) as { people: Person[] };
@@ -105,17 +127,15 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         setPhase("people");
       }
     })();
-  }, [familyToken, loadAll, screen]);
+  }, [board, familyToken, meQuery.data, meQuery.isPending, signedIn]);
 
   const onPaired = useCallback((token: string | null) => {
     if (token) {
       setFamilyToken(token);
       return;
     }
-    void (async () => {
-      if (await loadAll()) setPhase(screen);
-    })();
-  }, [loadAll, screen]);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+  }, [queryClient]);
 
   async function submitPin(event: React.FormEvent) {
     event.preventDefault();
@@ -131,13 +151,17 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
       setError(body.error ?? "That PIN is wrong.");
       return;
     }
-    await loadAll();
+    await queryClient.invalidateQueries({ queryKey: queryKeys.me });
     setPhase(screen);
   }
 
   const isParent = me?.role === "parent";
   const visibleChores =
     snapshot?.chores.filter((item) => (isParent ? true : item.personId === me?.id) && item.date === today) ?? [];
+  const tonight = snapshot?.meals.find((meal) => meal.date === today);
+  const pendingApprovals =
+    (snapshot?.chores.filter((item) => item.status === "pending").length ?? 0) +
+    requests.filter((item) => item.status === "pending").length;
 
   if (phase === "loading") {
     return (
@@ -202,19 +226,25 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   }
 
   const tabs = (
-    <nav className="tabs">
-      <Link href="/family" aria-current={screen === "today" ? "page" : undefined}>
+    <nav className={`tabs ${isParent ? "tabs-parent" : ""}`}>
+      <SoftLink href="/family" current={board === "today"} onGo={() => go("today")} onPrefetch={prefetch}>
         Today
-      </Link>
-      <Link href="/family/calendar" aria-current={screen === "calendar" ? "page" : undefined}>
+      </SoftLink>
+      <SoftLink href="/family/calendar" current={board === "calendar"} onGo={() => go("calendar")} onPrefetch={prefetch}>
         Week
-      </Link>
-      <Link href="/family/meals" aria-current={screen === "meals" ? "page" : undefined}>
+      </SoftLink>
+      <SoftLink href="/family/meals" current={board === "meals"} onGo={() => go("meals")} onPrefetch={prefetch}>
         Dinner
-      </Link>
-      <Link href="/family/stars" aria-current={screen === "stars" ? "page" : undefined}>
+      </SoftLink>
+      <SoftLink href="/family/stars" current={board === "stars"} onGo={() => go("stars")} onPrefetch={prefetch}>
         Stars
-      </Link>
+      </SoftLink>
+      {isParent ? (
+        <SoftLink href="/family/manage" current={board === "manage"} onGo={() => go("manage")} onPrefetch={prefetch}>
+          Manage
+          {pendingApprovals > 0 ? <span className="tab-badge">{pendingApprovals}</span> : null}
+        </SoftLink>
+      ) : null}
     </nav>
   );
 
@@ -226,7 +256,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
             {me.name}
           </p>
         ) : null}
-      {screen === "today" ? (
+      {board === "today" ? (
         <>
           <h1>Today</h1>
           {snapshot ? (
@@ -238,17 +268,20 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
               moreHref={`/family/calendar${fixture ? `?fixture=${fixture}` : ""}`}
             />
           ) : null}
-          {isParent ? (
-            <div className="parent-links">
-              <Link href="/family/approvals">Approvals</Link>
-              <Link href="/family/chores">Edit chores</Link>
-              <Link href="/family/rewards">Rewards</Link>
-              <Link href="/family/plan">Plan dinners</Link>
-              <Link href="/family/add-device">Add a device</Link>
-              <Link href="/family/devices">Devices</Link>
-              <Link href="/family/pins">PINs</Link>
-            </div>
+          {isParent && pendingApprovals > 0 ? (
+            <SoftLink
+              href="/family/approvals"
+              className="approvals-chip tap"
+              onGo={() => go("approvals")}
+              onPrefetch={prefetch}
+            >
+              {pendingApprovals === 1 ? "1 waiting" : `${pendingApprovals} waiting`}
+            </SoftLink>
           ) : null}
+          <aside className="today-dinner">
+            <p className="place">Tonight’s dinner</p>
+            <p className="dinner-name">{tonight?.name ?? "Nothing written yet"}</p>
+          </aside>
           <div className="list">
             {visibleChores.map((chore) => {
               const person = snapshot?.people.find((row) => row.id === chore.personId);
@@ -261,9 +294,9 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                     ["--person" as string]: person?.color ?? "var(--color-accent)",
                   }}
                   onClick={async () => {
-                    if (chore.requiresPhoto || chore.status !== "open") return;
-                    await fetch(`/api/chores/instances/${chore.id}/complete`, { method: "POST" });
-                    await loadAll();
+                    if (chore.requiresPhoto && chore.status === "open") return;
+                    if (chore.status !== "open" && chore.status !== "done") return;
+                    toggle.mutate({ id: chore.id, undo: chore.status === "done" });
                   }}
                 >
                   {person && isParent ? (
@@ -282,7 +315,37 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {screen === "calendar" && snapshot ? (
+      {board === "manage" && isParent ? (
+        <>
+          <h1>Manage</h1>
+          <div className="parent-links">
+            <SoftLink href="/family/approvals" onGo={() => go("approvals")} onPrefetch={prefetch}>
+              Approvals
+              {pendingApprovals > 0 ? ` (${pendingApprovals})` : ""}
+            </SoftLink>
+            <SoftLink href="/family/chores" onGo={() => go("manage-chores")} onPrefetch={prefetch}>
+              Edit chores
+            </SoftLink>
+            <SoftLink href="/family/rewards" onGo={() => go("rewards")} onPrefetch={prefetch}>
+              Rewards
+            </SoftLink>
+            <SoftLink href="/family/plan" onGo={() => go("plan-meals")} onPrefetch={prefetch}>
+              Plan dinners
+            </SoftLink>
+            <SoftLink href="/family/add-device" onGo={() => go("add-device")} onPrefetch={prefetch}>
+              Add a device
+            </SoftLink>
+            <SoftLink href="/family/devices" onGo={() => go("devices")} onPrefetch={prefetch}>
+              Devices
+            </SoftLink>
+            <SoftLink href="/family/pins" onGo={() => go("pins")} onPrefetch={prefetch}>
+              PINs
+            </SoftLink>
+          </div>
+        </>
+      ) : null}
+
+      {board === "calendar" && snapshot ? (
         <>
           <h1>This week</h1>
           {week.map((iso, index) => (
@@ -298,7 +361,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {screen === "meals" && snapshot ? (
+      {board === "meals" && snapshot ? (
         <>
           <h1>Dinners</h1>
           {week.map((iso) => {
@@ -317,7 +380,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {screen === "stars" && snapshot ? (
+      {board === "stars" && snapshot ? (
         <>
           <h1>Stars</h1>
           {snapshot.stars.map((row) => {
@@ -345,12 +408,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                 type="button"
                 className="chore-btn"
                 onClick={async () => {
-                  await fetch("/api/rewards/requests", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ rewardId: reward.id }),
-                  });
-                  await loadAll();
+                  askReward.mutate(reward.id);
                 }}
               >
                 {reward.name}
@@ -360,14 +418,15 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {screen === "manage-chores" && isParent ? (
+      {board === "manage-chores" && isParent ? (
         <>
           <h1>Chores</h1>
           <ChoreForm
             people={snapshot?.people.filter((p) => p.role === "kid") ?? []}
             onCreate={async (payload) => {
               await fetch("/api/chores", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-              await loadAll();
+              await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
             }}
           />
           {chores
@@ -380,7 +439,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {screen === "approvals" && isParent && snapshot ? (
+      {board === "approvals" && isParent && snapshot ? (
         <>
           <h1>Waiting on you</h1>
           {snapshot.chores
@@ -393,12 +452,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                     type="button"
                     className="btn"
                     onClick={async () => {
-                      await fetch(`/api/chores/instances/${item.id}/review`, {
-                        method: "POST",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ action: "approve" }),
-                      });
-                      await loadAll();
+                      choreReview.mutate({ id: item.id, action: "approve" });
                     }}
                   >
                     Approve
@@ -422,12 +476,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                   type="button"
                   className="btn"
                   onClick={async () => {
-                    await fetch(`/api/rewards/requests/${item.id}/review`, {
-                      method: "POST",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ action: "approve" }),
-                    });
-                    await loadAll();
+                    rewardReview.mutate({ id: item.id, action: "approve" });
                   }}
                 >
                   Approve
@@ -437,13 +486,13 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {screen === "rewards" && isParent ? (
+      {board === "rewards" && isParent ? (
         <>
           <h1>Rewards</h1>
           <RewardForm
             onCreate={async (payload) => {
               await fetch("/api/rewards", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-              await loadAll();
+              await queryClient.invalidateQueries({ queryKey: queryKeys.rewards });
             }}
           />
           {rewards.map((reward) => (
@@ -454,7 +503,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {screen === "plan-meals" && isParent ? (
+      {board === "plan-meals" && isParent ? (
         <>
           <h1>Write dinners</h1>
           {week.map((iso) => {
@@ -473,12 +522,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                     setSuggestions(body.names);
                   }}
                   onBlur={async (event) => {
-                    await fetch("/api/meals", {
-                      method: "PUT",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ date: iso, name: event.target.value }),
-                    });
-                    await loadAll();
+                    mealEdit.mutate({ date: iso, name: event.target.value });
                   }}
                 />
                 <span className="meal-line">
@@ -492,7 +536,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                       const form = new FormData();
                       form.append("photo", file);
                       await fetch(`/api/meals/${iso}/photo`, { method: "POST", body: form });
-                      await loadAll();
+                      await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
                     }}
                   />
                 </span>
@@ -507,11 +551,11 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {screen === "add-device" && isParent ? <AddDevicePanel /> : null}
+      {board === "add-device" && isParent ? <AddDevicePanel /> : null}
 
-      {screen === "devices" && isParent ? <DevicesPanel /> : null}
+      {board === "devices" && isParent ? <DevicesPanel /> : null}
 
-      {screen === "pins" && isParent ? (
+      {board === "pins" && isParent ? (
         <>
           <h1>Reset a PIN</h1>
           <PinForm

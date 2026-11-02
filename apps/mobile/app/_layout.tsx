@@ -2,6 +2,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
+import { QueryProviders } from "@/lib/query";
 import { colors, type } from "@/lib/theme";
 
 export default function RootLayout() {
@@ -16,7 +17,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <QueryProviders>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -30,6 +31,6 @@ export default function RootLayout() {
         <Stack.Screen name="pair" options={{ title: "Add a device" }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
-    </>
+    </QueryProviders>
   );
 }

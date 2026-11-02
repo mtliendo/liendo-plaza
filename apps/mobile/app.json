@@ -21,6 +21,7 @@
         "applinks:liendo-plaza-git-cursor-liendo-pla-c65a88-focus-otters-projects.vercel.app"
       ],
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Liendo Plaza uses the camera so a kid can send a chore photo.",
         "NSPhotoLibraryUsageDescription": "Liendo Plaza can use a photo from the library for a chore."
       }
@@ -30,7 +31,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FAF6EF"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -51,9 +55,10 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "replace-after-eas-init"
-      }
+        "projectId": "b173dabf-290e-4cae-a312-492e9d48ad30"
+      },
+      "router": {}
     },
-    "owner": "focusotter"
+    "owner": "focus-otter"
   }
 }

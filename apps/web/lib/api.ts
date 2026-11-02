@@ -33,6 +33,7 @@ import {
   listChores,
   markPhotoPending,
   reviewInstance,
+  undoInstance,
   updateChore,
 } from "./chores";
 import { getDb, schema } from "./db";
@@ -267,6 +268,18 @@ export async function handleApi(req: Request): Promise<Response> {
       throw new HttpError(403, "That chore belongs to someone else.");
     }
     return json({ instance: await completeInstance(completeMatch[1]) });
+  }
+
+  const undoMatch = path.match(/^chores\/instances\/([^/]+)\/undo$/);
+  if (undoMatch && method === "POST") {
+    const actor = await requireActor(req, ["person", "display"]);
+    const db = getDb();
+    const [row] = await db.select().from(schema.choreInstances).where(eq(schema.choreInstances.id, undoMatch[1])).limit(1);
+    if (!row) throw new HttpError(404, "That chore is not on the list.");
+    if (actor.kind === "person" && actor.person.role !== "parent" && actor.person.id !== row.personId) {
+      throw new HttpError(403, "That chore belongs to someone else.");
+    }
+    return json({ instance: await undoInstance(undoMatch[1]) });
   }
 
   const photoMatch = path.match(/^chores\/instances\/([^/]+)\/photo$/);

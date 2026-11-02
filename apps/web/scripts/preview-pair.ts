@@ -53,7 +53,7 @@ async function main() {
     await shot(phonePage, "preview_phone_bootstrap_closed.png");
   }
 
-  const signedIn = await phonePage.locator("text=Add a device").count();
+  const signedIn = await phonePage.locator("text=Today").count();
   if (signedIn && pairCode) {
     await phonePage.goto(`${BASE}/family/add-device`, { waitUntil: "domcontentloaded" });
     await phonePage.locator('[data-testid="approve-code"]').fill(pairCode);

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Figtree, Fraunces } from "next/font/google";
+import { QueryProviders } from "@/lib/query";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -24,7 +25,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${fraunces.variable} ${figtree.variable}`}>
-      <body>{children}</body>
+      <body>
+        <QueryProviders>{children}</QueryProviders>
+      </body>
     </html>
   );
 }

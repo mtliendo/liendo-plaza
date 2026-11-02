@@ -1,24 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import type { DisplaySnapshot, Reward } from "@liendo/shared";
-import { weekDates } from "@liendo/shared";
+import type { Reward } from "@liendo/shared";
+import { queryKeys } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { api } from "@/lib/api";
+import { useSnapshot } from "@/lib/query";
 import { colors, h1, h2, muted, personEdge, screen } from "@/lib/theme";
 
 export default function StarsScreen() {
-  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
-  const [rewards, setRewards] = useState<Reward[]>([]);
-  const load = useCallback(async () => {
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-    const week = weekDates(today);
-    setSnapshot((await api(`snapshot?from=${week[0]}&to=${week[6]}`)) as DisplaySnapshot);
-    const body = (await api("rewards")) as { rewards: Reward[] };
-    setRewards(body.rewards);
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const snapshotQuery = useSnapshot();
+  const snapshot = snapshotQuery.data ?? null;
+  const rewardsQuery = useQuery({
+    queryKey: queryKeys.rewards,
+    queryFn: () => api("rewards") as Promise<{ rewards: Reward[] }>,
+  });
+  const rewards = rewardsQuery.data?.rewards ?? [];
   return (
     <ScrollView contentContainerStyle={screen}>
       <Text style={h1}>Stars</Text>
@@ -43,7 +39,7 @@ export default function StarsScreen() {
             key={reward.id}
             onPress={async () => {
               await api("rewards/requests", { method: "POST", body: JSON.stringify({ rewardId: reward.id }) });
-              await load();
+              await snapshotQuery.refetch();
             }}
             style={{ backgroundColor: colors.paper2, padding: 16, minHeight: 64, justifyContent: "center" }}
           >

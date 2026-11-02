@@ -127,6 +127,54 @@ export async function ensureInstances(fromIso: string, toIso: string): Promise<C
   }));
 }
 
+export async function undoInstance(id: string): Promise<ChoreInstance> {
+  const db = getDb();
+  const [row] = await db
+    .select({ instance: schema.choreInstances, chore: schema.chores })
+    .from(schema.choreInstances)
+    .innerJoin(schema.chores, eq(schema.choreInstances.choreId, schema.chores.id))
+    .where(eq(schema.choreInstances.id, id))
+    .limit(1);
+  if (!row) throw new HttpError(404, "That chore is not on the list.");
+  if (row.instance.status === "open") {
+    return {
+      id: row.instance.id,
+      choreId: row.instance.choreId,
+      personId: row.instance.personId,
+      date: row.instance.date,
+      status: "open",
+      stars: row.chore.stars,
+      starsAwarded: 0,
+      title: row.chore.title,
+      requiresPhoto: row.chore.requiresPhoto,
+      photoPath: row.instance.photoPath,
+    };
+  }
+  const [updated] = await db
+    .update(schema.choreInstances)
+    .set({
+      status: "open",
+      starsAwarded: 0,
+      completedAt: null,
+      reviewedAt: null,
+      reviewedById: null,
+    })
+    .where(eq(schema.choreInstances.id, id))
+    .returning();
+  return {
+    id: updated.id,
+    choreId: updated.choreId,
+    personId: updated.personId,
+    date: updated.date,
+    status: "open",
+    stars: row.chore.stars,
+    starsAwarded: 0,
+    title: row.chore.title,
+    requiresPhoto: row.chore.requiresPhoto,
+    photoPath: updated.photoPath,
+  };
+}
+
 export async function completeInstance(id: string, allowPhoto = false): Promise<ChoreInstance> {
   const db = getDb();
   const [row] = await db

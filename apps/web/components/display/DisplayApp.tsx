@@ -1,19 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DisplaySnapshot } from "@liendo/shared";
-import { isDimHours, mealPhotoSrc, parseEventFixture, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+import { useEffect, useMemo, useState } from "react";
+import { DISPLAY_REFETCH_MS, isDimHours, mealPhotoSrc, queryKeys, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { SoftLink } from "@/components/SoftLink";
 import { PairCard } from "@/components/pair/PairCard";
 import { useClaim } from "@/components/pair/useClaim";
-
-function fixtureQuery() {
-  if (typeof window === "undefined") return "";
-  const fixture = parseEventFixture(new URLSearchParams(window.location.search).get("fixture"));
-  return fixture ? `&fixture=${fixture}` : "";
-}
+import { useChoreToggle, useMe, usePrefetchHouse, useSnapshot, useSoftView } from "@/lib/query";
+import { useQueryClient } from "@tanstack/react-query";
 
 type View = "home" | "week" | "chores" | "meals";
 
@@ -49,55 +44,40 @@ function hourInChicago(now: string) {
   return Number(hour);
 }
 
+const DISPLAY_HREFS = {
+  home: "/display",
+  week: "/display/week",
+  chores: "/display/chores",
+  meals: "/display/meals",
+} as const;
+
 export function DisplayApp({ view }: { view: View }) {
-  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
-  const [paired, setPaired] = useState<boolean | null>(null);
-  const [offline, setOffline] = useState(false);
+  const [boardView, go] = useSoftView(view, DISPLAY_HREFS);
+  const me = useMe();
+  const paired = me.data ? Boolean(me.data.actor) : me.isPending ? null : false;
+  const snapshotQuery = useSnapshot(paired === true, DISPLAY_REFETCH_MS);
+  const snapshot = snapshotQuery.data ?? null;
+  const offline = snapshotQuery.isError;
+  const toggle = useChoreToggle();
+  const prefetch = usePrefetchHouse();
+  const queryClient = useQueryClient();
   const claim = useClaim("display");
   const [awakeUntil, setAwakeUntil] = useState(0);
   const [tick, setTick] = useState(Date.now());
 
-  const load = useCallback(async () => {
-    try {
-      const me = await fetch("/api/me", { cache: "no-store" });
-      if (me.status === 401) {
-        setPaired(false);
-        return;
-      }
-      setPaired(true);
-      const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-      const week = weekDates(today);
-      const res = await fetch(`/api/snapshot?from=${week[0]}&to=${week[6]}${fixtureQuery()}`, { cache: "no-store" });
-      if (!res.ok) throw new Error("snapshot");
-      setSnapshot((await res.json()) as DisplaySnapshot);
-      setOffline(false);
-    } catch {
-      setOffline(true);
-    }
+  useEffect(() => {
+    const clock = setInterval(() => setTick(Date.now()), 15_000);
+    return () => clearInterval(clock);
   }, []);
 
   useEffect(() => {
-    void load();
-    const poll = setInterval(() => void load(), 30_000);
-    const clock = setInterval(() => setTick(Date.now()), 15_000);
-    return () => {
-      clearInterval(poll);
-      clearInterval(clock);
-    };
-  }, [load]);
+    if (!claim.paired) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+  }, [claim.paired, queryClient]);
 
   useEffect(() => {
-    if (!claim.paired || paired) return;
-    void (async () => {
-      setPaired(true);
-      await load();
-    })();
-  }, [claim.paired, load, paired]);
-
-  async function complete(id: string) {
-    const res = await fetch(`/api/chores/instances/${id}/complete`, { method: "POST" });
-    if (res.ok) await load();
-  }
+    if (paired) prefetch();
+  }, [paired, prefetch]);
 
   const today = snapshot ? eventDay(snapshot.now) : new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const week = weekDates(today);
@@ -114,7 +94,7 @@ export function DisplayApp({ view }: { view: View }) {
 
   if (paired === false) {
     return (
-      <main className="kitchen pair-kitchen">
+      <main className="kitchen pair-kitchen" data-testid="kitchen-pair">
         <header className="mast">
           <h1>Liendo Plaza</h1>
           <p className="small">Kitchen board</p>
@@ -159,81 +139,105 @@ export function DisplayApp({ view }: { view: View }) {
   const dinnerPhoto = mealPhotoSrc(tonight?.photoPath);
   const nav = (
     <nav className="kitchen-nav" aria-label="Board">
-      <Link href="/display" aria-current={view === "home" ? "page" : undefined}>
+      <SoftLink href="/display" current={boardView === "home"} onGo={() => go("home")} onPrefetch={prefetch}>
         Today
-      </Link>
-      <Link href="/display/week" aria-current={view === "week" ? "page" : undefined}>
+      </SoftLink>
+      <SoftLink href="/display/week" current={boardView === "week"} onGo={() => go("week")} onPrefetch={prefetch}>
         Week
-      </Link>
-      <Link href="/display/chores" aria-current={view === "chores" ? "page" : undefined}>
+      </SoftLink>
+      <SoftLink href="/display/chores" current={boardView === "chores"} onGo={() => go("chores")} onPrefetch={prefetch}>
         Chores
-      </Link>
-      <Link href="/display/meals" aria-current={view === "meals" ? "page" : undefined}>
+      </SoftLink>
+      <SoftLink href="/display/meals" current={boardView === "meals"} onGo={() => go("meals")} onPrefetch={prefetch}>
         Dinners
-      </Link>
+      </SoftLink>
     </nav>
   );
 
-  return (
-    <main className="kitchen">
-      <header className="mast">
-        <div>
-          <p className="clock" data-testid="clock">{clockLabel(snapshot.now)}</p>
-          <p className="date">{dateLabel(snapshot.now)}</p>
-        </div>
-        <div className="mast-aside">
-          <p className="weather num">
-            {snapshot.weather ? `${snapshot.weather.temperatureF}° ${snapshot.weather.label}` : "Weather later"}
-          </p>
-          <p className="place">Davenport</p>
-          {nav}
-        </div>
-      </header>
+  const mast = (
+    <header className="mast">
+      <div>
+        <p className="clock" data-testid="clock">{clockLabel(snapshot.now)}</p>
+        <p className="date">{dateLabel(snapshot.now)}</p>
+      </div>
+      <div className="mast-aside">
+        <p className="weather num">
+          {snapshot.weather ? `${snapshot.weather.temperatureF}° ${snapshot.weather.label}` : "Weather later"}
+        </p>
+        <p className="place">Davenport</p>
+        {nav}
+      </div>
+    </header>
+  );
 
-      {view === "home" ? (
+  return (
+    <main className={`kitchen ${boardView === "home" ? "kitchen-home" : ""}`} data-testid={`view-${boardView}`}>
+      {boardView === "home" ? (
         <>
-          <EventBoard
-            heading="Today"
-            events={snapshot.events}
-            now={snapshot.now}
-            people={snapshot.people}
-            maxVisible={4}
-            moreHref={`/display/week${fixtureQuery().replace("&", "?")}`}
-          />
+          <div className="kitchen-top">
+            {mast}
+            <EventBoard
+              heading="Today"
+              className="events-folio"
+              events={snapshot.events}
+              now={snapshot.now}
+              people={snapshot.people}
+              maxVisible={6}
+              moreHref="/display/week"
+            />
+          </div>
           <section className="bento">
             <section className="kids">
               {kids.map((kid) => {
                 const chores = snapshot.chores.filter((item) => item.personId === kid.id && item.date === today);
                 const stars = snapshot.stars.find((item) => item.personId === kid.id);
+                const choreMax = 3;
+                const visibleChores = chores.slice(0, choreMax);
+                const choreMore = chores.length - visibleChores.length;
                 return (
                   <article key={kid.id} className="kid" style={{ ["--person" as string]: kid.color }}>
                     <div className="kid-head">
-                      <PersonAvatar person={kid} size={80} />
+                      <PersonAvatar person={kid} size={96} />
                       <h3>{kid.name}</h3>
                     </div>
                     <p className="stars">{stars?.weekEarned ?? 0} this week</p>
                     <p className="stars">{stars?.balance ?? 0} to spend</p>
-                    {chores.length === 0 ? <p className="stars">No chores today.</p> : null}
-                    {chores.map((chore) => {
-                      const canTap = !chore.requiresPhoto && chore.status === "open";
-                      const done = chore.status === "done";
-                      return (
-                        <button
-                          key={chore.id}
-                          type="button"
-                          className="chore-btn tap"
-                          data-status={chore.status}
-                          disabled={!canTap}
-                          aria-label={chore.title}
-                          onClick={() => void complete(chore.id)}
+                    <div className="kid-chores">
+                      {chores.length === 0 ? <p className="stars">No chores today.</p> : null}
+                      {visibleChores.map((chore) => {
+                        const canTap = (!chore.requiresPhoto && chore.status === "open") || chore.status === "done";
+                        const done = chore.status === "done";
+                        return (
+                          <button
+                            key={chore.id}
+                            type="button"
+                            className="chore-btn tap"
+                            data-testid={`chore-${chore.title}`}
+                            data-status={chore.status}
+                            disabled={!canTap}
+                            aria-label={chore.title}
+                            onClick={() =>
+                              void toggle.mutate({ id: chore.id, undo: chore.status === "done" })
+                            }
+                          >
+                            <span>{chore.title}</span>
+                            {done ? null : <span className="small">{starsLabel(chore.stars)}</span>}
+                            {!done && chore.requiresPhoto ? <span className="small">photo on the phone</span> : null}
+                            {chore.status === "pending" ? <span className="small">waiting</span> : null}
+                          </button>
+                        );
+                      })}
+                      {choreMore > 0 ? (
+                        <SoftLink
+                          href="/display/chores"
+                          className="events-more tap"
+                          onGo={() => go("chores")}
+                          onPrefetch={prefetch}
                         >
-                          <span>{chore.title}</span>
-                          {done ? null : <span className="small">{starsLabel(chore.stars)}</span>}
-                          {!done && chore.requiresPhoto ? <span className="small">photo on the phone</span> : null}
-                          {chore.status === "pending" ? <span className="small">waiting</span> : null}
-                        </button>
-                      );
-                    })}
+                          +{choreMore} more
+                        </SoftLink>
+                      ) : null}
+                    </div>
                   </article>
                 );
               })}
@@ -268,7 +272,9 @@ export function DisplayApp({ view }: { view: View }) {
         </>
       ) : null}
 
-      {view === "week" ? (
+      {boardView !== "home" ? mast : null}
+
+      {boardView === "week" ? (
         <section className="week-grid">
           {week.map((iso, index) => (
             <div key={iso} className="day-col">
@@ -283,7 +289,7 @@ export function DisplayApp({ view }: { view: View }) {
         </section>
       ) : null}
 
-      {view === "chores" ? (
+      {boardView === "chores" ? (
         <section className="week-grid">
           {week.map((iso, index) => (
             <div key={iso} className="day-col">
@@ -313,7 +319,7 @@ export function DisplayApp({ view }: { view: View }) {
         </section>
       ) : null}
 
-      {view === "meals" ? (
+      {boardView === "meals" ? (
         <section className="week-grid">
           {week.map((iso, index) => (
             <div key={iso} className="day-col">

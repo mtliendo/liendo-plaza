@@ -191,6 +191,7 @@ async function main() {
     ["mobile_calendar.png", "/family/calendar"],
     ["mobile_meals.png", "/family/meals"],
     ["mobile_stars.png", "/family/stars"],
+    ["mobile_manage.png", "/family/manage"],
     ["mobile_approvals.png", "/family/approvals"],
     ["mobile_chores.png", "/family/chores"],
     ["mobile_add_device.png", "/family/add-device"],

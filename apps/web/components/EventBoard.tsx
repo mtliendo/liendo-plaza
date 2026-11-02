@@ -8,6 +8,7 @@ export function EventBoard({
   maxVisible,
   moreHref,
   heading,
+  className = "",
 }: {
   events: CalendarEvent[];
   now: string;
@@ -15,12 +16,17 @@ export function EventBoard({
   maxVisible: number;
   moreHref: string;
   heading?: string;
+  className?: string;
 }) {
   const plan = planTodayEvents(events, now, people, maxVisible);
   const empty = plan.today.length === 0;
 
   return (
-    <section className="events" data-testid="events" data-count={empty ? "0" : plan.today.length >= 6 ? "many" : "few"}>
+    <section
+      className={`events ${className}`.trim()}
+      data-testid="events"
+      data-count={empty ? "0" : plan.today.length >= 6 ? "many" : "few"}
+    >
       {heading ? <h2>{heading}</h2> : null}
       {empty ? (
         <div className="events-empty-block">

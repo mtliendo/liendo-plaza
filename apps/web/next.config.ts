@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@liendo/shared"],
   serverExternalPackages: ["sharp", "bcryptjs", "pg", "qrcode"],
   skipTrailingSlashRedirect: true,
+  devIndicators: false,
   async headers() {
     return [
       {

@@ -1,33 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { Link } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Notifications from "expo-notifications";
-import type { DisplaySnapshot, Person } from "@liendo/shared";
-import { weekDates } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { api } from "@/lib/api";
 import { API_URL } from "@/lib/config";
+import { useChoreToggle, useMe, usePrefetchHouse, useSnapshot } from "@/lib/query";
 import { getSession } from "@/lib/session";
-import { body, colors, h1, muted, row, screen } from "@/lib/theme";
+import { accentLabel, body, colors, h1, h2, muted, row, screen } from "@/lib/theme";
 
 export default function TodayScreen() {
-  const [me, setMe] = useState<Person | null>(null);
-  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
-
-  const load = useCallback(async () => {
-    const actor = (await api("me")) as { actor: { person?: Person } };
-    setMe(actor.actor.person ?? null);
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-    const week = weekDates(today);
-    setSnapshot((await api(`snapshot?from=${week[0]}&to=${week[6]}`)) as DisplaySnapshot);
-  }, []);
+  const meQuery = useMe();
+  const snapshotQuery = useSnapshot();
+  const toggle = useChoreToggle();
+  const prefetch = usePrefetchHouse();
+  const me = meQuery.data?.actor.person ?? null;
+  const snapshot = snapshotQuery.data ?? null;
 
   useEffect(() => {
-    void load();
+    prefetch();
     void registerPush();
-  }, [load]);
+  }, [prefetch]);
 
   const today = snapshot ? snapshot.now.slice(0, 10) : "";
   const chores =
@@ -35,8 +29,7 @@ export default function TodayScreen() {
     [];
 
   async function complete(id: string) {
-    await api(`chores/instances/${id}/complete`, { method: "POST" });
-    await load();
+    toggle.mutate({ id });
   }
 
   async function sendPhoto(id: string) {
@@ -54,7 +47,7 @@ export default function TodayScreen() {
       headers: token ? { authorization: `Bearer ${token}` } : undefined,
       body: form,
     });
-    await load();
+    await snapshotQuery.refetch();
   }
 
   return (
@@ -68,14 +61,10 @@ export default function TodayScreen() {
         <Text style={h1}>Today</Text>
       )}
       {snapshot ? <EventBoard events={snapshot.events} now={snapshot.now} people={snapshot.people} /> : null}
-      {me?.role === "parent" ? (
-        <View style={{ gap: 8 }}>
-          <Link href="/parent/add-device">
-            <Text style={{ fontSize: 18, color: colors.accent, minHeight: 48 }}>Add a device</Text>
-          </Link>
-          <Link href="/parent/devices">
-            <Text style={{ fontSize: 18, color: colors.accent, minHeight: 48 }}>Paired devices</Text>
-          </Link>
+      {snapshot ? (
+        <View>
+          <Text style={accentLabel}>Tonight’s dinner</Text>
+          <Text style={h2}>{snapshot.meals.find((meal) => meal.date === today)?.name ?? "Nothing written yet"}</Text>
         </View>
       ) : null}
       {chores.map((chore) => {

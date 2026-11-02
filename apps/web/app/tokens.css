@@ -53,5 +53,5 @@
   --color-slot: var(--color-gold);
   --rule-hair: 1px; --rule-bar: 2px;
   --display-weight: 400;
-  --paper-grain: radial-gradient(var(--color-ink) 0.45px, transparent 0.45px);
+  --paper-wash: linear-gradient(168deg, var(--color-paper) 0%, var(--color-paper-2) 100%);
 }
