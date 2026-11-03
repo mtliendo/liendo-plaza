@@ -12,7 +12,7 @@ apps/mobile   Expo + expo-router. iPhone app for TestFlight.
 packages/shared   People, types, and date helpers.
 ```
 
-The kitchen frame opens `/display` full-screen (landscape, 15.6"). A 10" frame can open the same preview URL. Phones use the Expo app, or `/family` in a browser. Parents add, edit, and clear dinners on the Dinner tab, and manage chores (assign, repeat, stars, photo) under Manage. Kids see both read-only except their own chore taps.
+The kitchen frame opens `/display` full-screen (landscape, 15.6"). A 10" frame can open the same preview URL. Phones use the Expo app, or `/family` in a browser. Parents add, edit, and clear dinners on the Dinner tab, and manage chores (assign, repeat, stars, photo, how-to, steps, and a reference photo) under Manage. Kids tap a chore to read the details, then mark it done or take a photo. A new column set lives in `apps/web/drizzle/0003_chore_details.sql`.
 
 ## Architecture
 

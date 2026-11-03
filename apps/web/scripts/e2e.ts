@@ -79,10 +79,23 @@ async function main() {
       stars: 2,
       requiresPhoto: false,
       repeatType: "daily",
+      description: "Plates and cups before we sit down.",
+      steps: ["Plates", "Cups", "Silverware"],
     },
     auth,
   );
   assert(chore.res.ok, `create chore failed: ${JSON.stringify(chore.data)}`);
+  const created = chore.data.chore as { id: string; description: string | null; steps: string[] };
+  assert(created.description === "Plates and cups before we sit down.", "chore description missing");
+  assert(created.steps.includes("Cups"), "chore steps missing");
+  const fetched = await req(`chores/${created.id}`, { headers: auth });
+  assert((fetched.data.chore as { steps: string[] }).steps.length === 3, "GET chore details failed");
+  const kidGuide = await fetch(`${BASE}/api/chores/${created.id}/guide-photo`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${kidToken}` },
+    body: new Uint8Array([1, 2, 3]),
+  });
+  assert(kidGuide.status === 403, "kids must not upload a reference photo");
 
   const photoChore = await json(
     "chores",

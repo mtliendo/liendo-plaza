@@ -16,7 +16,35 @@ function asChore(row: typeof schema.chores.$inferSelect): Chore {
     weekdays: row.weekdays,
     weeklyWeekday: row.weeklyWeekday,
     onceDate: row.onceDate,
+    description: row.description,
+    steps: row.steps ?? [],
+    guidePhotoPath: row.guidePhotoPath,
     active: row.active,
+  };
+}
+
+function toInstance(
+  instance: typeof schema.choreInstances.$inferSelect,
+  chore: typeof schema.chores.$inferSelect,
+): ChoreInstance {
+  return {
+    id: instance.id,
+    choreId: instance.choreId,
+    personId: instance.personId,
+    date: instance.date,
+    status: instance.status as ChoreInstance["status"],
+    stars: chore.stars,
+    starsAwarded: instance.starsAwarded,
+    title: chore.title,
+    requiresPhoto: chore.requiresPhoto,
+    photoPath: instance.photoPath,
+    description: chore.description,
+    steps: chore.steps ?? [],
+    guidePhotoPath: chore.guidePhotoPath,
+    repeatType: chore.repeatType as RepeatType,
+    weekdays: chore.weekdays,
+    weeklyWeekday: chore.weeklyWeekday,
+    onceDate: chore.onceDate,
   };
 }
 
@@ -46,6 +74,13 @@ export async function listChores(): Promise<Chore[]> {
   return rows.map(asChore);
 }
 
+export async function getChore(id: string): Promise<Chore> {
+  const db = getDb();
+  const [row] = await db.select().from(schema.chores).where(eq(schema.chores.id, id)).limit(1);
+  if (!row) throw new HttpError(404, "That chore is gone.");
+  return asChore(row);
+}
+
 export async function createChore(input: Omit<Chore, "id" | "active">): Promise<Chore> {
   const db = getDb();
   const [row] = await db
@@ -59,6 +94,9 @@ export async function createChore(input: Omit<Chore, "id" | "active">): Promise<
       weekdays: input.weekdays,
       weeklyWeekday: input.weeklyWeekday,
       onceDate: input.onceDate,
+      description: input.description,
+      steps: input.steps ?? [],
+      guidePhotoPath: input.guidePhotoPath,
     })
     .returning();
   return asChore(row);
@@ -77,6 +115,9 @@ export async function updateChore(id: string, patch: Partial<Chore>): Promise<Ch
       ...(patch.weekdays !== undefined ? { weekdays: patch.weekdays } : {}),
       ...(patch.weeklyWeekday !== undefined ? { weeklyWeekday: patch.weeklyWeekday } : {}),
       ...(patch.onceDate !== undefined ? { onceDate: patch.onceDate } : {}),
+      ...(patch.description !== undefined ? { description: patch.description } : {}),
+      ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
+      ...(patch.guidePhotoPath !== undefined ? { guidePhotoPath: patch.guidePhotoPath } : {}),
       ...(patch.active !== undefined ? { active: patch.active } : {}),
       updatedAt: new Date(),
     })
@@ -137,18 +178,7 @@ export async function ensureInstances(fromIso: string, toIso: string): Promise<C
     .innerJoin(schema.chores, eq(schema.choreInstances.choreId, schema.chores.id))
     .where(and(gte(schema.choreInstances.date, fromIso), lte(schema.choreInstances.date, toIso)));
 
-  return rows.map(({ instance, chore }) => ({
-    id: instance.id,
-    choreId: instance.choreId,
-    personId: instance.personId,
-    date: instance.date,
-    status: instance.status as ChoreInstance["status"],
-    stars: chore.stars,
-    starsAwarded: instance.starsAwarded,
-    title: chore.title,
-    requiresPhoto: chore.requiresPhoto,
-    photoPath: instance.photoPath,
-  }));
+  return rows.map(({ instance, chore }) => toInstance(instance, chore));
 }
 
 export async function undoInstance(id: string): Promise<ChoreInstance> {
@@ -161,18 +191,7 @@ export async function undoInstance(id: string): Promise<ChoreInstance> {
     .limit(1);
   if (!row) throw new HttpError(404, "That chore is not on the list.");
   if (row.instance.status === "open") {
-    return {
-      id: row.instance.id,
-      choreId: row.instance.choreId,
-      personId: row.instance.personId,
-      date: row.instance.date,
-      status: "open",
-      stars: row.chore.stars,
-      starsAwarded: 0,
-      title: row.chore.title,
-      requiresPhoto: row.chore.requiresPhoto,
-      photoPath: row.instance.photoPath,
-    };
+    return toInstance(row.instance, row.chore);
   }
   const [updated] = await db
     .update(schema.choreInstances)
@@ -185,18 +204,7 @@ export async function undoInstance(id: string): Promise<ChoreInstance> {
     })
     .where(eq(schema.choreInstances.id, id))
     .returning();
-  return {
-    id: updated.id,
-    choreId: updated.choreId,
-    personId: updated.personId,
-    date: updated.date,
-    status: "open",
-    stars: row.chore.stars,
-    starsAwarded: 0,
-    title: row.chore.title,
-    requiresPhoto: row.chore.requiresPhoto,
-    photoPath: updated.photoPath,
-  };
+  return toInstance(updated, row.chore);
 }
 
 export async function completeInstance(id: string, allowPhoto = false): Promise<ChoreInstance> {
@@ -212,18 +220,7 @@ export async function completeInstance(id: string, allowPhoto = false): Promise<
     throw new HttpError(400, "This one needs a photo on the phone.");
   }
   if (row.instance.status === "done") {
-    return {
-      id: row.instance.id,
-      choreId: row.instance.choreId,
-      personId: row.instance.personId,
-      date: row.instance.date,
-      status: "done",
-      stars: row.chore.stars,
-      starsAwarded: row.instance.starsAwarded,
-      title: row.chore.title,
-      requiresPhoto: row.chore.requiresPhoto,
-      photoPath: row.instance.photoPath,
-    };
+    return toInstance(row.instance, row.chore);
   }
   const [updated] = await db
     .update(schema.choreInstances)
@@ -234,18 +231,7 @@ export async function completeInstance(id: string, allowPhoto = false): Promise<
     })
     .where(eq(schema.choreInstances.id, id))
     .returning();
-  return {
-    id: updated.id,
-    choreId: updated.choreId,
-    personId: updated.personId,
-    date: updated.date,
-    status: "done",
-    stars: row.chore.stars,
-    starsAwarded: updated.starsAwarded,
-    title: row.chore.title,
-    requiresPhoto: row.chore.requiresPhoto,
-    photoPath: updated.photoPath,
-  };
+  return toInstance(updated, row.chore);
 }
 
 export async function markPhotoPending(id: string, photoPath: string): Promise<ChoreInstance> {
@@ -269,18 +255,7 @@ export async function markPhotoPending(id: string, photoPath: string): Promise<C
     })
     .where(eq(schema.choreInstances.id, id))
     .returning();
-  return {
-    id: updated.id,
-    choreId: updated.choreId,
-    personId: updated.personId,
-    date: updated.date,
-    status: "pending",
-    stars: row.chore.stars,
-    starsAwarded: updated.starsAwarded,
-    title: row.chore.title,
-    requiresPhoto: true,
-    photoPath: updated.photoPath,
-  };
+  return toInstance(updated, row.chore);
 }
 
 export async function reviewInstance(
@@ -310,16 +285,5 @@ export async function reviewInstance(
     })
     .where(eq(schema.choreInstances.id, id))
     .returning();
-  return {
-    id: updated.id,
-    choreId: updated.choreId,
-    personId: updated.personId,
-    date: updated.date,
-    status: updated.status as ChoreInstance["status"],
-    stars: row.chore.stars,
-    starsAwarded: updated.starsAwarded,
-    title: row.chore.title,
-    requiresPhoto: row.chore.requiresPhoto,
-    photoPath: updated.photoPath,
-  };
+  return toInstance(updated, row.chore);
 }

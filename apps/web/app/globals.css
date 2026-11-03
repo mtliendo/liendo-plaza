@@ -619,7 +619,7 @@ html:has(.pair-kitchen) body {
   width: 100%;
   text-align: left;
   min-height: 72px;
-  padding: var(--space-xs) var(--space-sm);
+  padding: 0.7rem 0.85rem;
   background: color-mix(in oklab, var(--person, var(--color-ink)) 14%, var(--color-paper));
   border: 0;
   box-shadow: none;
@@ -631,7 +631,9 @@ html:has(.pair-kitchen) body {
   gap: var(--space-3xs);
   font-size: 1.85rem;
   font-weight: 400;
-  line-height: 1.15;
+  line-height: 1.28;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
 }
 .kitchen .chore-btn .small {
   color: inherit;
@@ -669,11 +671,14 @@ html:has(.pair-kitchen) body {
 .board-week {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-sm);
+  gap: var(--space-md);
   min-height: 0;
   flex: 1 1 auto;
   height: 100%;
   align-items: stretch;
+}
+.board-week[data-days="5"] {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .day-col {
   min-width: 0;
@@ -712,8 +717,8 @@ html:has(.pair-kitchen) body {
   gap: var(--space-sm);
 }
 .kitchen .board-week[data-testid="board-chores"] .board-day-body {
-  align-content: stretch;
-  grid-auto-rows: 1fr;
+  align-content: start;
+  gap: 1rem;
 }
 .kitchen .board-week[data-testid="board-week"] .board-day-body {
   align-content: space-between;
@@ -733,15 +738,26 @@ html:has(.pair-kitchen) body {
 }
 .board-chore {
   display: grid;
-  align-content: center;
-  gap: var(--space-2xs);
+  justify-items: start;
+  align-content: start;
+  gap: 0.65rem;
   min-height: 0;
-  padding: var(--space-sm);
+  width: 100%;
+  padding: 1.05rem 1.1rem 1.15rem;
   background: color-mix(in oklab, var(--person, var(--color-ink)) 16%, var(--color-paper));
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
 }
 .board-chore-title {
   font-size: 1.7rem;
-  line-height: 1.15;
+  line-height: 1.28;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 .board-chore-mark {
   font-family: var(--font-display);
@@ -783,19 +799,26 @@ html:has(.pair-kitchen) body {
 .kitchen .board-empty,
 .kitchen .board-chore-title {
   font-size: 2.15rem;
+  line-height: 1.28;
+  letter-spacing: 0.012em;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 .kitchen .board-week[data-testid="board-week"] .board-event {
-  font-size: clamp(2.4rem, 2.8vw, 3.2rem);
-  line-height: 1.15;
+  font-size: clamp(2.1rem, 2.2vw, 2.7rem);
+  line-height: 1.28;
 }
 .kitchen .board-week[data-testid="board-week"] .board-dinner {
-  font-size: clamp(2.1rem, 2.3vw, 2.6rem);
+  font-size: clamp(1.9rem, 2vw, 2.4rem);
 }
 .kitchen .board-week[data-testid="board-chores"] .board-chore-title {
-  font-size: clamp(1.9rem, 2.1vw, 2.4rem);
+  font-size: clamp(1.85rem, 1.7vw, 2.2rem);
+  line-height: 1.3;
 }
 .kitchen .board-week[data-testid="board-chores"] .name-line {
-  font-size: 1.45rem;
+  font-size: 1.35rem;
+  letter-spacing: 0.01em;
 }
 .kitchen .board-day-meal {
   align-content: stretch;
@@ -808,7 +831,10 @@ html:has(.pair-kitchen) body {
   grid-template-rows: auto;
 }
 .kitchen .board-day-meal h3 {
-  font-size: clamp(2.1rem, 2.3vw, 2.8rem);
+  font-size: clamp(2.2rem, 2.4vw, 3rem);
+  line-height: 1.22;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
   overflow-wrap: break-word;
   word-break: keep-all;
   hyphens: none;
@@ -1022,4 +1048,101 @@ html:has(.pair-kitchen) body {
       "kids";
   }
   .kids { grid-template-columns: 1fr; }
+}
+.chore-detail-back {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: color-mix(in oklab, var(--color-ink) 32%, transparent);
+  display: grid;
+  place-items: center;
+  padding: var(--space-lg);
+}
+.chore-detail {
+  width: min(36rem, 100%);
+  max-height: 90svh;
+  overflow: auto;
+  background: var(--color-paper);
+  padding: var(--space-xl);
+  display: grid;
+  gap: var(--space-md);
+  justify-items: start;
+}
+.chore-detail h2 {
+  max-width: none;
+  text-wrap: balance;
+}
+.chore-detail-meta {
+  color: var(--color-ink-2);
+}
+.chore-detail-copy {
+  max-width: 36em;
+  line-height: 1.45;
+}
+.chore-guide-photo {
+  width: min(100%, 28rem);
+  height: auto;
+  object-fit: cover;
+  background: var(--color-paper-3);
+}
+.chore-guide-thumb {
+  width: 8rem;
+  height: 8rem;
+  object-fit: cover;
+}
+.chore-steps {
+  margin: 0;
+  padding-left: 1.3em;
+  display: grid;
+  gap: 0.45rem;
+  line-height: 1.4;
+}
+.chore-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+.chore-detail-large {
+  width: min(58rem, 92vw);
+  padding: var(--space-2xl);
+}
+.chore-detail-large h2 {
+  font-size: clamp(3.2rem, 4vw, 4.6rem);
+}
+.chore-detail-large .chore-detail-meta,
+.chore-detail-large .chore-detail-copy,
+.chore-detail-large .chore-steps {
+  font-size: 2rem;
+  line-height: 1.35;
+}
+.chore-detail-large .btn {
+  font-size: 2rem;
+  min-height: 80px;
+  padding-inline: 2rem;
+}
+.chore-step-edit {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.chore-step-edit li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  align-items: center;
+  background: var(--color-paper-2);
+  padding: var(--space-sm);
+}
+.chore-step-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+}
+textarea.input {
+  min-height: 6rem;
+  resize: vertical;
 }

@@ -1,9 +1,11 @@
+import "react-native-gesture-handler";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useReducedMotion } from "react-native-reanimated";
 import { SplashHouse } from "@/components/splash-house";
 import { QueryProviders } from "@/lib/query";
@@ -37,6 +39,7 @@ export default function RootLayout() {
   }
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <QueryProviders>
       <StatusBar style="dark" />
       <View style={{ flex: 1, backgroundColor: colors.paper }}>
@@ -51,6 +54,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="pair" options={{ title: "Add a device" }} />
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          <Stack.Screen name="chore/[id]" options={{ title: "Chore" }} />
         </Stack>
         {splashDone ? null : (
           <View style={{ position: "absolute", inset: 0, zIndex: 20 }}>
@@ -59,5 +63,6 @@ export default function RootLayout() {
         )}
       </View>
     </QueryProviders>
+    </GestureHandlerRootView>
   );
 }

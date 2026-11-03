@@ -12,7 +12,7 @@ import {
   patchRewardRequest,
   pendingReward,
   queryKeys,
-  weekDates,
+  snapshotRange,
   type Chore,
   type DisplaySnapshot,
   type Person,
@@ -64,8 +64,8 @@ export function QueryProviders({ children }: { children: ReactNode }) {
 
 export function weekWindow() {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-  const week = weekDates(today);
-  return { today, from: week[0], to: week[6] };
+  const range = snapshotRange(today);
+  return { today, from: range.from, to: range.to };
 }
 
 export function currentFixture() {

@@ -8,6 +8,7 @@ import { parseEventFixture, queryKeys, weekDates } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
 import { SoftLink } from "@/components/SoftLink";
 import { ChoreCard } from "@/components/family/ChoreCard";
+import { ChoreDetail } from "@/components/family/ChoreDetail";
 import { ChoreManage } from "@/components/family/ChoreManage";
 import { DinnerList } from "@/components/family/DinnerList";
 import { AddDevicePanel, DevicesPanel } from "@/components/family/DevicePanels";
@@ -82,6 +83,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   const [picked, setPicked] = useState<Person | null>(null);
   const [error, setError] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [openChoreId, setOpenChoreId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const meQuery = useMe();
   const signedIn = meQuery.data?.actor?.kind === "person";
@@ -102,6 +104,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
 
   const today = snapshot ? eventDay(snapshot.now) : new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const week = weekDates(today);
+  const openChore = snapshot?.chores.find((item) => item.id === openChoreId) ?? null;
 
   const headers = useMemo(() => {
     const next: Record<string, string> = { "content-type": "application/json" };
@@ -295,7 +298,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
                   chore={chore}
                   person={person}
                   showPerson={Boolean(isParent && person)}
-                  onPress={() => toggle.mutate({ id: chore.id, undo: chore.status === "done" })}
+                  onPress={() => setOpenChoreId(chore.id)}
                 />
               );
             })}
@@ -439,6 +442,18 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
               await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
               await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
             }}
+            onGuidePhoto={async (id, file) => {
+              const form = new FormData();
+              form.append("photo", file);
+              await fetch(`/api/chores/${id}/guide-photo`, { method: "POST", body: form });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            }}
+            onClearGuide={async (id) => {
+              await fetch(`/api/chores/${id}/guide-photo`, { method: "DELETE" });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            }}
           />
         </>
       ) : null}
@@ -534,6 +549,29 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
       {tabs}
+      {openChore && snapshot ? (
+        <ChoreDetail
+          chore={openChore}
+          person={snapshot.people.find((row) => row.id === openChore.personId)}
+          canAct={Boolean(isParent || me?.id === openChore.personId)}
+          onClose={() => setOpenChoreId(null)}
+          onComplete={() => {
+            toggle.mutate({ id: openChore.id });
+            setOpenChoreId(null);
+          }}
+          onUndo={() => {
+            toggle.mutate({ id: openChore.id, undo: true });
+            setOpenChoreId(null);
+          }}
+          onPhoto={async (file) => {
+            const form = new FormData();
+            form.append("photo", file);
+            await fetch(`/api/chores/instances/${openChore.id}/photo`, { method: "POST", body: form });
+            await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            setOpenChoreId(null);
+          }}
+        />
+      ) : null}
     </main>
   );
 }

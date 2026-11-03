@@ -19,7 +19,6 @@ export function ChoreCard({
   showPerson: boolean;
   onPress: () => void;
 }) {
-  const disabled = chore.requiresPhoto && chore.status === "open";
   return (
     <button
       type="button"
@@ -27,12 +26,7 @@ export function ChoreCard({
       data-status={chore.status}
       data-testid={`chore-${chore.title}`}
       style={{ ["--person" as string]: person?.color ?? "var(--color-accent)" }}
-      disabled={disabled && chore.status === "open"}
-      onClick={() => {
-        if (chore.status !== "open" && chore.status !== "done") return;
-        if (disabled) return;
-        onPress();
-      }}
+      onClick={onPress}
     >
       {showPerson && person ? (
         <span className="name-line">

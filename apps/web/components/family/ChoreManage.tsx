@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Chore, Person } from "@liendo/shared";
-import { WEEKDAY_LABELS, repeatLabel } from "@liendo/shared";
+import { WEEKDAY_LABELS, mealPhotoSrc, repeatLabel } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
 
 export type ChoreDraft = {
@@ -12,6 +12,9 @@ export type ChoreDraft = {
   weekdays: number[];
   weeklyWeekday: number | null;
   onceDate: string | null;
+  description: string;
+  steps: string[];
+  stepDraft: string;
 };
 
 const EMPTY: ChoreDraft = {
@@ -23,6 +26,9 @@ const EMPTY: ChoreDraft = {
   weekdays: [1, 2, 3, 4, 5],
   weeklyWeekday: 0,
   onceDate: null,
+  description: "",
+  steps: [],
+  stepDraft: "",
 };
 
 function fromChore(chore: Chore): ChoreDraft {
@@ -35,6 +41,9 @@ function fromChore(chore: Chore): ChoreDraft {
     weekdays: chore.weekdays ?? (chore.repeatType === "weekdays" ? [1, 2, 3, 4, 5] : chore.weeklyWeekday != null ? [chore.weeklyWeekday] : []),
     weeklyWeekday: chore.weeklyWeekday,
     onceDate: chore.onceDate,
+    description: chore.description ?? "",
+    steps: chore.steps ?? [],
+    stepDraft: "",
   };
 }
 
@@ -54,6 +63,8 @@ function payload(draft: ChoreDraft) {
     weekdays,
     weeklyWeekday: draft.repeatType === "weekly" ? (draft.weekdays[0] ?? 0) : null,
     onceDate: draft.repeatType === "once" ? draft.onceDate : null,
+    description: draft.description.trim() || null,
+    steps: draft.steps,
   };
 }
 
@@ -63,12 +74,16 @@ export function ChoreManage({
   onCreate,
   onUpdate,
   onDelete,
+  onGuidePhoto,
+  onClearGuide,
 }: {
   people: Person[];
   chores: Chore[];
-  onCreate: (body: Record<string, unknown>) => Promise<void>;
+  onCreate: (body: Record<string, unknown>) => Promise<string | void>;
   onUpdate: (id: string, body: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onGuidePhoto: (id: string, file: File) => Promise<void>;
+  onClearGuide: (id: string) => Promise<void>;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ChoreDraft>(EMPTY);
@@ -104,6 +119,12 @@ export function ChoreManage({
     if (editingId) await onUpdate(editingId, body);
     else await onCreate(body);
     startNew();
+  }
+
+  function addStep() {
+    const next = draft.stepDraft.trim();
+    if (!next) return;
+    setDraft({ ...draft, steps: [...draft.steps, next], stepDraft: "" });
   }
 
   const active = chores.filter((chore) => chore.active);
@@ -187,6 +208,77 @@ export function ChoreManage({
             ))}
           </fieldset>
         ) : null}
+        <label className="field">
+          <span>How to do it</span>
+          <textarea
+            className="input"
+            rows={3}
+            value={draft.description}
+            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+            placeholder="A sentence the kids can read from the kitchen."
+          />
+        </label>
+        <div className="field">
+          <span>Steps</span>
+          <ul className="chore-step-edit">
+            {draft.steps.map((step, index) => (
+              <li key={`${step}-${index}`}>
+                <span>{step}</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, item) => item !== index) })}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="chore-step-add">
+            <input
+              className="input"
+              value={draft.stepDraft}
+              placeholder="Add a step"
+              onChange={(e) => setDraft({ ...draft, stepDraft: e.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addStep();
+                }
+              }}
+            />
+            <button type="button" className="btn-secondary" onClick={addStep}>
+              Add step
+            </button>
+          </div>
+        </div>
+        {editingId ? (
+          <label className="field">
+            <span>What it looks like</span>
+            {chores.find((chore) => chore.id === editingId)?.guidePhotoPath ? (
+              <img
+                src={mealPhotoSrc(chores.find((chore) => chore.id === editingId)?.guidePhotoPath) ?? ""}
+                alt=""
+                className="chore-guide-thumb"
+              />
+            ) : null}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file && editingId) void onGuidePhoto(editingId, file);
+              }}
+            />
+            {chores.find((chore) => chore.id === editingId)?.guidePhotoPath ? (
+              <button type="button" className="btn-secondary" onClick={() => void onClearGuide(editingId)}>
+                Remove photo
+              </button>
+            ) : null}
+          </label>
+        ) : (
+          <p className="small">Save the chore first if you want to add a reference photo.</p>
+        )}
         {draft.repeatType === "once" ? (
           <label className="field">
             <span>Date</span>

@@ -54,6 +54,8 @@ async function main() {
         stars: 1,
         requiresPhoto: false,
         repeatType: "daily",
+        description: "Pull the quilt smooth so the pillows sit at the head, the way we leave it on school mornings.",
+        steps: ["Pull the sheet flat", "Smooth the quilt", "Put the pillows at the head"],
       },
       {
         title: "Unload the dishwasher",
@@ -61,6 +63,8 @@ async function main() {
         stars: 2,
         requiresPhoto: false,
         repeatType: "daily",
+        description: "Empty the clean dishwasher and start a new load if the sink is full.",
+        steps: ["Put away plates and bowls", "Put away cups and silverware", "Start a load if the sink is full"],
       },
       {
         title: "Feed the fish",
@@ -68,6 +72,8 @@ async function main() {
         stars: 1,
         requiresPhoto: true,
         repeatType: "daily",
+        description: "One pinch of flakes, then a photo so we can see the tank.",
+        steps: ["One pinch of flakes", "Watch them eat for a minute", "Take a photo of the tank"],
       },
       {
         title: "Take out recycling",
@@ -76,6 +82,8 @@ async function main() {
         requiresPhoto: false,
         repeatType: "weekly",
         weeklyWeekday: 0,
+        description: "Blue bin to the curb before dinner on Sunday.",
+        steps: ["Break down boxes", "Carry the blue bin to the curb"],
       },
       {
         title: "Practice piano",
@@ -84,6 +92,8 @@ async function main() {
         requiresPhoto: false,
         repeatType: "weekdays",
         weekdays: [1, 3, 5],
+        description: "Fifteen minutes. Scales first, then whatever you’re working on.",
+        steps: ["Scales for five minutes", "Play your piece twice"],
       },
     ]);
   }

@@ -32,6 +32,18 @@ export function weekDates(iso: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
 
+/** Today plus the next few days — wider kitchen columns than a full week. */
+export function upcomingDates(iso: string, count = 5): string[] {
+  return Array.from({ length: count }, (_, i) => addDays(iso, i));
+}
+
+/** Sunday of this week through the farther of Saturday or today + 4 days. */
+export function snapshotRange(iso: string): { from: string; to: string } {
+  const week = weekDates(iso);
+  const aheadEnd = addDays(iso, 4);
+  return { from: week[0], to: aheadEnd > week[6] ? aheadEnd : week[6] };
+}
+
 export function weekdayIndex(iso: string): number {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).getDay();

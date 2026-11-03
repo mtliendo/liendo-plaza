@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { Link } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import type { Chore, Person, RepeatType } from "@liendo/shared";
-import { WEEKDAY_LABELS, repeatLabel } from "@liendo/shared";
+import { WEEKDAY_LABELS, mealPhotoSrc, repeatLabel } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { SwipeRow } from "@/components/swipe-row";
 import { api } from "@/lib/api";
+import { API_URL } from "@/lib/config";
 import { useMe } from "@/lib/query";
+import { getSession } from "@/lib/session";
 import { body, btn, btnLabel, colors, input, muted, screen, type } from "@/lib/theme";
 
 type Draft = {
@@ -16,6 +20,9 @@ type Draft = {
   repeatType: RepeatType;
   weekdays: number[];
   onceDate: string;
+  description: string;
+  steps: string[];
+  stepDraft: string;
 };
 
 const EMPTY: Draft = {
@@ -26,6 +33,9 @@ const EMPTY: Draft = {
   repeatType: "daily",
   weekdays: [1, 2, 3, 4, 5],
   onceDate: "",
+  description: "",
+  steps: [],
+  stepDraft: "",
 };
 
 function payload(draft: Draft) {
@@ -38,6 +48,23 @@ function payload(draft: Draft) {
     weekdays: draft.repeatType === "weekly" ? draft.weekdays : draft.repeatType === "weekdays" ? [1, 2, 3, 4, 5] : null,
     weeklyWeekday: draft.repeatType === "weekly" ? (draft.weekdays[0] ?? 0) : null,
     onceDate: draft.repeatType === "once" ? draft.onceDate || null : null,
+    description: draft.description.trim() || null,
+    steps: draft.steps,
+  };
+}
+
+function fromChore(chore: Chore): Draft {
+  return {
+    title: chore.title,
+    assignedPersonId: chore.assignedPersonId,
+    stars: String(chore.stars),
+    requiresPhoto: chore.requiresPhoto,
+    repeatType: chore.repeatType,
+    weekdays: chore.weekdays ?? (chore.weeklyWeekday != null ? [chore.weeklyWeekday] : []),
+    onceDate: chore.onceDate ?? "",
+    description: chore.description ?? "",
+    steps: chore.steps ?? [],
+    stepDraft: "",
   };
 }
 
@@ -62,6 +89,49 @@ export default function ParentChoresScreen() {
     void load();
   }, []);
 
+  function startEdit(chore: Chore) {
+    setEditingId(chore.id);
+    setDraft(fromChore(chore));
+  }
+
+  function confirmDelete(chore: Chore) {
+    Alert.alert("Take this chore off the board?", `${chore.title} will leave Today and the kitchen frame.`, [
+      { text: "Keep it", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            await api(`chores/${chore.id}`, { method: "DELETE" });
+            if (editingId === chore.id) {
+              setEditingId(null);
+              setDraft({ ...EMPTY, assignedPersonId: people[0]?.id ?? "" });
+            }
+            await load();
+          })();
+        },
+      },
+    ]);
+  }
+
+  async function uploadGuide(id: string) {
+    const shot = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: false });
+    if (shot.canceled || !shot.assets[0]) return;
+    const token = await getSession();
+    const form = new FormData();
+    form.append("photo", {
+      uri: shot.assets[0].uri,
+      name: "guide.jpg",
+      type: "image/jpeg",
+    } as never);
+    await fetch(`${API_URL}/api/chores/${id}/guide-photo`, {
+      method: "POST",
+      headers: token ? { authorization: `Bearer ${token}` } : undefined,
+      body: form,
+    });
+    await load();
+  }
+
   if (!isParent) {
     return (
       <ScrollView contentContainerStyle={screen} contentInsetAdjustmentBehavior="automatic">
@@ -69,6 +139,10 @@ export default function ParentChoresScreen() {
       </ScrollView>
     );
   }
+
+  const editing = chores.find((chore) => chore.id === editingId);
+  const guide = mealPhotoSrc(editing?.guidePhotoPath ?? null);
+  const guideUri = guide?.startsWith("http") ? guide : guide ? `${API_URL}${guide}` : null;
 
   return (
     <ScrollView contentContainerStyle={screen} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
@@ -100,6 +174,39 @@ export default function ParentChoresScreen() {
         {editingId ? "Edit chore" : "New chore"}
       </Text>
       <TextInput value={draft.title} onChangeText={(title) => setDraft({ ...draft, title })} placeholder="Chore name" style={input} />
+      <TextInput
+        value={draft.description}
+        onChangeText={(description) => setDraft({ ...draft, description })}
+        placeholder="How to do it"
+        multiline
+        style={[input, { minHeight: 88 }]}
+      />
+      <View style={{ gap: 8 }}>
+        {draft.steps.map((step, index) => (
+          <SwipeRow
+            key={`${step}-${index}`}
+            enabled
+            onDelete={() => setDraft({ ...draft, steps: draft.steps.filter((_, item) => item !== index) })}
+          >
+            <View style={{ backgroundColor: colors.paper2, padding: 12, flexDirection: "row", justifyContent: "space-between" }}>
+              <Text style={body}>{step}</Text>
+              <Pressable onPress={() => setDraft({ ...draft, steps: draft.steps.filter((_, item) => item !== index) })}>
+                <Text style={muted}>Remove</Text>
+              </Pressable>
+            </View>
+          </SwipeRow>
+        ))}
+        <TextInput
+          value={draft.stepDraft}
+          onChangeText={(stepDraft) => setDraft({ ...draft, stepDraft })}
+          placeholder="Add a step"
+          style={input}
+          onSubmitEditing={() => {
+            if (!draft.stepDraft.trim()) return;
+            setDraft({ ...draft, steps: [...draft.steps, draft.stepDraft.trim()], stepDraft: "" });
+          }}
+        />
+      </View>
       <View style={{ gap: 8 }}>
         <Text style={muted}>Who</Text>
         {people.map((person) => (
@@ -166,6 +273,27 @@ export default function ParentChoresScreen() {
       {draft.repeatType === "once" ? (
         <TextInput value={draft.onceDate} onChangeText={(onceDate) => setDraft({ ...draft, onceDate })} placeholder="YYYY-MM-DD" style={input} />
       ) : null}
+      {editingId ? (
+        <View style={{ gap: 8 }}>
+          <Text style={muted}>What it looks like</Text>
+          {guideUri ? <Image source={{ uri: guideUri }} style={{ width: "100%", height: 160 }} /> : null}
+          <Pressable onPress={() => void uploadGuide(editingId)}>
+            <Text style={{ color: colors.accent }}>Add a reference photo</Text>
+          </Pressable>
+          {guideUri ? (
+            <Pressable
+              onPress={async () => {
+                await api(`chores/${editingId}/guide-photo`, { method: "DELETE" });
+                await load();
+              }}
+            >
+              <Text style={muted}>Remove photo</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : (
+        <Text style={muted}>Save the chore first if you want to add a reference photo.</Text>
+      )}
       <Pressable
         onPress={async () => {
           if (!draft.title || !draft.assignedPersonId) return;
@@ -197,47 +325,31 @@ export default function ParentChoresScreen() {
         .map((chore) => {
           const person = people.find((row) => row.id === chore.assignedPersonId);
           return (
-            <View key={chore.id} style={{ backgroundColor: colors.paper2, padding: 12, gap: 8 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                {person ? <PersonAvatar person={person} size={40} /> : null}
-                <View style={{ flex: 1 }}>
-                  <Text style={body}>
-                    {person ? `${person.name} · ` : ""}
-                    {chore.title}
-                  </Text>
-                  <Text style={muted}>
-                    {repeatLabel(chore)} · {chore.stars === 1 ? "1 star" : `${chore.stars} stars`}
-                    {chore.requiresPhoto ? " · photo" : ""}
-                  </Text>
+            <SwipeRow key={chore.id} enabled onEdit={() => startEdit(chore)} onDelete={() => confirmDelete(chore)}>
+              <View style={{ backgroundColor: colors.paper2, padding: 12, gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  {person ? <PersonAvatar person={person} size={40} /> : null}
+                  <View style={{ flex: 1 }}>
+                    <Text style={body}>
+                      {person ? `${person.name} · ` : ""}
+                      {chore.title}
+                    </Text>
+                    <Text style={muted}>
+                      {repeatLabel(chore)} · {chore.stars === 1 ? "1 star" : `${chore.stars} stars`}
+                      {chore.requiresPhoto ? " · photo" : ""}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", gap: 16 }}>
+                  <Pressable onPress={() => startEdit(chore)}>
+                    <Text style={{ color: colors.accent }}>Edit</Text>
+                  </Pressable>
+                  <Pressable onPress={() => confirmDelete(chore)}>
+                    <Text style={{ color: colors.error }}>Delete</Text>
+                  </Pressable>
                 </View>
               </View>
-              <View style={{ flexDirection: "row", gap: 16 }}>
-                <Pressable
-                  onPress={() => {
-                    setEditingId(chore.id);
-                    setDraft({
-                      title: chore.title,
-                      assignedPersonId: chore.assignedPersonId,
-                      stars: String(chore.stars),
-                      requiresPhoto: chore.requiresPhoto,
-                      repeatType: chore.repeatType,
-                      weekdays: chore.weekdays ?? (chore.weeklyWeekday != null ? [chore.weeklyWeekday] : []),
-                      onceDate: chore.onceDate ?? "",
-                    });
-                  }}
-                >
-                  <Text style={{ color: colors.accent }}>Edit</Text>
-                </Pressable>
-                <Pressable
-                  onPress={async () => {
-                    await api(`chores/${chore.id}`, { method: "DELETE" });
-                    await load();
-                  }}
-                >
-                  <Text style={{ color: colors.error }}>Delete</Text>
-                </Pressable>
-              </View>
-            </View>
+            </SwipeRow>
           );
         })}
     </ScrollView>

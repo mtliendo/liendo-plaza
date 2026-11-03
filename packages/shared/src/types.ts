@@ -40,6 +40,9 @@ export type Chore = {
   weekdays: number[] | null;
   weeklyWeekday: number | null;
   onceDate: string | null;
+  description: string | null;
+  steps: string[];
+  guidePhotoPath: string | null;
   active: boolean;
 };
 
@@ -54,6 +57,13 @@ export type ChoreInstance = {
   title: string;
   requiresPhoto: boolean;
   photoPath: string | null;
+  description: string | null;
+  steps: string[];
+  guidePhotoPath: string | null;
+  repeatType: RepeatType;
+  weekdays: number[] | null;
+  weeklyWeekday: number | null;
+  onceDate: string | null;
 };
 
 export type Reward = {

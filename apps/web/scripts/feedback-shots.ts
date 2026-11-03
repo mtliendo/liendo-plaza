@@ -52,10 +52,11 @@ async function main() {
 
   await phonePage.goto(`${BASE}/family`, { waitUntil: "load" });
   await phonePage.waitForSelector("h1:has-text(\"Today\")", { timeout: 20000 });
-  const firstOpen = phonePage.locator(".chore-card[data-status='open']").first();
-  if (await firstOpen.count()) await firstOpen.click();
-  await phonePage.waitForTimeout(400);
   await shot(phonePage, "after_phone_today.png");
+  await phonePage.locator(".chore-card").first().click();
+  await phonePage.waitForSelector('[data-testid="chore-detail"]', { timeout: 10000 });
+  await shot(phonePage, "after_phone_chore_detail.png");
+  await phonePage.locator('[data-testid="chore-detail"] button:has-text("Close")').click();
 
   await phonePage.goto(`${BASE}/family/calendar`, { waitUntil: "load" });
   await phonePage.waitForSelector('[data-testid="week-glance"]', { timeout: 20000 });
@@ -67,7 +68,8 @@ async function main() {
 
   await phonePage.goto(`${BASE}/family/chores`, { waitUntil: "load" });
   await phonePage.waitForSelector('[data-testid="chore-manage"]', { timeout: 20000 });
-  await shot(phonePage, "after_phone_chores.png");
+  await phonePage.locator(".chore-manage-row button:has-text(\"Edit\")").first().click();
+  await shot(phonePage, "after_phone_chore_edit.png");
 
   async function assertFrameFills() {
     const report = await framePage.evaluate(() => {
@@ -88,6 +90,10 @@ async function main() {
     await framePage.waitForSelector('[data-testid="board-chores"]', { timeout: 20000 });
     await assertFrameFills();
     await shot(framePage, "after_frame_chores.png");
+    await framePage.locator(".board-chore").first().click();
+    await framePage.waitForSelector('[data-testid="chore-detail"]', { timeout: 10000 });
+    await shot(framePage, "after_frame_chore_detail.png");
+    await framePage.locator('[data-testid="chore-detail"] button:has-text("Close")').click();
     await framePage.goto(`${BASE}/display/week`, { waitUntil: "load" });
     await framePage.waitForSelector('[data-testid="board-week"]', { timeout: 20000 });
     await assertFrameFills();
