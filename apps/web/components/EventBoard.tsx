@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { nextUpcomingLabel, planTodayEvents, type CalendarEvent, type Person } from "@liendo/shared";
+import { nextUpcomingParts, planTodayEvents, type CalendarEvent, type Person } from "@liendo/shared";
 
 export function EventBoard({
   events,
@@ -20,6 +20,7 @@ export function EventBoard({
 }) {
   const plan = planTodayEvents(events, now, people, maxVisible);
   const empty = plan.today.length === 0;
+  const next = plan.next ? nextUpcomingParts(plan.next) : null;
 
   return (
     <section
@@ -31,7 +32,13 @@ export function EventBoard({
       {empty ? (
         <div className="events-empty-block">
           <p className="events-empty">Nothing on the calendar today</p>
-          {plan.next ? <p className="events-next">{nextUpcomingLabel(plan.next)}</p> : null}
+          {next ? (
+            <p className="events-next">
+              <span className="events-next-kicker">Next up {next.weekday}</span>
+              <span className="events-next-title">{next.title}</span>
+              <span className="events-next-time">{next.time}</span>
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="event-list">

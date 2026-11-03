@@ -30,6 +30,7 @@ import { getCalendarEvents } from "./calendar";
 import {
   completeInstance,
   createChore,
+  deactivateChore,
   listChores,
   markPhotoPending,
   reviewInstance,
@@ -252,8 +253,7 @@ export async function handleApi(req: Request): Promise<Response> {
   }
 
   if (path === "chores" && method === "GET") {
-    const actor = await requireActor(req, ["person", "display"]);
-    if (actor.kind === "display") return json({ chores: await listChores() });
+    await requireActor(req, ["person", "display"]);
     return json({ chores: await listChores() });
   }
 
@@ -269,7 +269,7 @@ export async function handleApi(req: Request): Promise<Response> {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);
     if (method === "DELETE") {
-      await updateChore(choreMatch[1], { active: false });
+      await deactivateChore(choreMatch[1]);
       return json({ ok: true });
     }
     const body = choreSchema.partial().parse(await readJson(req));

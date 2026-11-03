@@ -57,12 +57,17 @@ export function eventColor(event: CalendarEvent, people: Person[]): string | und
   return people.find((person) => title.includes(person.name.toLowerCase()))?.color;
 }
 
-export function nextUpcomingLabel(event: CalendarEvent): string {
+export function nextUpcomingParts(event: CalendarEvent): { weekday: string; title: string; time: string } {
   const date = eventDay(event.start);
   const [y, m, d] = date.split("-").map(Number);
   const weekday = WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()];
   const time = event.allDay ? "All day" : eventTimeLabel(event, "upcoming");
-  return `Next: ${weekday}, ${event.title} ${time}`;
+  return { weekday, title: event.title, time };
+}
+
+export function nextUpcomingLabel(event: CalendarEvent): string {
+  const next = nextUpcomingParts(event);
+  return `Next up ${next.weekday}: ${next.title} · ${next.time}`;
 }
 
 export function planTodayEvents(

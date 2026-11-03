@@ -17,7 +17,7 @@ export const type = {
   display: "Fraunces",
   displayItalic: "Fraunces-Italic",
   body: "Figtree",
-};
+} as const;
 
 export const tap = 64;
 
@@ -83,17 +83,13 @@ export const row: ViewStyle = {
   backgroundColor: colors.paper2,
   padding: 16,
   minHeight: tap,
-  borderLeftWidth: 5,
-  borderLeftColor: colors.accent,
   justifyContent: "center",
   gap: 4,
 };
 
-export function personEdge(color: string): ViewStyle {
+export function personEdge(_color: string): ViewStyle {
   return {
     backgroundColor: colors.paper2,
-    borderLeftWidth: 5,
-    borderLeftColor: color,
     padding: 16,
     minHeight: tap,
     justifyContent: "center",

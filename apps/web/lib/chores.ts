@@ -3,7 +3,7 @@ import type { Chore, ChoreInstance, RepeatType } from "@liendo/shared";
 import { addDays } from "@liendo/shared";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
-import { jsWeekday, startOfDayCt } from "./time";
+import { jsWeekday, startOfDayCt, todayIso } from "./time";
 
 function asChore(row: typeof schema.chores.$inferSelect): Chore {
   return {
@@ -25,10 +25,14 @@ export function occursOn(chore: Chore, iso: string): boolean {
   switch (chore.repeatType) {
     case "daily":
       return true;
-    case "weekdays":
-      return (chore.weekdays ?? []).includes(weekday);
-    case "weekly":
+    case "weekdays": {
+      const days = chore.weekdays?.length ? chore.weekdays : [1, 2, 3, 4, 5];
+      return days.includes(weekday);
+    }
+    case "weekly": {
+      if (chore.weekdays?.length) return chore.weekdays.includes(weekday);
       return chore.weeklyWeekday === weekday;
+    }
     case "once":
       return chore.onceDate === iso;
     default:
@@ -79,7 +83,27 @@ export async function updateChore(id: string, patch: Partial<Chore>): Promise<Ch
     .where(eq(schema.chores.id, id))
     .returning();
   if (!row) throw new HttpError(404, "That chore is gone.");
-  return asChore(row);
+  const chore = asChore(row);
+  await refreshFutureOpenInstances(chore);
+  return chore;
+}
+
+export async function deactivateChore(id: string): Promise<void> {
+  await updateChore(id, { active: false });
+}
+
+async function refreshFutureOpenInstances(chore: Chore) {
+  const db = getDb();
+  const today = todayIso();
+  await db
+    .delete(schema.choreInstances)
+    .where(
+      and(
+        eq(schema.choreInstances.choreId, chore.id),
+        gte(schema.choreInstances.date, today),
+        eq(schema.choreInstances.status, "open"),
+      ),
+    );
 }
 
 export async function ensureInstances(fromIso: string, toIso: string): Promise<ChoreInstance[]> {

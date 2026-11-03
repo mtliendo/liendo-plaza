@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Tabs } from "expo-router";
 import type { DisplaySnapshot, RewardRequest } from "@liendo/shared";
 import { weekDates } from "@liendo/shared";
+import { TabIcon } from "@/components/tab-icon";
 import { api } from "@/lib/api";
+import { useMe } from "@/lib/query";
 import { colors, type } from "@/lib/theme";
 
 function usePendingApprovals() {
@@ -33,27 +35,60 @@ function usePendingApprovals() {
 
 export default function AppLayout() {
   const pending = usePendingApprovals();
+  const me = useMe().data?.actor.person ?? null;
+  const isParent = me?.role === "parent";
   return (
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.paper },
         headerTitleStyle: { fontFamily: type.display, color: colors.ink },
-        tabBarStyle: { backgroundColor: colors.paper, borderTopColor: colors.rule, height: 64 },
+        headerShadowVisible: false,
+        tabBarStyle: {
+          backgroundColor: colors.paper,
+          borderTopColor: colors.rule,
+          height: 84,
+          paddingTop: 8,
+        },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontSize: 12, fontFamily: type.body },
+        tabBarLabelStyle: { fontSize: 11, fontFamily: type.body, fontWeight: "500" },
       }}
     >
-      <Tabs.Screen name="today" options={{ title: "Today" }} />
-      <Tabs.Screen name="calendar" options={{ title: "Week" }} />
-      <Tabs.Screen name="meals" options={{ title: "Dinner" }} />
-      <Tabs.Screen name="stars" options={{ title: "Stars" }} />
+      <Tabs.Screen
+        name="today"
+        options={{
+          title: "Today",
+          tabBarIcon: ({ focused }) => <TabIcon name="today" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: "Week",
+          tabBarIcon: ({ focused }) => <TabIcon name="calendar" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="meals"
+        options={{
+          title: "Dinner",
+          tabBarIcon: ({ focused }) => <TabIcon name="meals" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="stars"
+        options={{
+          title: "Stars",
+          tabBarIcon: ({ focused }) => <TabIcon name="stars" focused={focused} />,
+        }}
+      />
       <Tabs.Screen
         name="parent"
         options={{
           title: "Manage",
-          href: "/parent/chores",
-          tabBarBadge: pending > 0 ? pending : undefined,
+          href: isParent ? "/parent/chores" : null,
+          tabBarBadge: isParent && pending > 0 ? pending : undefined,
+          tabBarIcon: ({ focused }) => <TabIcon name="parent" focused={focused} />,
         }}
       />
     </Tabs>

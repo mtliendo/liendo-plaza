@@ -7,7 +7,8 @@ import { TIMEZONE } from "@liendo/shared";
 import { calendarWindow, endOfDayCt, startOfDayCt } from "./time";
 
 const CACHE_TTL_MS = 4 * 60 * 1000;
-const FETCH_TIMEOUT_MS = 12_000;
+const FETCH_TIMEOUT_MS = 25_000;
+const MAX_WINDOW_EVENTS = 400;
 
 type ParsedCalendar = Record<string, CalendarComponent>;
 
@@ -17,13 +18,24 @@ type CalendarCache = {
   source: "env" | "sample";
 };
 
+type WindowCache = {
+  key: string;
+  fetchedAt: number;
+  events: CalendarEvent[];
+};
+
 let cache: CalendarCache | null = null;
 let inflight: Promise<CalendarCache> | null = null;
+let windowCache: WindowCache | null = null;
+
+export function normalizeFamilyIcalUrl(raw: string): string {
+  return raw.trim().replace(/^webcal:/i, "https:");
+}
 
 function publicIcalUrl(): string | null {
   const raw = process.env.FAMILY_ICAL_URL?.trim();
   if (!raw) return null;
-  return raw.replace(/^webcal:/i, "https:");
+  return normalizeFamilyIcalUrl(raw);
 }
 
 async function loadSample(): Promise<string> {
@@ -52,13 +64,14 @@ async function loadCalendar(): Promise<CalendarCache> {
   const url = publicIcalUrl();
   try {
     const text = url ? await fetchFamilyIcs(url) : await loadSample();
-    const parsed = ical.sync.parseICS(text) as ParsedCalendar;
+    const parsed = parseIcsText(text);
     const next: CalendarCache = {
       fetchedAt: Date.now(),
       parsed,
       source: url ? "env" : "sample",
     };
     cache = next;
+    windowCache = null;
     return next;
   } catch (error) {
     if (cache) {
@@ -68,9 +81,10 @@ async function loadCalendar(): Promise<CalendarCache> {
     if (url) {
       console.warn("calendar fetch failed; falling back to sample", error);
       const text = await loadSample();
-      const parsed = ical.sync.parseICS(text) as ParsedCalendar;
+      const parsed = parseIcsText(text);
       const next: CalendarCache = { fetchedAt: Date.now(), parsed, source: "sample" };
       cache = next;
+      windowCache = null;
       return next;
     }
     throw error;
@@ -87,6 +101,10 @@ async function getParsedCalendar(): Promise<CalendarCache> {
     });
   }
   return inflight;
+}
+
+export function parseIcsText(text: string): ParsedCalendar {
+  return ical.sync.parseICS(text) as ParsedCalendar;
 }
 
 function asDate(value: unknown): Date | null {
@@ -107,6 +125,11 @@ function asDate(value: unknown): Date | null {
   return null;
 }
 
+function isCancelled(event: VEvent): boolean {
+  const status = String((event as VEvent & { status?: string }).status ?? "").toUpperCase();
+  return status === "CANCELLED";
+}
+
 function isAllDay(event: VEvent): boolean {
   const start = event.start as Date & { dateOnly?: boolean };
   if (start?.dateOnly) return true;
@@ -119,7 +142,7 @@ function occurrenceIso(date: Date, allDay: boolean): string {
   if (allDay) {
     return DateTime.fromJSDate(date, { zone: "utc" }).toISODate() ?? date.toISOString();
   }
-  return DateTime.fromJSDate(date).setZone(TIMEZONE).toISO() ?? date.toISOString();
+  return DateTime.fromJSDate(date, { zone: "utc" }).setZone(TIMEZONE).toISO() ?? date.toISOString();
 }
 
 function durationMs(event: VEvent): number {
@@ -131,21 +154,33 @@ function durationMs(event: VEvent): number {
   return isAllDay(event) ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
 }
 
-function excluded(event: VEvent, occurrence: Date): boolean {
-  const exdate = (event as VEvent & { exdate?: Record<string, Date> }).exdate;
-  if (!exdate) return false;
-  const key = occurrence.toISOString().slice(0, 10);
-  return Object.values(exdate).some((stamp) => {
-    if (!(stamp instanceof Date)) return false;
-    return stamp.toISOString().slice(0, 10) === key;
-  });
+function chicagoStamp(date: Date, allDay: boolean): string {
+  if (allDay) {
+    return DateTime.fromJSDate(date, { zone: "utc" }).toISODate() ?? "";
+  }
+  return DateTime.fromJSDate(date, { zone: "utc" }).setZone(TIMEZONE).toFormat("yyyy-MM-dd'T'HH:mm");
+}
+
+function exdateList(event: VEvent): Date[] {
+  const raw = (event as VEvent & { exdate?: Record<string, Date> | Date[] }).exdate;
+  if (!raw) return [];
+  // node-ical often stores EXDATE as an Array with date-string keys, so
+  // numeric Array#filter misses them. Object.values keeps both shapes.
+  return Object.values(raw).filter((stamp): stamp is Date => stamp instanceof Date);
+}
+
+function excluded(event: VEvent, occurrence: Date, allDay: boolean): boolean {
+  const key = chicagoStamp(occurrence, allDay);
+  if (!key) return false;
+  return exdateList(event).some((stamp) => chicagoStamp(stamp, allDay) === key);
 }
 
 function overrideFor(event: VEvent, occurrence: Date): VEvent | null {
   const recurrences = (event as VEvent & { recurrences?: Record<string, VEvent> }).recurrences;
   if (!recurrences) return null;
-  const key = DateTime.fromJSDate(occurrence).toFormat("yyyy-MM-dd");
-  return recurrences[key] ?? recurrences[occurrence.toISOString()] ?? null;
+  const chicago = DateTime.fromJSDate(occurrence, { zone: "utc" }).setZone(TIMEZONE).toFormat("yyyy-MM-dd");
+  const utc = DateTime.fromJSDate(occurrence, { zone: "utc" }).toFormat("yyyy-MM-dd");
+  return recurrences[chicago] ?? recurrences[utc] ?? recurrences[occurrence.toISOString()] ?? null;
 }
 
 function mapEvent(event: VEvent, start: Date, end: Date): CalendarEvent {
@@ -165,14 +200,32 @@ function rruleUntil(event: VEvent): Date | null {
   return rule?.options?.until ?? null;
 }
 
-function expandWindow(parsed: ParsedCalendar, fromIso: string, toIso: string): CalendarEvent[] {
+function overlapsWindow(start: Date, end: Date, windowStart: Date, windowEnd: Date): boolean {
+  return end >= windowStart && start <= windowEnd;
+}
+
+function recurrenceKey(event: VEvent): string | null {
+  const stamp = asDate((event as VEvent & { recurrenceid?: Date }).recurrenceid);
+  if (!stamp || !event.uid) return null;
+  return `${event.uid}|${chicagoStamp(stamp, isAllDay(event))}`;
+}
+
+export function expandWindow(parsed: ParsedCalendar, fromIso: string, toIso: string): CalendarEvent[] {
   const windowStart = startOfDayCt(fromIso).toUTC().toJSDate();
   const windowEnd = endOfDayCt(toIso).toUTC().toJSDate();
   const out: CalendarEvent[] = [];
+  const overrides = new Map<string, VEvent>();
+  for (const item of Object.values(parsed)) {
+    if (!item || item.type !== "VEVENT") continue;
+    const event = item as VEvent;
+    const key = recurrenceKey(event);
+    if (key) overrides.set(key, event);
+  }
 
   for (const item of Object.values(parsed)) {
     if (!item || item.type !== "VEVENT") continue;
     const event = item as VEvent;
+    if (isCancelled(event)) continue;
     const start = asDate(event.start);
     if (!start) continue;
 
@@ -183,12 +236,16 @@ function expandWindow(parsed: ParsedCalendar, fromIso: string, toIso: string): C
 
       const dates = event.rrule.between(windowStart, windowEnd, true);
       for (const date of dates) {
-        if (excluded(event, date)) continue;
-        const override = overrideFor(event, date);
+        const allDay = isAllDay(event);
+        if (excluded(event, date, allDay)) continue;
+        const override =
+          overrideFor(event, date) ??
+          (event.uid ? overrides.get(`${event.uid}|${chicagoStamp(date, allDay)}`) ?? null : null);
         if (override) {
+          if (isCancelled(override)) continue;
           const oStart = asDate(override.start) ?? date;
           const oEnd = asDate(override.end) ?? new Date(oStart.getTime() + durationMs(override));
-          if (oEnd < windowStart || oStart > windowEnd) continue;
+          if (!overlapsWindow(oStart, oEnd, windowStart, windowEnd)) continue;
           out.push(mapEvent(override, oStart, oEnd));
           continue;
         }
@@ -199,19 +256,29 @@ function expandWindow(parsed: ParsedCalendar, fromIso: string, toIso: string): C
     }
 
     const end = asDate(event.end) ?? new Date(start.getTime() + durationMs(event));
-    if (end < windowStart || start > windowEnd) continue;
+    if (!overlapsWindow(start, end, windowStart, windowEnd)) continue;
     if ((event as VEvent & { recurrenceid?: Date }).recurrenceid) continue;
     out.push(mapEvent(event, start, end));
   }
 
   out.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
-  return out;
+  return out.slice(0, MAX_WINDOW_EVENTS);
+}
+
+export function expandIcsText(text: string, fromIso: string, toIso: string): CalendarEvent[] {
+  return expandWindow(parseIcsText(text), fromIso, toIso);
 }
 
 export async function getCalendarEvents(fromIso?: string, toIso?: string): Promise<CalendarEvent[]> {
   const window = calendarWindow(fromIso, toIso);
-  const { parsed } = await getParsedCalendar();
-  return expandWindow(parsed, window.from, window.to);
+  const key = `${window.from}|${window.to}`;
+  const { parsed, fetchedAt } = await getParsedCalendar();
+  if (windowCache && windowCache.key === key && windowCache.fetchedAt === fetchedAt) {
+    return windowCache.events;
+  }
+  const events = expandWindow(parsed, window.from, window.to);
+  windowCache = { key, fetchedAt, events };
+  return events;
 }
 
 export function calendarCacheMeta() {
@@ -219,4 +286,10 @@ export function calendarCacheMeta() {
     ageMs: cache ? Date.now() - cache.fetchedAt : null,
     source: cache?.source ?? null,
   };
+}
+
+export function resetCalendarCache() {
+  cache = null;
+  inflight = null;
+  windowCache = null;
 }

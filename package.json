@@ -11,6 +11,7 @@
     "db:seed": "pnpm --filter @liendo/web db:seed",
     "db:reset": "pnpm --filter @liendo/web db:reset",
     "test:e2e": "pnpm --filter @liendo/web test:e2e",
+    "test:calendar": "pnpm --filter @liendo/web test:calendar",
     "mobile": "pnpm --filter @liendo/mobile start"
   },
   "pnpm": {

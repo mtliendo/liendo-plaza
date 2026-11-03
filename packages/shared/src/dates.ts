@@ -2,6 +2,10 @@ export const TIMEZONE = "America/Chicago";
 
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
+export const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+export const WEEKDAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
 export function isoDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -26,6 +30,46 @@ export function addDays(iso: string, days: number): string {
 export function weekDates(iso: string): string[] {
   const start = startOfWeekSunday(iso);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+export function weekdayIndex(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
+
+/** "Sun, Nov 1" — dense dinner and week labels. */
+export function weekdayDateLabel(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()]}, ${MONTH_SHORT[m - 1]} ${d}`;
+}
+
+export function weekdayLongLabel(iso: string): string {
+  return WEEKDAY_LONG[weekdayIndex(iso)];
+}
+
+export function repeatLabel(input: {
+  repeatType: "daily" | "weekdays" | "weekly" | "once";
+  weekdays?: number[] | null;
+  weeklyWeekday?: number | null;
+  onceDate?: string | null;
+}): string {
+  if (input.repeatType === "daily") return "Every day";
+  if (input.repeatType === "weekdays") {
+    const days = input.weekdays?.length ? input.weekdays : [1, 2, 3, 4, 5];
+    if (days.length === 5 && [1, 2, 3, 4, 5].every((day) => days.includes(day))) return "Weekdays";
+    return days.map((day) => WEEKDAY_LABELS[day]).join(", ");
+  }
+  if (input.repeatType === "weekly") {
+    const days = input.weekdays?.length
+      ? input.weekdays
+      : input.weeklyWeekday != null
+        ? [input.weeklyWeekday]
+        : [];
+    if (days.length === 0) return "Weekly";
+    return days.map((day) => WEEKDAY_LABELS[day]).join(", ");
+  }
+  if (input.onceDate) return `Once on ${weekdayDateLabel(input.onceDate)}`;
+  return "Once";
 }
 
 export function isDimHours(hour: number): boolean {
