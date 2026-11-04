@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Meal } from "@liendo/shared";
 import { mealPhotoSrc, weekdayDateLabel } from "@liendo/shared";
+import { PhotoField } from "@/components/family/PhotoField";
 
 export function DinnerList({
   week,
@@ -10,6 +11,8 @@ export function DinnerList({
   suggestions,
   onSuggest,
   onSave,
+  onPhoto,
+  onClearPhoto,
 }: {
   week: string[];
   today: string;
@@ -18,6 +21,8 @@ export function DinnerList({
   suggestions: string[];
   onSuggest: () => void;
   onSave: (date: string, name: string) => void;
+  onPhoto: (date: string, file: File) => void;
+  onClearPhoto: (date: string) => void;
 }) {
   return (
     <div className="dinner-list" data-testid="dinner-list">
@@ -32,9 +37,17 @@ export function DinnerList({
               <p className="day-name">{weekdayDateLabel(iso)}</p>
             </div>
             <div className="dinner-what">
-              {thumb ? <img src={thumb} alt="" className="meal-thumb" /> : null}
+              {thumb && !isParent ? <img src={thumb} alt="" className="meal-thumb" /> : null}
               {isParent ? (
-                <DinnerEditor date={iso} name={meal?.name ?? ""} onSuggest={onSuggest} onSave={onSave} />
+                <DinnerEditor
+                  date={iso}
+                  name={meal?.name ?? ""}
+                  photo={thumb}
+                  onSuggest={onSuggest}
+                  onSave={onSave}
+                  onPhoto={(file) => onPhoto(iso, file)}
+                  onClearPhoto={() => onClearPhoto(iso)}
+                />
               ) : (
                 <p className="dinner-name">{meal?.name ?? "Not written yet"}</p>
               )}
@@ -56,13 +69,19 @@ export function DinnerList({
 function DinnerEditor({
   date,
   name,
+  photo,
   onSuggest,
   onSave,
+  onPhoto,
+  onClearPhoto,
 }: {
   date: string;
   name: string;
+  photo: string | null;
   onSuggest: () => void;
   onSave: (date: string, name: string) => void;
+  onPhoto: (file: File) => void;
+  onClearPhoto: () => void;
 }) {
   const [value, setValue] = useState(name);
   return (
@@ -77,6 +96,7 @@ function DinnerEditor({
         onChange={(event) => setValue(event.target.value)}
         onBlur={() => onSave(date, value)}
       />
+      <PhotoField src={photo} label="Photo" onPick={onPhoto} onClear={photo ? onClearPhoto : undefined} />
       {value ? (
         <button
           type="button"

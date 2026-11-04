@@ -371,6 +371,16 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
               setSuggestions(body.names);
             }}
             onSave={(date, name) => mealEdit.mutate({ date, name })}
+            onPhoto={async (date, file) => {
+              const form = new FormData();
+              form.append("photo", file);
+              await fetch(`/api/meals/${date}/photo`, { method: "POST", body: form });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            }}
+            onClearPhoto={async (date) => {
+              await fetch(`/api/meals/${date}/photo`, { method: "DELETE" });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            }}
           />
         </>
       ) : null}
@@ -428,9 +438,15 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
             people={snapshot?.people.filter((p) => p.role === "kid") ?? []}
             chores={chores}
             onCreate={async (payload) => {
-              await fetch("/api/chores", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+              const res = await fetch("/api/chores", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              const body = (await res.json()) as { chore?: { id: string } };
               await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
               await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+              return body.chore?.id;
             }}
             onUpdate={async (id, payload) => {
               await fetch(`/api/chores/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });

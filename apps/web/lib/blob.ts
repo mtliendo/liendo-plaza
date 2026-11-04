@@ -1,10 +1,10 @@
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { randomBytes } from "node:crypto";
-import { put } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
 import sharp from "sharp";
 import { HttpError } from "./http";
 
@@ -37,6 +37,27 @@ export async function storePhoto(buffer: Buffer, folder = "chores"): Promise<str
   const path = join(LOCAL_DIR, name);
   await pipeline(Readable.from(jpeg), createWriteStream(path));
   return `local:${name}`;
+}
+
+export async function deleteStoredPhoto(path: string | null | undefined): Promise<void> {
+  if (!path) return;
+  if (path.startsWith("local:")) {
+    await unlink(join(LOCAL_DIR, path.slice(6))).catch(() => undefined);
+    return;
+  }
+  if (path.startsWith("http") && process.env.BLOB_READ_WRITE_TOKEN) {
+    await del(path, { token: process.env.BLOB_READ_WRITE_TOKEN }).catch(() => undefined);
+  }
+}
+
+export async function replaceStoredPhoto(
+  previous: string | null | undefined,
+  buffer: Buffer,
+  folder = "chores",
+): Promise<string> {
+  const stored = await storePhoto(buffer, folder);
+  if (previous && previous !== stored) await deleteStoredPhoto(previous);
+  return stored;
 }
 
 export async function readPhoto(path: string): Promise<{ body: Uint8Array; contentType: string }> {

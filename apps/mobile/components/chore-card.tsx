@@ -1,6 +1,7 @@
-import { Pressable, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import type { ChoreInstance, Person } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { photoUri } from "@/lib/api";
 import { colors, curve, type } from "@/lib/theme";
 
 function statusLabel(status: ChoreInstance["status"]) {
@@ -46,6 +47,9 @@ export function ChoreCard({
           <PersonAvatar person={person} size={48} />
           <Text style={{ fontSize: 16, color: colors.ink, fontFamily: type.body }}>{person.name}</Text>
         </View>
+      ) : null}
+      {photoUri(chore.guidePhotoPath) ? (
+        <Image source={{ uri: photoUri(chore.guidePhotoPath) ?? "" }} style={{ width: "100%", height: 140, ...curve.card }} />
       ) : null}
       <Text style={{ fontFamily: type.display, fontSize: 20, color: colors.ink }}>{chore.title}</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>

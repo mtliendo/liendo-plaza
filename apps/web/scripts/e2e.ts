@@ -208,6 +208,45 @@ async function main() {
   const meal = await json("meals", "PUT", { date: today, name: "Roast chicken" }, auth);
   assert(meal.res.ok, "meal write failed");
 
+  const dinnerPhoto = await fetch(`${BASE}/api/meals/${today}/photo`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${parentToken}`, "content-type": "image/jpeg" },
+    body: new Uint8Array(jpeg),
+  });
+  const dinnerPhotoBody = (await dinnerPhoto.json()) as { meal?: { photoPath?: string | null }; error?: string };
+  assert(dinnerPhoto.ok, `dinner photo upload failed: ${dinnerPhotoBody.error ?? dinnerPhoto.status}`);
+  assert(dinnerPhotoBody.meal?.photoPath, "dinner photo path missing");
+
+  const kidDinnerPhoto = await fetch(`${BASE}/api/meals/${today}/photo`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${kidToken}`, "content-type": "image/jpeg" },
+    body: new Uint8Array(jpeg),
+  });
+  assert(kidDinnerPhoto.status === 403, "kids must not upload dinner photos");
+
+  const guideUp = await fetch(`${BASE}/api/chores/${created.id}/guide-photo`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${parentToken}`, "content-type": "image/jpeg" },
+    body: new Uint8Array(jpeg),
+  });
+  assert(guideUp.ok, `chore photo upload failed: ${guideUp.status}`);
+
+  const dinnerClear = await json("meals", "PUT", { date: today, name: "" }, auth);
+  assert(dinnerClear.res.ok, "dinner delete failed");
+  assert(dinnerClear.data.meal === null, "cleared dinner should be gone");
+  const dinnerRestored = await json("meals", "PUT", { date: today, name: "Roast chicken" }, auth);
+  assert(dinnerRestored.res.ok, "dinner restore failed");
+
+  const photoChoreId = String((photoChore.data.chore as { id: string }).id);
+  const photoChoreGuide = await fetch(`${BASE}/api/chores/${photoChoreId}/guide-photo`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${parentToken}`, "content-type": "image/jpeg" },
+    body: new Uint8Array(jpeg),
+  });
+  assert(photoChoreGuide.ok, "second chore photo upload failed");
+  const photoChoreDelete = await json(`chores/${photoChoreId}`, "DELETE", undefined, auth);
+  assert(photoChoreDelete.res.ok, "chore delete should clean up its photo");
+
   let locked = false;
   for (let i = 0; i < 6; i += 1) {
     const attempt = await json("auth/login", "POST", { familyToken, personId: noah.id, pin: "0000" });

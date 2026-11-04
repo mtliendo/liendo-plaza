@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { mealPhotoSrc, weekdayDateLabel, weekDates } from "@liendo/shared";
+import { weekdayDateLabel, weekDates } from "@liendo/shared";
+import { PhotoField } from "@/components/photo-field";
 import { SwipeRow } from "@/components/swipe-row";
 import { UndoToast } from "@/components/undo-toast";
-import { api } from "@/lib/api";
-import { API_URL } from "@/lib/config";
+import { api, photoUri, uploadPhoto } from "@/lib/api";
 import { useMe, useSnapshot } from "@/lib/query";
 import { accentLabel, body, colors, curve, h1, input, muted, screen, type } from "@/lib/theme";
 
@@ -29,14 +29,23 @@ export default function MealsScreen() {
     await snapshotQuery.refetch();
   }
 
+  async function savePhoto(date: string, uri: string) {
+    await uploadPhoto(`meals/${date}/photo`, uri);
+    await snapshotQuery.refetch();
+  }
+
+  async function clearPhoto(date: string) {
+    await api(`meals/${date}/photo`, { method: "DELETE" });
+    await snapshotQuery.refetch();
+  }
+
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={screen} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
         <Text style={h1}>Dinner</Text>
         {week.map((iso) => {
           const meal = snapshot?.meals.find((row) => row.date === iso);
-          const thumb = mealPhotoSrc(meal?.photoPath);
-          const uri = thumb?.startsWith("http") ? thumb : thumb ? `${API_URL}${thumb}` : null;
+          const uri = photoUri(meal?.photoPath);
           const isTonight = iso === today;
           const row = (
             <View
@@ -50,7 +59,7 @@ export default function MealsScreen() {
               {isTonight ? <Text style={accentLabel}>Tonight</Text> : null}
               <Text style={accentLabel}>{weekdayDateLabel(iso)}</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                {uri ? <Image source={{ uri }} style={{ width: 48, height: 48, ...curve.card }} /> : null}
+                {uri && !isParent ? <Image source={{ uri }} style={{ width: 72, height: 72, ...curve.card }} /> : null}
                 {isParent ? (
                   <View style={{ flex: 1, gap: 8 }}>
                     <TextInput
@@ -60,6 +69,11 @@ export default function MealsScreen() {
                       onEndEditing={() => void save(iso, names[iso] ?? "")}
                       autoFocus={focusDate === iso}
                       style={input}
+                    />
+                    <PhotoField
+                      uri={uri}
+                      onPick={(next) => void savePhoto(iso, next)}
+                      onClear={uri ? () => void clearPhoto(iso) : undefined}
                     />
                     {names[iso] ? (
                       <Pressable

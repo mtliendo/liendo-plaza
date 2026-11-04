@@ -127,12 +127,20 @@ async function main() {
       .onConflictDoNothing({ target: schema.meals.date });
   }
 
-  const [tonight] = await db.select().from(schema.meals).where(eq(schema.meals.date, today)).limit(1);
-  if (tonight && !tonight.photoPath) {
+  const weekMeals = await db.select().from(schema.meals);
+  for (const meal of weekMeals) {
+    if (meal.photoPath) continue;
     await db
       .update(schema.meals)
       .set({ photoPath: "/meals/tacos.jpg", updatedAt: new Date() })
-      .where(eq(schema.meals.date, today));
+      .where(eq(schema.meals.date, meal.date));
+  }
+
+  for (const title of ["Make your bed", "Feed the fish"]) {
+    await db
+      .update(schema.chores)
+      .set({ guidePhotoPath: "/meals/tacos.jpg", updatedAt: new Date() })
+      .where(eq(schema.chores.title, title));
   }
 
   await db

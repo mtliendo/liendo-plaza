@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { Link } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
 import type { Chore, Person, RepeatType } from "@liendo/shared";
-import { WEEKDAY_LABELS, mealPhotoSrc, repeatLabel } from "@liendo/shared";
+import { WEEKDAY_LABELS, repeatLabel } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { PhotoField } from "@/components/photo-field";
 import { SwipeRow } from "@/components/swipe-row";
-import { api } from "@/lib/api";
-import { API_URL } from "@/lib/config";
+import { api, photoUri, uploadPhoto } from "@/lib/api";
 import { useMe } from "@/lib/query";
-import { getSession } from "@/lib/session";
 import { body, btn, btnLabel, colors, curve, input, muted, screen, type } from "@/lib/theme";
 
 type Draft = {
@@ -76,6 +74,7 @@ export default function ParentChoresScreen() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [pendingUri, setPendingUri] = useState<string | null>(null);
 
   async function load() {
     const nextChores = ((await api("chores")) as { chores: Chore[] }).chores;
@@ -92,6 +91,13 @@ export default function ParentChoresScreen() {
   function startEdit(chore: Chore) {
     setEditingId(chore.id);
     setDraft(fromChore(chore));
+    setPendingUri(null);
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setDraft({ ...EMPTY, assignedPersonId: people[0]?.id ?? "" });
+    setPendingUri(null);
   }
 
   function confirmDelete(chore: Chore) {
@@ -103,10 +109,7 @@ export default function ParentChoresScreen() {
         onPress: () => {
           void (async () => {
             await api(`chores/${chore.id}`, { method: "DELETE" });
-            if (editingId === chore.id) {
-              setEditingId(null);
-              setDraft({ ...EMPTY, assignedPersonId: people[0]?.id ?? "" });
-            }
+            if (editingId === chore.id) resetForm();
             await load();
           })();
         },
@@ -114,21 +117,8 @@ export default function ParentChoresScreen() {
     ]);
   }
 
-  async function uploadGuide(id: string) {
-    const shot = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: false });
-    if (shot.canceled || !shot.assets[0]) return;
-    const token = await getSession();
-    const form = new FormData();
-    form.append("photo", {
-      uri: shot.assets[0].uri,
-      name: "guide.jpg",
-      type: "image/jpeg",
-    } as never);
-    await fetch(`${API_URL}/api/chores/${id}/guide-photo`, {
-      method: "POST",
-      headers: token ? { authorization: `Bearer ${token}` } : undefined,
-      body: form,
-    });
+  async function saveGuide(id: string, uri: string) {
+    await uploadPhoto(`chores/${id}/guide-photo`, uri);
     await load();
   }
 
@@ -141,8 +131,7 @@ export default function ParentChoresScreen() {
   }
 
   const editing = chores.find((chore) => chore.id === editingId);
-  const guide = mealPhotoSrc(editing?.guidePhotoPath ?? null);
-  const guideUri = guide?.startsWith("http") ? guide : guide ? `${API_URL}${guide}` : null;
+  const guideUri = pendingUri ?? photoUri(editing?.guidePhotoPath ?? null);
 
   return (
     <ScrollView contentContainerStyle={screen} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
@@ -274,37 +263,37 @@ export default function ParentChoresScreen() {
       {draft.repeatType === "once" ? (
         <TextInput value={draft.onceDate} onChangeText={(onceDate) => setDraft({ ...draft, onceDate })} placeholder="YYYY-MM-DD" style={input} />
       ) : null}
-      {editingId ? (
-        <View style={{ gap: 8 }}>
-          <Text style={muted}>What it looks like</Text>
-          {guideUri ? <Image source={{ uri: guideUri }} style={{ width: "100%", height: 160, ...curve.card }} /> : null}
-          <Pressable onPress={() => void uploadGuide(editingId)}>
-            <Text style={{ color: colors.accent }}>Add a reference photo</Text>
-          </Pressable>
-          {guideUri ? (
-            <Pressable
-              onPress={async () => {
-                await api(`chores/${editingId}/guide-photo`, { method: "DELETE" });
-                await load();
-              }}
-            >
-              <Text style={muted}>Remove photo</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : (
-        <Text style={muted}>Save the chore first if you want to add a reference photo.</Text>
-      )}
+      <PhotoField
+        uri={guideUri}
+        onPick={(uri) => {
+          if (editingId) void saveGuide(editingId, uri);
+          else setPendingUri(uri);
+        }}
+        onClear={
+          guideUri
+            ? () => {
+                setPendingUri(null);
+                if (editingId) {
+                  void (async () => {
+                    await api(`chores/${editingId}/guide-photo`, { method: "DELETE" });
+                    await load();
+                  })();
+                }
+              }
+            : undefined
+        }
+      />
       <Pressable
         onPress={async () => {
           if (!draft.title || !draft.assignedPersonId) return;
           if (editingId) {
             await api(`chores/${editingId}`, { method: "PATCH", body: JSON.stringify(payload(draft)) });
+            if (pendingUri) await saveGuide(editingId, pendingUri);
           } else {
-            await api("chores", { method: "POST", body: JSON.stringify(payload(draft)) });
+            const created = (await api("chores", { method: "POST", body: JSON.stringify(payload(draft)) })) as { chore: { id: string } };
+            if (pendingUri) await saveGuide(created.chore.id, pendingUri);
           }
-          setDraft({ ...EMPTY, assignedPersonId: people[0]?.id ?? "" });
-          setEditingId(null);
+          resetForm();
           await load();
         }}
         style={btn}
@@ -312,12 +301,7 @@ export default function ParentChoresScreen() {
         <Text style={btnLabel}>{editingId ? "Save chore" : "Add chore"}</Text>
       </Pressable>
       {editingId ? (
-        <Pressable
-          onPress={() => {
-            setEditingId(null);
-            setDraft({ ...EMPTY, assignedPersonId: people[0]?.id ?? "" });
-          }}
-        >
+        <Pressable onPress={resetForm}>
           <Text style={muted}>Cancel</Text>
         </Pressable>
       ) : null}
@@ -328,6 +312,9 @@ export default function ParentChoresScreen() {
           return (
             <SwipeRow key={chore.id} enabled onEdit={() => startEdit(chore)} onDelete={() => confirmDelete(chore)}>
               <View style={{ backgroundColor: colors.paper2, padding: 12, gap: 8, ...curve.card }}>
+                {photoUri(chore.guidePhotoPath) ? (
+                  <Image source={{ uri: photoUri(chore.guidePhotoPath) ?? "" }} style={{ width: "100%", height: 120, ...curve.card }} />
+                ) : null}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   {person ? <PersonAvatar person={person} size={40} /> : null}
                   <View style={{ flex: 1 }}>

@@ -1,6 +1,7 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { Chore, ChoreInstance, RepeatType } from "@liendo/shared";
 import { addDays } from "@liendo/shared";
+import { deleteStoredPhoto } from "./blob";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
 import { jsWeekday, startOfDayCt, todayIso } from "./time";
@@ -130,7 +131,13 @@ export async function updateChore(id: string, patch: Partial<Chore>): Promise<Ch
 }
 
 export async function deactivateChore(id: string): Promise<void> {
-  await updateChore(id, { active: false });
+  const db = getDb();
+  const [row] = await db.select().from(schema.chores).where(eq(schema.chores.id, id)).limit(1);
+  if (!row) return;
+  const instances = await db.select().from(schema.choreInstances).where(eq(schema.choreInstances.choreId, id));
+  await deleteStoredPhoto(row.guidePhotoPath);
+  for (const instance of instances) await deleteStoredPhoto(instance.photoPath);
+  await updateChore(id, { active: false, guidePhotoPath: null });
 }
 
 async function refreshFutureOpenInstances(chore: Chore) {
