@@ -36,8 +36,13 @@
   --text-title: 1rem;
   --text-lead: 1rem;
   --tracking-display: -0.01em;
-  --radius-card: 0;
-  --radius-pill: 0;
+  --radius-chip: 999px;
+  --radius-control: 8px;
+  --radius-card: 16px;
+  --radius-button: 16px;
+  --radius-sheet: 24px;
+  --radius-board: 22px;
+  --radius-pill: 999px;
   --shadow-card: 0 18px 40px color-mix(in oklab, var(--color-ink) 6%, transparent);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);

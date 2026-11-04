@@ -3,7 +3,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { focusManager, onlineManager, QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { DISPLAY_REFETCH_MS, patchChore, QUERY_GC_MS, QUERY_STALE_MS, queryKeys, weekDates, type DisplaySnapshot, type Person } from "@liendo/shared";
+import { DISPLAY_REFETCH_MS, patchChore, QUERY_GC_MS, QUERY_STALE_MS, queryKeys, snapshotRange, type DisplaySnapshot, type Person } from "@liendo/shared";
 import { AppState, type AppStateStatus } from "react-native";
 import { useEffect, type ReactNode } from "react";
 import { api } from "./api";
@@ -44,8 +44,8 @@ export function QueryProviders({ children }: { children: ReactNode }) {
 
 function week() {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-  const days = weekDates(today);
-  return { today, from: days[0], to: days[6] };
+  const range = snapshotRange(today);
+  return { today, from: range.from, to: range.to };
 }
 
 export function useSnapshot(enabled = true) {

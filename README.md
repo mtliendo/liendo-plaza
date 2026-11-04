@@ -12,13 +12,13 @@ apps/mobile   Expo + expo-router. iPhone app for TestFlight.
 packages/shared   People, types, and date helpers.
 ```
 
-The kitchen frame opens `/display` full-screen (landscape, 15.6"). A 10" frame can open the same preview URL. Phones use the Expo app, or `/family` in a browser.
+The kitchen frame opens `/display` full-screen (landscape, 15.6"). A 10" frame can open the same preview URL. Phones use the Expo app, or `/family` in a browser. Parents add, edit, and clear dinners on the Dinner tab, and manage chores (assign, repeat, stars, photo, how-to, steps, and a reference photo) under Manage. Kids tap a chore to read the details, then mark it done or take a photo. A new column set lives in `apps/web/drizzle/0003_chore_details.sql`.
 
 ## Architecture
 
 - **API:** Next.js route handlers in `apps/web/app/api`. One router in `lib/api.ts` serves both the board and the phones.
 - **Data:** Postgres (Neon in production, local Postgres on this machine) through Drizzle. Migrations live in `apps/web/drizzle`.
-- **Calendar:** Server reads `FAMILY_ICAL_URL` (webcal becomes https). The feed is parsed once, cached for about four minutes, and only expanded from today through five weeks. The URL never goes to a browser. If the env var is empty, a small synthetic `apps/web/data/sample.ics` is used. Real iCloud data is not in the repo.
+- **Calendar:** Server reads `FAMILY_ICAL_URL` (webcal becomes https). The feed is parsed once, cached for about four minutes, and only expanded for the requested window (today through five weeks). Recurring events, EXDATE, all-day dates, and America/Chicago times are expanded in that window only. The URL never goes to a browser. If the env var is empty, a small synthetic `apps/web/data/sample.ics` is used. Real iCloud data is not in the repo.
 - **Photos:** Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set (private or an unguessable path). Local disk under `apps/web/data/uploads` otherwise. Images are resized and compressed on upload.
 - **Auth:** QR pairing, not a typed family code. An unpaired frame or phone shows a QR and a short TV-style code (`AB3-K7M`). A signed-in parent approves it (scan or type the code). New phones can also scan a one-time parent invite (`liendoplaza://` or `/family?invite=`). The first parent phone bootstraps with that parent’s 6-digit PIN when no parent device is paired yet. Kids use 4 digits, parents 6. PINs are bcrypt hashes. Five wrong tries lock that person for 15 minutes. `FAMILY_ACCESS_SECRET` stays on the server for signing; nobody types it. The phone keeps a session token in SecureStore. The kitchen board stores a long-lived httpOnly cookie after pairing. Parents can list and revoke devices.
 - **Push:** Expo push tokens. Vercel Cron hits `/api/cron/reminders` every 15 minutes and, at the parent-set hour (default 6 PM Chicago), pings kids who still have open chores. Parents get a ping when a photo is waiting. The kid gets a ping when it is approved.

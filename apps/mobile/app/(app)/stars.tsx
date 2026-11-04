@@ -5,7 +5,7 @@ import { queryKeys } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { api } from "@/lib/api";
 import { useSnapshot } from "@/lib/query";
-import { colors, h1, h2, muted, personEdge, screen } from "@/lib/theme";
+import { colors, curve, h1, h2, muted, personEdge, screen } from "@/lib/theme";
 
 export default function StarsScreen() {
   const snapshotQuery = useSnapshot();
@@ -41,7 +41,7 @@ export default function StarsScreen() {
               await api("rewards/requests", { method: "POST", body: JSON.stringify({ rewardId: reward.id }) });
               await snapshotQuery.refetch();
             }}
-            style={{ backgroundColor: colors.paper2, padding: 16, minHeight: 64, justifyContent: "center" }}
+            style={{ backgroundColor: colors.paper2, padding: 16, minHeight: 64, justifyContent: "center", ...curve.card }}
           >
             <Text style={{ color: colors.ink }}>{reward.name}</Text>
             <Text style={muted}>{reward.starCost} stars</Text>

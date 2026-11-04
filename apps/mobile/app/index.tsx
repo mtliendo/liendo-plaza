@@ -5,7 +5,7 @@ import type { Person } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { API_URL } from "@/lib/config";
 import { getSession, saveFamilyToken, saveSession } from "@/lib/session";
-import { body, btn, btnLabel, colors, h1, h2, input, muted, personEdge, screen, type } from "@/lib/theme";
+import { body, btn, btnLabel, colors, curve, h1, h2, input, muted, personEdge, screen, type } from "@/lib/theme";
 
 type Claim = { id: string; displayCode: string; qrDataUrl: string; pollSecret: string };
 
@@ -173,9 +173,9 @@ export default function AuthScreen() {
         </>
       ) : null}
       {!familyToken && !picked && claim ? (
-        <View style={{ alignItems: "center", gap: 12, backgroundColor: colors.paper2, padding: 20 }}>
+        <View style={{ alignItems: "center", gap: 12, backgroundColor: colors.paper2, padding: 20, ...curve.sheet }}>
           <Text style={muted}>A parent can scan this or type the code under Add a device.</Text>
-          <Image source={{ uri: claim.qrDataUrl }} style={{ width: 220, height: 220 }} />
+          <Image source={{ uri: claim.qrDataUrl }} style={{ width: 220, height: 220, ...curve.card }} />
           <Text style={{ fontFamily: type.display, fontSize: 36, letterSpacing: 4, color: colors.ink }}>{claim.displayCode}</Text>
         </View>
       ) : null}

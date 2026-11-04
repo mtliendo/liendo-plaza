@@ -24,7 +24,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Liendo Plaza uses the camera so a kid can send a chore photo.",
-        "NSPhotoLibraryUsageDescription": "Liendo Plaza can use a photo from the library for a chore."
+        "NSPhotoLibraryUsageDescription": "Liendo Plaza can use a photo from the library for a chore.",
+        "CADisableMinimumFrameDurationOnPhone": true
       }
     },
     "android": {

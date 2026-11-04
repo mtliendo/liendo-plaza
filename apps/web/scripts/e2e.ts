@@ -79,10 +79,23 @@ async function main() {
       stars: 2,
       requiresPhoto: false,
       repeatType: "daily",
+      description: "Plates and cups before we sit down.",
+      steps: ["Plates", "Cups", "Silverware"],
     },
     auth,
   );
   assert(chore.res.ok, `create chore failed: ${JSON.stringify(chore.data)}`);
+  const created = chore.data.chore as { id: string; description: string | null; steps: string[] };
+  assert(created.description === "Plates and cups before we sit down.", "chore description missing");
+  assert(created.steps.includes("Cups"), "chore steps missing");
+  const fetched = await req(`chores/${created.id}`, { headers: auth });
+  assert((fetched.data.chore as { steps: string[] }).steps.length === 3, "GET chore details failed");
+  const kidGuide = await fetch(`${BASE}/api/chores/${created.id}/guide-photo`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${kidToken}` },
+    body: new Uint8Array([1, 2, 3]),
+  });
+  assert(kidGuide.status === 403, "kids must not upload a reference photo");
 
   const photoChore = await json(
     "chores",
@@ -97,6 +110,48 @@ async function main() {
     auth,
   );
   assert(photoChore.res.ok, "photo chore create failed");
+
+  const kidCreate = await json(
+    "chores",
+    "POST",
+    {
+      title: "Should not work",
+      assignedPersonId: sofia.id,
+      stars: 1,
+      requiresPhoto: false,
+      repeatType: "daily",
+    },
+    { authorization: `Bearer ${kidToken}` },
+  );
+  assert(kidCreate.res.status === 403, "kids must not manage chores");
+
+  const weekly = await json(
+    "chores",
+    "POST",
+    {
+      title: "Library books",
+      assignedPersonId: noah.id,
+      stars: 2,
+      requiresPhoto: false,
+      repeatType: "weekly",
+      weekdays: [2, 4],
+    },
+    auth,
+  );
+  assert(weekly.res.ok, `weekly chore failed: ${JSON.stringify(weekly.data)}`);
+  const weeklyId = String((weekly.data.chore as { id: string }).id);
+  const weeklyEdit = await json(
+    `chores/${weeklyId}`,
+    "PATCH",
+    { title: "Return library books", assignedPersonId: noah.id, stars: 3, requiresPhoto: false, repeatType: "weekly", weekdays: [4] },
+    auth,
+  );
+  assert(weeklyEdit.res.ok, "chore edit failed");
+  const weeklyDelete = await json(`chores/${weeklyId}`, "DELETE", undefined, auth);
+  assert(weeklyDelete.res.ok, "chore delete failed");
+
+  const kidMeal = await json("meals", "PUT", { date: "2026-11-03", name: "Nope" }, { authorization: `Bearer ${kidToken}` });
+  assert(kidMeal.res.status === 403, "kids must not edit dinner");
 
   const cal = await req("calendar", { headers: auth });
   const events = (cal.data.events as { start: string }[]) ?? [];

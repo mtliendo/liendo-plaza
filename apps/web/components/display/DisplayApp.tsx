@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DISPLAY_REFETCH_MS, isDimHours, mealPhotoSrc, queryKeys, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+import { DISPLAY_REFETCH_MS, isDimHours, mealPhotoSrc, queryKeys, upcomingDates, weekdayIndex, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
+import { ChoreDetail } from "@/components/family/ChoreDetail";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { SoftLink } from "@/components/SoftLink";
 import { PairCard } from "@/components/pair/PairCard";
@@ -65,6 +66,7 @@ export function DisplayApp({ view }: { view: View }) {
   const claim = useClaim("display");
   const [awakeUntil, setAwakeUntil] = useState(0);
   const [tick, setTick] = useState(Date.now());
+  const [openChoreId, setOpenChoreId] = useState<string | null>(null);
 
   useEffect(() => {
     const clock = setInterval(() => setTick(Date.now()), 15_000);
@@ -82,6 +84,8 @@ export function DisplayApp({ view }: { view: View }) {
 
   const today = snapshot ? eventDay(snapshot.now) : new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const week = weekDates(today);
+  const ahead = upcomingDates(today, 5);
+  const openChore = snapshot?.chores.find((item) => item.id === openChoreId) ?? null;
   const forceDim = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dim") === "1";
   const dim = Boolean(
     snapshot && (forceDim || isDimHours(hourInChicago(snapshot.now))) && Date.now() > awakeUntil,
@@ -208,7 +212,6 @@ export function DisplayApp({ view }: { view: View }) {
                     <div className="kid-chores">
                       {chores.length === 0 ? <p className="stars">No chores today.</p> : null}
                       {visibleChores.map((chore) => {
-                        const canTap = (!chore.requiresPhoto && chore.status === "open") || chore.status === "done";
                         const done = chore.status === "done";
                         return (
                           <button
@@ -217,11 +220,8 @@ export function DisplayApp({ view }: { view: View }) {
                             className="chore-btn tap"
                             data-testid={`chore-${chore.title}`}
                             data-status={chore.status}
-                            disabled={!canTap}
                             aria-label={chore.title}
-                            onClick={() =>
-                              void toggle.mutate({ id: chore.id, undo: chore.status === "done" })
-                            }
+                            onClick={() => setOpenChoreId(chore.id)}
                           >
                             <span>{chore.title}</span>
                             {done ? null : <span className="small">{starsLabel(chore.stars)}</span>}
@@ -278,67 +278,92 @@ export function DisplayApp({ view }: { view: View }) {
       {boardView !== "home" ? mast : null}
 
       {boardView === "week" ? (
-        <section className="week-grid">
-          {week.map((iso, index) => (
-            <div key={iso} className="day-col">
-              <p className="day-name">{WEEKDAY_LABELS[index]} {iso.slice(8)}</p>
-              {snapshot.events
-                .filter((event) => eventDay(event.start) === iso)
-                .map((event) => (
-                  <p key={`${event.uid}-${event.start}`}>{event.title}</p>
-                ))}
-            </div>
-          ))}
+        <section className="board-week" data-testid="board-week" data-days="5">
+          {ahead.map((iso) => {
+            const dayEvents = snapshot.events.filter((event) => eventDay(event.start) === iso);
+            const dinner = snapshot.meals.find((row) => row.date === iso)?.name;
+            return (
+              <article key={iso} className="board-day" data-today={iso === today ? "true" : "false"}>
+                <header className="board-day-head">
+                  <p className="day-name">{iso === today ? "Today" : WEEKDAY_LABELS[weekdayIndex(iso)]}</p>
+                  <p className="board-day-num">{iso.slice(8)}</p>
+                </header>
+                <div className="board-day-body">
+                  {dayEvents.length === 0 ? <p className="board-empty">Quiet day</p> : null}
+                  {dayEvents.map((event) => (
+                    <p key={`${event.uid}-${event.start}`} className="board-event">
+                      {event.title}
+                    </p>
+                  ))}
+                  <p className="board-dinner">{dinner ?? "Dinner not written"}</p>
+                </div>
+              </article>
+            );
+          })}
         </section>
       ) : null}
 
       {boardView === "chores" ? (
-        <section className="week-grid">
-          {week.map((iso, index) => (
-            <div key={iso} className="day-col">
-              <p className="day-name">{WEEKDAY_LABELS[index]}</p>
-              {snapshot.chores
-                .filter((item) => item.date === iso)
-                .map((chore) => {
-                  const person = snapshot.people.find((row) => row.id === chore.personId);
-                  return (
-                    <p
-                      key={chore.id}
-                      className="chore-chip"
-                      style={{ ["--person" as string]: person?.color ?? "var(--color-ink)" }}
-                    >
-                      {chore.title}
-                      {person ? (
-                        <span className="name-line small">
-                          <PersonAvatar person={person} size={40} />
-                          {person.name}
+        <section className="board-week" data-testid="board-chores" data-days="5">
+          {ahead.map((iso) => (
+            <article key={iso} className="board-day" data-today={iso === today ? "true" : "false"}>
+              <header className="board-day-head">
+                <p className="day-name">{iso === today ? "Today" : WEEKDAY_LABELS[weekdayIndex(iso)]}</p>
+              </header>
+              <div className="board-day-body">
+                {snapshot.chores
+                  .filter((item) => item.date === iso)
+                  .map((chore) => {
+                    const person = snapshot.people.find((row) => row.id === chore.personId);
+                    const done = chore.status === "done";
+                    return (
+                      <button
+                        key={chore.id}
+                        type="button"
+                        className="board-chore"
+                        data-status={chore.status}
+                        data-testid={`board-chore-${chore.title}`}
+                        style={{ ["--person" as string]: person?.color ?? "var(--color-ink)" }}
+                        onClick={() => setOpenChoreId(chore.id)}
+                      >
+                        <span className="board-chore-title">
+                          <span className="board-chore-mark" aria-hidden>
+                            {done ? "✓" : "○"}
+                          </span>{" "}
+                          {chore.title}
                         </span>
-                      ) : null}
-                    </p>
-                  );
-                })}
-            </div>
+                        {person ? (
+                          <span className="name-line">
+                            <PersonAvatar person={person} size={56} />
+                            {person.name}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+              </div>
+            </article>
           ))}
         </section>
       ) : null}
 
       {boardView === "meals" ? (
-        <section className="week-grid">
-          {week.map((iso, index) => (
-            <div key={iso} className="day-col">
-              <p className="day-name">{WEEKDAY_LABELS[index]}</p>
-              {(() => {
-                const meal = snapshot.meals.find((row) => row.date === iso);
-                const thumb = mealPhotoSrc(meal?.photoPath);
-                return (
-                  <div className="meal-line">
-                    {thumb ? <img src={thumb} alt="" className="meal-thumb" /> : null}
-                    <h3>{meal?.name ?? "—"}</h3>
-                  </div>
-                );
-              })()}
-            </div>
-          ))}
+        <section className="board-week" data-testid="board-meals" data-days="5">
+          {ahead.map((iso) => {
+            const meal = snapshot.meals.find((row) => row.date === iso);
+            const thumb = mealPhotoSrc(meal?.photoPath);
+            return (
+              <article key={iso} className="board-day" data-today={iso === today ? "true" : "false"}>
+                <header className="board-day-head">
+                  <p className="day-name">{iso === today ? "Tonight" : WEEKDAY_LABELS[weekdayIndex(iso)]}</p>
+                </header>
+                <div className="board-day-body board-day-meal">
+                  {thumb ? <img src={thumb} alt="" className="board-meal-photo" /> : null}
+                  <h3>{meal?.name ?? "Not written yet"}</h3>
+                </div>
+              </article>
+            );
+          })}
         </section>
       ) : null}
 
@@ -348,7 +373,24 @@ export function DisplayApp({ view }: { view: View }) {
           <span className="clock">{clockLabel(snapshot.now)}</span>
         </button>
       ) : null}
-      <span className="visually-hidden">{tick}</span>
+      {openChore ? (
+        <ChoreDetail
+          chore={openChore}
+          person={snapshot.people.find((row) => row.id === openChore.personId)}
+          large
+          canAct
+          onClose={() => setOpenChoreId(null)}
+          onComplete={() => {
+            toggle.mutate({ id: openChore.id });
+            setOpenChoreId(null);
+          }}
+          onUndo={() => {
+            toggle.mutate({ id: openChore.id, undo: true });
+            setOpenChoreId(null);
+          }}
+        />
+      ) : null}
+      <span className="kitchen-tick">{tick}</span>
     </main>
   );
 }

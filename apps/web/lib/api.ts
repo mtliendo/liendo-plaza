@@ -30,6 +30,8 @@ import { getCalendarEvents } from "./calendar";
 import {
   completeInstance,
   createChore,
+  deactivateChore,
+  getChore,
   listChores,
   markPhotoPending,
   reviewInstance,
@@ -57,6 +59,8 @@ const choreSchema = z.object({
   weekdays: z.array(z.number().int().min(0).max(6)).nullable().optional(),
   weeklyWeekday: z.number().int().min(0).max(6).nullable().optional(),
   onceDate: z.string().nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
+  steps: z.array(z.string().min(1).max(140)).max(12).optional(),
 });
 
 function pathOf(req: Request) {
@@ -252,8 +256,7 @@ export async function handleApi(req: Request): Promise<Response> {
   }
 
   if (path === "chores" && method === "GET") {
-    const actor = await requireActor(req, ["person", "display"]);
-    if (actor.kind === "display") return json({ chores: await listChores() });
+    await requireActor(req, ["person", "display"]);
     return json({ chores: await listChores() });
   }
 
@@ -261,19 +264,46 @@ export async function handleApi(req: Request): Promise<Response> {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);
     const body = choreSchema.parse(await readJson(req));
-    return json({ chore: await createChore({ ...body, weekdays: body.weekdays ?? null, weeklyWeekday: body.weeklyWeekday ?? null, onceDate: body.onceDate ?? null }) }, 201);
+    return json({
+      chore: await createChore({
+        ...body,
+        weekdays: body.weekdays ?? null,
+        weeklyWeekday: body.weeklyWeekday ?? null,
+        onceDate: body.onceDate ?? null,
+        description: body.description ?? null,
+        steps: body.steps ?? [],
+        guidePhotoPath: null,
+      }),
+    }, 201);
   }
 
   const choreMatch = path.match(/^chores\/([^/]+)$/);
+  if (choreMatch && method === "GET") {
+    await requireActor(req, ["person", "display"]);
+    return json({ chore: await getChore(choreMatch[1]) });
+  }
   if (choreMatch && (method === "PATCH" || method === "DELETE")) {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);
     if (method === "DELETE") {
-      await updateChore(choreMatch[1], { active: false });
+      await deactivateChore(choreMatch[1]);
       return json({ ok: true });
     }
     const body = choreSchema.partial().parse(await readJson(req));
     return json({ chore: await updateChore(choreMatch[1], body) });
+  }
+
+  const guidePhoto = path.match(/^chores\/([^/]+)\/guide-photo$/);
+  if (guidePhoto && method === "POST") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    const stored = await storePhoto(await readUpload(req), "chore-guides");
+    return json({ chore: await updateChore(guidePhoto[1], { guidePhotoPath: stored }) });
+  }
+  if (guidePhoto && method === "DELETE") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    return json({ chore: await updateChore(guidePhoto[1], { guidePhotoPath: null }) });
   }
 
   const completeMatch = path.match(/^chores\/instances\/([^/]+)\/complete$/);
@@ -349,6 +379,18 @@ export async function handleApi(req: Request): Promise<Response> {
   }
 
   const rewardMatch = path.match(/^rewards\/([^/]+)$/);
+  if (rewardMatch && method === "DELETE") {
+    const actor = await requireActor(req, ["person"]);
+    requireParent(actor);
+    const db = getDb();
+    const [reward] = await db
+      .update(schema.rewards)
+      .set({ active: false })
+      .where(eq(schema.rewards.id, rewardMatch[1]))
+      .returning();
+    return json({ reward });
+  }
+
   if (rewardMatch && method === "PATCH") {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);

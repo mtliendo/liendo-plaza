@@ -4,11 +4,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { Person } from "@liendo/shared";
-import { mealPhotoSrc, parseEventFixture, queryKeys, WEEKDAY_LABELS, weekDates } from "@liendo/shared";
+import { parseEventFixture, queryKeys, weekDates } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
 import { SoftLink } from "@/components/SoftLink";
+import { ChoreCard } from "@/components/family/ChoreCard";
+import { ChoreDetail } from "@/components/family/ChoreDetail";
+import { ChoreManage } from "@/components/family/ChoreManage";
+import { DinnerList } from "@/components/family/DinnerList";
 import { AddDevicePanel, DevicesPanel } from "@/components/family/DevicePanels";
 import { UnpairedFamily } from "@/components/family/UnpairedFamily";
+import { WeekGlance } from "@/components/family/WeekGlance";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import {
   useChoreReview,
@@ -36,7 +41,6 @@ type Screen =
   | "manage-chores"
   | "approvals"
   | "rewards"
-  | "plan-meals"
   | "pins"
   | "devices"
   | "add-device";
@@ -62,7 +66,6 @@ const FAMILY_HREFS = {
   "manage-chores": "/family/chores",
   approvals: "/family/approvals",
   rewards: "/family/rewards",
-  "plan-meals": "/family/plan",
   pins: "/family/pins",
   devices: "/family/devices",
   "add-device": "/family/add-device",
@@ -80,6 +83,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   const [picked, setPicked] = useState<Person | null>(null);
   const [error, setError] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [openChoreId, setOpenChoreId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const meQuery = useMe();
   const signedIn = meQuery.data?.actor?.kind === "person";
@@ -100,6 +104,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
 
   const today = snapshot ? eventDay(snapshot.now) : new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const week = weekDates(today);
+  const openChore = snapshot?.chores.find((item) => item.id === openChoreId) ?? null;
 
   const headers = useMemo(() => {
     const next: Record<string, string> = { "content-type": "application/json" };
@@ -288,29 +293,13 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
             {visibleChores.map((chore) => {
               const person = snapshot?.people.find((row) => row.id === chore.personId);
               return (
-                <button
+                <ChoreCard
                   key={chore.id}
-                  type="button"
-                  className="chore-btn"
-                  style={{
-                    ["--person" as string]: person?.color ?? "var(--color-accent)",
-                  }}
-                  onClick={async () => {
-                    if (chore.requiresPhoto && chore.status === "open") return;
-                    if (chore.status !== "open" && chore.status !== "done") return;
-                    toggle.mutate({ id: chore.id, undo: chore.status === "done" });
-                  }}
-                >
-                  {person && isParent ? (
-                    <span className="name-line">
-                      <PersonAvatar person={person} size={48} />
-                      {person.name}
-                    </span>
-                  ) : null}
-                  {chore.title}
-                  <span className="small">{chore.status}</span>
-                  {chore.requiresPhoto ? <span className="small">photo</span> : null}
-                </button>
+                  chore={chore}
+                  person={person}
+                  showPerson={Boolean(isParent && person)}
+                  onPress={() => setOpenChoreId(chore.id)}
+                />
               );
             })}
           </div>
@@ -330,9 +319,6 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
             </SoftLink>
             <SoftLink href="/family/rewards" onGo={() => go("rewards")} onPrefetch={prefetch}>
               Rewards
-            </SoftLink>
-            <SoftLink href="/family/plan" onGo={() => go("plan-meals")} onPrefetch={prefetch}>
-              Plan dinners
             </SoftLink>
             <SoftLink href="/family/add-device" onGo={() => go("add-device")} onPrefetch={prefetch}>
               Add a device
@@ -358,36 +344,34 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
 
       {board === "calendar" && snapshot ? (
         <>
-          <h1>This week</h1>
-          {week.map((iso, index) => (
-            <section key={iso}>
-              <h2>{WEEKDAY_LABELS[index]}</h2>
-              {snapshot.events
-                .filter((event) => eventDay(event.start) === iso)
-                .map((event) => (
-                  <p key={`${event.uid}-${event.start}`}>{event.title}</p>
-                ))}
-            </section>
-          ))}
+          <h1>This week at a glance</h1>
+          <WeekGlance
+            week={week}
+            today={today}
+            events={snapshot.events}
+            chores={snapshot.chores}
+            meals={snapshot.meals}
+            people={snapshot.people}
+          />
         </>
       ) : null}
 
       {board === "meals" && snapshot ? (
         <>
-          <h1>Dinners</h1>
-          {week.map((iso) => {
-            const meal = snapshot.meals.find((row) => row.date === iso);
-            const thumb = mealPhotoSrc(meal?.photoPath);
-            return (
-              <p key={iso} className="row">
-                <span className="day-name">{iso.slice(5)}</span>
-                <span className="meal-line">
-                  {thumb ? <img src={thumb} alt="" className="meal-thumb" /> : null}
-                  <span>{meal?.name ?? "—"}</span>
-                </span>
-              </p>
-            );
-          })}
+          <h1>Dinner</h1>
+          <DinnerList
+            week={week}
+            today={today}
+            meals={snapshot.meals}
+            isParent={isParent}
+            suggestions={suggestions}
+            onSuggest={async () => {
+              const res = await fetch("/api/meals/suggest");
+              const body = (await res.json()) as { names: string[] };
+              setSuggestions(body.names);
+            }}
+            onSave={(date, name) => mealEdit.mutate({ date, name })}
+          />
         </>
       ) : null}
 
@@ -429,24 +413,48 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
+      {board === "manage-chores" && !isParent ? (
+        <>
+          <h1>Chores</h1>
+          <p>Ask a parent if you need to change the chore list.</p>
+        </>
+      ) : null}
+
       {board === "manage-chores" && isParent ? (
         <>
           <h1>Chores</h1>
-          <ChoreForm
+          <p className="small">Add, change, or take a chore off the board. Kids see the change on Today and the kitchen frame.</p>
+          <ChoreManage
             people={snapshot?.people.filter((p) => p.role === "kid") ?? []}
+            chores={chores}
             onCreate={async (payload) => {
               await fetch("/api/chores", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
               await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
               await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
             }}
+            onUpdate={async (id, payload) => {
+              await fetch(`/api/chores/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            }}
+            onDelete={async (id) => {
+              await fetch(`/api/chores/${id}`, { method: "DELETE" });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            }}
+            onGuidePhoto={async (id, file) => {
+              const form = new FormData();
+              form.append("photo", file);
+              await fetch(`/api/chores/${id}/guide-photo`, { method: "POST", body: form });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            }}
+            onClearGuide={async (id) => {
+              await fetch(`/api/chores/${id}/guide-photo`, { method: "DELETE" });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.chores });
+              await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            }}
           />
-          {chores
-            .filter((chore) => chore.active)
-            .map((chore) => (
-              <p key={chore.id} className="row">
-                {chore.title}
-              </p>
-            ))}
         </>
       ) : null}
 
@@ -514,54 +522,6 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
 
-      {board === "plan-meals" && isParent ? (
-        <>
-          <h1>Write dinners</h1>
-          {week.map((iso) => {
-            const meal = snapshot?.meals.find((row) => row.date === iso);
-            const thumb = mealPhotoSrc(meal?.photoPath);
-            return (
-              <label key={iso} className="field">
-                <span className="day-name">{iso}</span>
-                <input
-                  className="input"
-                  defaultValue={meal?.name ?? ""}
-                  list="meal-names"
-                  onFocus={async () => {
-                    const res = await fetch("/api/meals/suggest");
-                    const body = (await res.json()) as { names: string[] };
-                    setSuggestions(body.names);
-                  }}
-                  onBlur={async (event) => {
-                    mealEdit.mutate({ date: iso, name: event.target.value });
-                  }}
-                />
-                <span className="meal-line">
-                  {thumb ? <img src={thumb} alt="" className="meal-thumb" /> : null}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) return;
-                      const form = new FormData();
-                      form.append("photo", file);
-                      await fetch(`/api/meals/${iso}/photo`, { method: "POST", body: form });
-                      await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
-                    }}
-                  />
-                </span>
-              </label>
-            );
-          })}
-          <datalist id="meal-names">
-            {suggestions.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
-        </>
-      ) : null}
-
       {board === "add-device" && isParent ? <AddDevicePanel /> : null}
 
       {board === "devices" && isParent ? <DevicesPanel /> : null}
@@ -589,69 +549,30 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
         </>
       ) : null}
       {tabs}
+      {openChore && snapshot ? (
+        <ChoreDetail
+          chore={openChore}
+          person={snapshot.people.find((row) => row.id === openChore.personId)}
+          canAct={Boolean(isParent || me?.id === openChore.personId)}
+          onClose={() => setOpenChoreId(null)}
+          onComplete={() => {
+            toggle.mutate({ id: openChore.id });
+            setOpenChoreId(null);
+          }}
+          onUndo={() => {
+            toggle.mutate({ id: openChore.id, undo: true });
+            setOpenChoreId(null);
+          }}
+          onPhoto={async (file) => {
+            const form = new FormData();
+            form.append("photo", file);
+            await fetch(`/api/chores/instances/${openChore.id}/photo`, { method: "POST", body: form });
+            await queryClient.invalidateQueries({ queryKey: ["snapshot"] });
+            setOpenChoreId(null);
+          }}
+        />
+      ) : null}
     </main>
-  );
-}
-
-function ChoreForm({
-  people,
-  onCreate,
-}: {
-  people: Person[];
-  onCreate: (payload: Record<string, unknown>) => Promise<void>;
-}) {
-  const [title, setTitle] = useState("");
-  const [assignedPersonId, setAssignedPersonId] = useState(people[0]?.id ?? "");
-  const [stars, setStars] = useState(1);
-  const [requiresPhoto, setRequiresPhoto] = useState(false);
-  const [repeatType, setRepeatType] = useState("daily");
-  useEffect(() => {
-    if (!assignedPersonId && people[0]) setAssignedPersonId(people[0].id);
-  }, [assignedPersonId, people]);
-  return (
-    <form
-      className="list"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        await onCreate({ title, assignedPersonId, stars, requiresPhoto, repeatType, weekdays: [1, 2, 3, 4, 5], weeklyWeekday: 0, onceDate: null });
-        setTitle("");
-      }}
-    >
-      <label className="field">
-        <span>Title</span>
-        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
-      </label>
-      <label className="field">
-        <span>Kid</span>
-        <select className="select" value={assignedPersonId} onChange={(e) => setAssignedPersonId(e.target.value)}>
-          {people.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>Stars</span>
-        <input className="input" type="number" min={1} value={stars} onChange={(e) => setStars(Number(e.target.value))} />
-      </label>
-      <label className="field">
-        <span>Photo?</span>
-        <input type="checkbox" checked={requiresPhoto} onChange={(e) => setRequiresPhoto(e.target.checked)} />
-      </label>
-      <label className="field">
-        <span>Repeat</span>
-        <select className="select" value={repeatType} onChange={(e) => setRepeatType(e.target.value)}>
-          <option value="daily">daily</option>
-          <option value="weekdays">weekdays</option>
-          <option value="weekly">weekly</option>
-          <option value="once">one-time</option>
-        </select>
-      </label>
-      <button className="btn" type="submit">
-        Add chore
-      </button>
-    </form>
   );
 }
 

@@ -1,5 +1,5 @@
-import { FamilyApp } from "@/components/family/FamilyApp";
+import { redirect } from "next/navigation";
 
 export default function FamilyPlanPage() {
-  return <FamilyApp screen="plan-meals" />;
+  redirect("/family/meals");
 }
