@@ -4,7 +4,7 @@ import type { Reward } from "@liendo/shared";
 import { SwipeRow } from "@/components/swipe-row";
 import { UndoToast } from "@/components/undo-toast";
 import { api } from "@/lib/api";
-import { body, btn, btnLabel, colors, input, muted, screen } from "@/lib/theme";
+import { body, btn, btnLabel, colors, curve, input, muted, screen } from "@/lib/theme";
 
 export default function ParentRewardsScreen() {
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -72,7 +72,7 @@ export default function ParentRewardsScreen() {
                 })();
               }}
             >
-              <View style={{ backgroundColor: colors.paper2, padding: 16, gap: 8 }}>
+              <View style={{ backgroundColor: colors.paper2, padding: 16, gap: 8, ...curve.card }}>
                 <Text style={body}>
                   {reward.name} · {reward.starCost} stars
                 </Text>

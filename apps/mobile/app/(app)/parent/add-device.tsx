@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { api } from "@/lib/api";
-import { body, btn, btnLabel, colors, h2, input, muted, screen } from "@/lib/theme";
+import { body, btn, btnLabel, colors, curve, h2, input, muted, screen } from "@/lib/theme";
 
 type Pending = { id: string; displayCode: string; label: string | null; deviceKind: string };
 type Invite = { webUrl: string; deepLink: string; qrDataUrl: string };
@@ -53,7 +53,7 @@ export default function AddDeviceScreen() {
         <Text style={btnLabel}>Approve this device</Text>
       </Pressable>
       {pending.map((item) => (
-        <Pressable key={item.id} onPress={() => void approve(item.displayCode)} style={{ padding: 16, backgroundColor: colors.paper2, minHeight: 64 }}>
+        <Pressable key={item.id} onPress={() => void approve(item.displayCode)} style={{ padding: 16, backgroundColor: colors.paper2, minHeight: 64, ...curve.card }}>
           <Text style={h2}>{item.displayCode}</Text>
           <Text style={muted}>{item.label ?? item.deviceKind}</Text>
         </Pressable>
@@ -71,8 +71,8 @@ export default function AddDeviceScreen() {
         <Text style={{ color: colors.ink }}>Invite a new phone</Text>
       </Pressable>
       {invite ? (
-        <View style={{ alignItems: "center", gap: 12, backgroundColor: colors.paper2, padding: 20 }}>
-          <Image source={{ uri: invite.qrDataUrl }} style={{ width: 240, height: 240 }} />
+        <View style={{ alignItems: "center", gap: 12, backgroundColor: colors.paper2, padding: 20, ...curve.sheet }}>
+          <Image source={{ uri: invite.qrDataUrl }} style={{ width: 240, height: 240, ...curve.card }} />
           <Text selectable style={muted}>{invite.webUrl}</Text>
           <Text selectable style={muted}>{invite.deepLink}</Text>
         </View>

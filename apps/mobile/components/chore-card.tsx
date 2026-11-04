@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 import type { ChoreInstance, Person } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
-import { colors, type } from "@/lib/theme";
+import { colors, curve, type } from "@/lib/theme";
 
 function statusLabel(status: ChoreInstance["status"]) {
   if (status === "done") return "Done";
@@ -12,7 +12,7 @@ function statusLabel(status: ChoreInstance["status"]) {
 
 function Chip({ label }: { label: string }) {
   return (
-    <View style={{ backgroundColor: colors.paper, paddingHorizontal: 8, paddingVertical: 5 }}>
+    <View style={{ backgroundColor: colors.paper, paddingHorizontal: 10, paddingVertical: 5, ...curve.chip }}>
       <Text style={{ color: colors.ink2, fontSize: 13, fontFamily: type.body }}>{label}</Text>
     </View>
   );
@@ -38,6 +38,7 @@ export function ChoreCard({
         minHeight: 64,
         gap: 8,
         opacity: chore.status === "done" ? 0.72 : 1,
+        ...curve.card,
       }}
     >
       {showPerson && person ? (

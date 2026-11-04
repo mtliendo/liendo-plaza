@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 import { API_URL } from "@/lib/config";
 import { useMe } from "@/lib/query";
 import { getSession } from "@/lib/session";
-import { body, btn, btnLabel, colors, input, muted, screen, type } from "@/lib/theme";
+import { body, btn, btnLabel, colors, curve, input, muted, screen, type } from "@/lib/theme";
 
 type Draft = {
   title: string;
@@ -156,7 +156,7 @@ export default function ParentChoresScreen() {
             setNote("Could not reach the kitchen frame.");
           }
         }}
-        style={{ backgroundColor: colors.paper2, padding: 16, minHeight: 64, justifyContent: "center" }}
+        style={{ backgroundColor: colors.paper2, padding: 16, minHeight: 64, justifyContent: "center", ...curve.card }}
       >
         <Text style={{ fontSize: 18, color: colors.ink }}>Refresh kitchen frame</Text>
       </Pressable>
@@ -188,7 +188,7 @@ export default function ParentChoresScreen() {
             enabled
             onDelete={() => setDraft({ ...draft, steps: draft.steps.filter((_, item) => item !== index) })}
           >
-            <View style={{ backgroundColor: colors.paper2, padding: 12, flexDirection: "row", justifyContent: "space-between" }}>
+            <View style={{ backgroundColor: colors.paper2, padding: 12, flexDirection: "row", justifyContent: "space-between", ...curve.card }}>
               <Text style={body}>{step}</Text>
               <Pressable onPress={() => setDraft({ ...draft, steps: draft.steps.filter((_, item) => item !== index) })}>
                 <Text style={muted}>Remove</Text>
@@ -220,6 +220,7 @@ export default function ParentChoresScreen() {
               minHeight: 48,
               backgroundColor: draft.assignedPersonId === person.id ? colors.paper3 : colors.paper2,
               padding: 12,
+              ...curve.card,
             }}
           >
             <PersonAvatar person={person} size={36} />
@@ -262,7 +263,7 @@ export default function ParentChoresScreen() {
                   const weekdays = on ? draft.weekdays.filter((day) => day !== index) : [...draft.weekdays, index].sort((a, b) => a - b);
                   setDraft({ ...draft, weekdays });
                 }}
-                style={{ padding: 10, backgroundColor: on ? colors.paper3 : colors.paper2, minWidth: 48, alignItems: "center" }}
+                style={{ padding: 10, backgroundColor: on ? colors.paper3 : colors.paper2, minWidth: 48, alignItems: "center", ...curve.chip }}
               >
                 <Text style={body}>{label}</Text>
               </Pressable>
@@ -276,7 +277,7 @@ export default function ParentChoresScreen() {
       {editingId ? (
         <View style={{ gap: 8 }}>
           <Text style={muted}>What it looks like</Text>
-          {guideUri ? <Image source={{ uri: guideUri }} style={{ width: "100%", height: 160 }} /> : null}
+          {guideUri ? <Image source={{ uri: guideUri }} style={{ width: "100%", height: 160, ...curve.card }} /> : null}
           <Pressable onPress={() => void uploadGuide(editingId)}>
             <Text style={{ color: colors.accent }}>Add a reference photo</Text>
           </Pressable>
@@ -326,7 +327,7 @@ export default function ParentChoresScreen() {
           const person = people.find((row) => row.id === chore.assignedPersonId);
           return (
             <SwipeRow key={chore.id} enabled onEdit={() => startEdit(chore)} onDelete={() => confirmDelete(chore)}>
-              <View style={{ backgroundColor: colors.paper2, padding: 12, gap: 8 }}>
+              <View style={{ backgroundColor: colors.paper2, padding: 12, gap: 8, ...curve.card }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   {person ? <PersonAvatar person={person} size={40} /> : null}
                   <View style={{ flex: 1 }}>

@@ -2,7 +2,7 @@ import { ScrollView, Text, View } from "react-native";
 import { WEEKDAY_LABELS, weekdayDateLabel, weekDates } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { useSnapshot } from "@/lib/query";
-import { accentLabel, body, colors, h1, muted, screen, type } from "@/lib/theme";
+import { accentLabel, body, colors, curve, h1, muted, screen, type } from "@/lib/theme";
 
 export default function CalendarScreen() {
   const snapshot = useSnapshot().data ?? null;
@@ -23,6 +23,7 @@ export default function CalendarScreen() {
               gap: 6,
               padding: 12,
               backgroundColor: isToday ? "#F3E6D6" : colors.paper2,
+              ...curve.board,
             }}
           >
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>

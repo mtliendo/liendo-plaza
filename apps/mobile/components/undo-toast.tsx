@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Pressable, Text, View } from "react-native";
-import { colors, type } from "@/lib/theme";
+import { colors, curve, type } from "@/lib/theme";
 
 export function UndoToast({
   message,
@@ -29,6 +29,7 @@ export function UndoToast({
         justifyContent: "space-between",
         alignItems: "center",
         gap: 12,
+        ...curve.card,
       }}
     >
       <Text style={{ color: colors.paper, fontFamily: type.body, flex: 1 }}>{message}</Text>

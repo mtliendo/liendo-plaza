@@ -22,6 +22,7 @@ function Action({
         justifyContent: "center",
         alignItems: "center",
         paddingHorizontal: 16,
+        borderCurve: "continuous",
       }}
     >
       <Text style={{ color: colors.accentInk, fontFamily: type.body, fontSize: 16 }}>{label}</Text>

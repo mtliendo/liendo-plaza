@@ -23,6 +23,7 @@ export function PersonAvatar({ person, size }: { person: AvatarPerson; size: num
         width: size,
         height: size,
         borderRadius: size / 2,
+        borderCurve: "continuous",
         overflow: "hidden",
         backgroundColor: person.color,
         alignItems: "center",

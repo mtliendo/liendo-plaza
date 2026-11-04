@@ -6,7 +6,7 @@ import { PersonAvatar } from "@/components/PersonAvatar";
 import { API_URL } from "@/lib/config";
 import { useChoreToggle, useMe, useSnapshot } from "@/lib/query";
 import { getSession } from "@/lib/session";
-import { body, btn, btnLabel, colors, h2, muted, screen, type } from "@/lib/theme";
+import { body, btn, btnLabel, colors, curve, h2, muted, screen, type } from "@/lib/theme";
 
 function statusCopy(status: string) {
   if (status === "done") return "Done today";
@@ -78,13 +78,13 @@ export default function ChoreDetailScreen() {
         {chore.requiresPhoto ? " · Needs a photo" : ""}
       </Text>
       {chore.description ? <Text style={body}>{chore.description}</Text> : null}
-      {guide ? <Image source={{ uri: guide }} style={{ width: "100%", height: 220 }} /> : null}
+      {guide ? <Image source={{ uri: guide }} style={{ width: "100%", height: 220, ...curve.card }} /> : null}
       {chore.steps.map((step, index) => (
         <Text key={step} style={body}>
           {index + 1}. {step}
         </Text>
       ))}
-      {proof ? <Image source={{ uri: proof }} style={{ width: "100%", height: 220 }} /> : null}
+      {proof ? <Image source={{ uri: proof }} style={{ width: "100%", height: 220, ...curve.card }} /> : null}
       {canAct && open && !chore.requiresPhoto ? (
         <Pressable
           style={btn}

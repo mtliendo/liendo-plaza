@@ -6,7 +6,7 @@ import { UndoToast } from "@/components/undo-toast";
 import { api } from "@/lib/api";
 import { API_URL } from "@/lib/config";
 import { useMe, useSnapshot } from "@/lib/query";
-import { accentLabel, body, colors, h1, input, muted, screen, type } from "@/lib/theme";
+import { accentLabel, body, colors, curve, h1, input, muted, screen, type } from "@/lib/theme";
 
 export default function MealsScreen() {
   const me = useMe().data?.actor.person ?? null;
@@ -42,14 +42,15 @@ export default function MealsScreen() {
             <View
               style={{
                 gap: 8,
-                padding: isTonight ? 12 : 12,
+                padding: 12,
                 backgroundColor: isTonight ? "#F3E6D6" : colors.paper2,
+                ...curve.card,
               }}
             >
               {isTonight ? <Text style={accentLabel}>Tonight</Text> : null}
               <Text style={accentLabel}>{weekdayDateLabel(iso)}</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                {uri ? <Image source={{ uri }} style={{ width: 48, height: 48 }} /> : null}
+                {uri ? <Image source={{ uri }} style={{ width: 48, height: 48, ...curve.card }} /> : null}
                 {isParent ? (
                   <View style={{ flex: 1, gap: 8 }}>
                     <TextInput
