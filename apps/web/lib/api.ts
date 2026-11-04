@@ -39,7 +39,7 @@ import {
   updateChore,
 } from "./chores";
 import { getDb, schema } from "./db";
-import { readPhoto, readUpload, storePhoto } from "./blob";
+import { deleteStoredPhoto, readPhoto, readUpload, replaceStoredPhoto, storePhoto } from "./blob";
 import { HttpError, json, readJson } from "./http";
 import { notifyParents, notifyPerson, registerPushToken } from "./push";
 import { clientIp, rateLimit } from "./rate-limit";
@@ -297,12 +297,15 @@ export async function handleApi(req: Request): Promise<Response> {
   if (guidePhoto && method === "POST") {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);
-    const stored = await storePhoto(await readUpload(req), "chore-guides");
+    const current = await getChore(guidePhoto[1]);
+    const stored = await replaceStoredPhoto(current.guidePhotoPath, await readUpload(req), "chore-guides");
     return json({ chore: await updateChore(guidePhoto[1], { guidePhotoPath: stored }) });
   }
   if (guidePhoto && method === "DELETE") {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);
+    const current = await getChore(guidePhoto[1]);
+    await deleteStoredPhoto(current.guidePhotoPath);
     return json({ chore: await updateChore(guidePhoto[1], { guidePhotoPath: null }) });
   }
 
@@ -462,6 +465,8 @@ export async function handleApi(req: Request): Promise<Response> {
     const db = getDb();
     const name = (body.name ?? "").trim();
     if (!name) {
+      const [existing] = await db.select().from(schema.meals).where(eq(schema.meals.date, body.date)).limit(1);
+      await deleteStoredPhoto(existing?.photoPath);
       await db.delete(schema.meals).where(eq(schema.meals.date, body.date));
       return json({ meal: null });
     }
@@ -478,9 +483,9 @@ export async function handleApi(req: Request): Promise<Response> {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);
     const date = mealPhoto[1];
-    const stored = await storePhoto(await readUpload(req), "meals");
     const db = getDb();
     const [existing] = await db.select().from(schema.meals).where(eq(schema.meals.date, date)).limit(1);
+    const stored = await replaceStoredPhoto(existing?.photoPath, await readUpload(req), "meals");
     const [meal] = existing
       ? await db
           .update(schema.meals)
@@ -497,6 +502,8 @@ export async function handleApi(req: Request): Promise<Response> {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);
     const db = getDb();
+    const [existing] = await db.select().from(schema.meals).where(eq(schema.meals.date, mealPhoto[1])).limit(1);
+    await deleteStoredPhoto(existing?.photoPath);
     const [meal] = await db
       .update(schema.meals)
       .set({ photoPath: null, updatedAt: new Date() })

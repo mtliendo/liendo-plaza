@@ -68,8 +68,28 @@ async function main() {
 
   await phonePage.goto(`${BASE}/family/chores`, { waitUntil: "load" });
   await phonePage.waitForSelector('[data-testid="chore-manage"]', { timeout: 20000 });
-  await phonePage.locator(".chore-manage-row button:has-text(\"Edit\")").first().click();
+  const jpegBytes = await fetch(`${BASE}/meals/tacos.jpg`).then((res) => res.arrayBuffer());
+  const choresRes = await phonePage.evaluate(async () => {
+    const res = await fetch("/api/chores");
+    return (await res.json()) as { chores: { id: string; title: string }[] };
+  });
+  const firstChore = choresRes.chores.find((chore) => chore.title === "Make your bed") ?? choresRes.chores[0];
+  if (firstChore) {
+    await phonePage.evaluate(async ({ id, bytes }) => {
+      const file = new File([new Uint8Array(bytes)], "chore.jpg", { type: "image/jpeg" });
+      const form = new FormData();
+      form.append("photo", file);
+      await fetch(`/api/chores/${id}/guide-photo`, { method: "POST", body: form });
+    }, { id: firstChore.id, bytes: Array.from(new Uint8Array(jpegBytes)) });
+    await phonePage.reload({ waitUntil: "load" });
+    await phonePage.waitForSelector('[data-testid="chore-manage"]', { timeout: 20000 });
+  }
+  await phonePage.locator(".chore-manage-row:has-text(\"Make your bed\") button:has-text(\"Edit\")").click();
+  const photoField = phonePage.locator('[data-testid="photo-field"]').first();
+  await photoField.locator("img").waitFor({ timeout: 10000 });
+  await photoField.scrollIntoViewIfNeeded();
   await shot(phonePage, "after_phone_chore_edit.png");
+  await shot(phonePage, "phone_edit_photo.png");
 
   async function assertFrameFills() {
     const report = await framePage.evaluate(() => {
@@ -102,6 +122,7 @@ async function main() {
     await framePage.waitForSelector('[data-testid="board-meals"]', { timeout: 20000 });
     await assertFrameFills();
     await shot(framePage, "after_frame_dinners.png");
+    await shot(framePage, "frame_dinners_photos.png");
   }
 
   await browser.close();

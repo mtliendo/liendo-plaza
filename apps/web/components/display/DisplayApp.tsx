@@ -326,6 +326,9 @@ export function DisplayApp({ view }: { view: View }) {
                         style={{ ["--person" as string]: person?.color ?? "var(--color-ink)" }}
                         onClick={() => setOpenChoreId(chore.id)}
                       >
+                        {mealPhotoSrc(chore.guidePhotoPath) ? (
+                          <img src={mealPhotoSrc(chore.guidePhotoPath) ?? ""} alt="" className="board-chore-photo" />
+                        ) : null}
                         <span className="board-chore-title">
                           <span className="board-chore-mark" aria-hidden>
                             {done ? "✓" : "○"}

@@ -1,4 +1,5 @@
 import type { ChoreInstance, Person } from "@liendo/shared";
+import { mealPhotoSrc } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
 
 function statusLabel(status: ChoreInstance["status"]) {
@@ -33,6 +34,9 @@ export function ChoreCard({
           <PersonAvatar person={person} size={48} />
           {person.name}
         </span>
+      ) : null}
+      {mealPhotoSrc(chore.guidePhotoPath) ? (
+        <img src={mealPhotoSrc(chore.guidePhotoPath) ?? ""} alt="" className="chore-card-photo" />
       ) : null}
       <span className="chore-card-title">{chore.title}</span>
       <span className="chore-chips">

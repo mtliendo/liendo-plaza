@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
-import { mealPhotoSrc, repeatLabel } from "@liendo/shared";
+import { repeatLabel } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { API_URL } from "@/lib/config";
+import { photoUri } from "@/lib/api";
 import { useChoreToggle, useMe, useSnapshot } from "@/lib/query";
 import { getSession } from "@/lib/session";
 import { body, btn, btnLabel, colors, curve, h2, muted, screen, type } from "@/lib/theme";
@@ -15,11 +16,6 @@ function statusCopy(status: string) {
   return "Still open";
 }
 
-function photoUri(path: string | null) {
-  const src = mealPhotoSrc(path);
-  if (!src) return null;
-  return src.startsWith("http") ? src : `${API_URL}${src}`;
-}
 
 export default function ChoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

@@ -415,8 +415,26 @@ html:has(.pair-kitchen) body {
   gap: var(--space-sm);
   min-width: 0;
 }
-.dinner-edit { flex: 1; }
+.dinner-edit { flex: 1; display: grid; gap: var(--space-sm); min-width: 0; }
 .dinner-edit .input { flex: 1; min-width: 0; }
+.photo-field {
+  display: grid;
+  gap: var(--space-xs);
+  justify-items: start;
+}
+.photo-field-image,
+.chore-card-photo,
+.board-chore-photo {
+  width: 100%;
+  max-height: 10rem;
+  object-fit: cover;
+  background: var(--color-paper-3);
+  border-radius: var(--radius-card);
+}
+.board-chore-photo {
+  aspect-ratio: 16 / 10;
+  max-height: 5.5rem;
+}
 .chore-manage { display: grid; gap: var(--space-lg); }
 .chore-manage-row {
   display: grid;

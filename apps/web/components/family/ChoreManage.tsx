@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Chore, Person } from "@liendo/shared";
 import { WEEKDAY_LABELS, mealPhotoSrc, repeatLabel } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { PhotoField } from "@/components/family/PhotoField";
 
 export type ChoreDraft = {
   title: string;
@@ -88,6 +89,8 @@ export function ChoreManage({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ChoreDraft>(EMPTY);
   const [error, setError] = useState("");
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+  const [pendingSrc, setPendingSrc] = useState<string | null>(null);
 
   useEffect(() => {
     if (!draft.assignedPersonId && people[0]) {
@@ -99,6 +102,13 @@ export function ChoreManage({
     setEditingId(null);
     setDraft({ ...EMPTY, assignedPersonId: people[0]?.id ?? "" });
     setError("");
+    setPendingPhoto(null);
+    setPendingSrc(null);
+  }
+
+  function stagePhoto(file: File) {
+    setPendingPhoto(file);
+    setPendingSrc(URL.createObjectURL(file));
   }
 
   async function save() {
@@ -116,8 +126,13 @@ export function ChoreManage({
     }
     setError("");
     const body = payload(draft);
-    if (editingId) await onUpdate(editingId, body);
-    else await onCreate(body);
+    if (editingId) {
+      await onUpdate(editingId, body);
+      if (pendingPhoto) await onGuidePhoto(editingId, pendingPhoto);
+    } else {
+      const id = await onCreate(body);
+      if (id && pendingPhoto) await onGuidePhoto(id, pendingPhoto);
+    }
     startNew();
   }
 
@@ -252,33 +267,26 @@ export function ChoreManage({
             </button>
           </div>
         </div>
-        {editingId ? (
-          <label className="field">
-            <span>What it looks like</span>
-            {chores.find((chore) => chore.id === editingId)?.guidePhotoPath ? (
-              <img
-                src={mealPhotoSrc(chores.find((chore) => chore.id === editingId)?.guidePhotoPath) ?? ""}
-                alt=""
-                className="chore-guide-thumb"
-              />
-            ) : null}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file && editingId) void onGuidePhoto(editingId, file);
-              }}
-            />
-            {chores.find((chore) => chore.id === editingId)?.guidePhotoPath ? (
-              <button type="button" className="btn-secondary" onClick={() => void onClearGuide(editingId)}>
-                Remove photo
-              </button>
-            ) : null}
-          </label>
-        ) : (
-          <p className="small">Save the chore first if you want to add a reference photo.</p>
-        )}
+        <PhotoField
+          src={
+            pendingSrc ??
+            (editingId ? mealPhotoSrc(chores.find((chore) => chore.id === editingId)?.guidePhotoPath) : null)
+          }
+          label="Photo"
+          onPick={(file) => {
+            if (editingId) void onGuidePhoto(editingId, file);
+            else stagePhoto(file);
+          }}
+          onClear={
+            pendingSrc || (editingId && chores.find((chore) => chore.id === editingId)?.guidePhotoPath)
+              ? () => {
+                  setPendingPhoto(null);
+                  setPendingSrc(null);
+                  if (editingId) void onClearGuide(editingId);
+                }
+              : undefined
+          }
+        />
         {draft.repeatType === "once" ? (
           <label className="field">
             <span>Date</span>
@@ -311,6 +319,9 @@ export function ChoreManage({
             >
               <div className="name-line">
                 {person ? <PersonAvatar person={person} size={40} /> : null}
+                {chore.guidePhotoPath ? (
+                  <img src={mealPhotoSrc(chore.guidePhotoPath) ?? ""} alt="" className="chore-guide-thumb" />
+                ) : null}
                 <div>
                   <p>{chore.title}</p>
                   <p className="small">
@@ -326,6 +337,8 @@ export function ChoreManage({
                   onClick={() => {
                     setEditingId(chore.id);
                     setDraft(fromChore(chore));
+                    setPendingPhoto(null);
+                    setPendingSrc(null);
                   }}
                 >
                   Edit
