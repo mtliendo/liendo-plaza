@@ -34,6 +34,9 @@ struct DeviceApproval: Identifiable {
 @MainActor
 final class House: ObservableObject {
     let api: APIClient
+    private var pushToken = Keychain.read("apns.\(PushNotifications.environment)")
+    private var pushRegistrationTask: Task<Void, Never>?
+    private var signingOut = false
     @Published var session = Keychain.read("session")
     @Published var family = Keychain.read("family")
     @Published var person: Person?
@@ -154,6 +157,11 @@ final class House: ObservableObject {
     }
 
     func signOut() async {
+        signingOut = true
+        await pushRegistrationTask?.value
+        if let pushToken, let token = session {
+            await unregisterPush(pushToken, session: token)
+        }
         if person?.isParent == true && family == nil {
             try? await provisionFamily()
         }
@@ -163,6 +171,39 @@ final class House: ObservableObject {
         } catch {
             if !error.isRequestCancellation { self.error = error.localizedDescription }
         }
+        signingOut = false
+    }
+
+    func registerPushToken(_ data: Data) async {
+        guard !signingOut, let token = session, person != nil,
+              let registration = PushRegistration(deviceToken: data, environment: PushNotifications.environment) else { return }
+        let previous = pushRegistrationTask
+        let task = Task {
+            await previous?.value
+            guard session == token, !signingOut else { return }
+            let oldToken = pushToken
+            pushToken = registration.token
+            do {
+                try Keychain.write(registration.token, key: "apns.\(registration.environment)")
+                let _: OKResponse = try await api.request("push/register", method: "POST", body: registration.body, token: token)
+                guard session == token, !signingOut else {
+                    await unregisterPush(registration.token, session: token)
+                    return
+                }
+                if let oldToken, oldToken != registration.token {
+                    await unregisterPush(oldToken, session: token)
+                }
+            } catch {
+                if !error.isRequestCancellation { print("Push token registration failed; will retry on activation.") }
+            }
+        }
+        pushRegistrationTask = task
+        await task.value
+    }
+
+    private func unregisterPush(_ value: String, session: String) async {
+        let _: OKResponse? = try? await api.request("push/unregister", method: "POST",
+            body: ["token": value, "kind": "apns", "environment": PushNotifications.environment], token: session)
     }
 
     func provisionFamily() async throws {
@@ -219,7 +260,7 @@ final class House: ObservableObject {
         await loadPendingProofs()
     }
 
-    private func updateReminder() async {
+    func updateReminder() async {
         guard let snapshot, let person, !person.isParent else { ChoreReminders.remove(); return }
         await ChoreReminders.update(snapshot: snapshot, person: person)
     }

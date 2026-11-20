@@ -297,6 +297,38 @@ final class ModelsTests: XCTestCase {
             now: ISO8601DateFormatter().date(from: "2026-11-21T00:00:00Z")!))
     }
 
+    func testReminderRejectsOvernightSnapshotButUsesSnapshotTimezone() throws {
+        let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data("""
+        {"now":"2026-11-20T12:00:00-08:00","timezone":"America/Los_Angeles",
+         "chores":[{"id":"old","choreId":"c","personId":"kid","date":"2026-11-20",
+         "status":"open","title":"Dishes","stars":2,"starsAwarded":0,"requiresPhoto":false,"steps":[]}],
+         "people":[],"meals":[],"settings":{"choreReminderHour":23,"choreReminderMinute":0}}
+        """.utf8))
+        let kid = Person(id: "kid", slug: "kid", name: "Kid", role: "kid", color: "", avatarKey: nil)
+        XCTAssertEqual(snapshot.chores(for: kid).count, 1)
+        let dates = ISO8601DateFormatter()
+        XCTAssertEqual(ChoreReminders.triggerDate(snapshot: snapshot,
+            now: dates.date(from: "2026-11-21T01:00:00Z")!),
+            dates.date(from: "2026-11-21T07:00:00Z"))
+        XCTAssertNil(ChoreReminders.triggerDate(snapshot: snapshot,
+            now: dates.date(from: "2026-11-21T09:00:00Z")!))
+        XCTAssertNil(ChoreReminders.triggerDate(snapshot: snapshot,
+            now: dates.date(from: "2026-11-20T04:00:00Z")!))
+    }
+
+    func testReminderInvalidTimezoneFallsBackToCurrentTimezone() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 12)))
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = .current
+        let snapshot = Snapshot(now: formatter.string(from: now), timezone: "Invalid/Timezone",
+            chores: [], meals: [], people: [], stars: nil,
+            settings: FamilySettings(choreReminderHour: 23, choreReminderMinute: 59))
+        XCTAssertEqual(ChoreReminders.triggerDate(snapshot: snapshot, now: now),
+            calendar.date(bySettingHour: 23, minute: 59, second: 0, of: now))
+    }
+
     func testReminderDefaultsAndMalformedMeal() throws {
         let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data("""
         {"now":"2026-06-20T12:00:00-05:00","timezone":"America/Chicago",

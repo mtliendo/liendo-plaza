@@ -17,6 +17,7 @@
 <key>UIUserInterfaceStyle</key><string>Light</string>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
 <key>LPAPIURL</key><string>$(LP_API_URL)</string>
+<key>LPAPNSEnvironment</key><string>$(APNS_ENVIRONMENT)</string>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>liendoplaza</string></array></dict></array>
 <key>UIAppFonts</key><array><string>Fraunces.ttf</string><string>Fraunces-Italic.ttf</string><string>Figtree.ttf</string></array>

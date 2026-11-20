@@ -8,7 +8,13 @@ enum ChoreReminders {
     }
     static func triggerDate(snapshot: Snapshot, now: Date = Date()) -> Date? {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/Chicago")!
+        calendar.timeZone = TimeZone(identifier: snapshot.timezone) ?? .current
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard snapshot.today == formatter.string(from: now) else { return nil }
         let day = calendar.dateComponents([.year, .month, .day], from: now)
         var components = day
         components.timeZone = calendar.timeZone
@@ -21,9 +27,7 @@ enum ChoreReminders {
         let center = UNUserNotificationCenter.current()
         remove()
         let settings = await center.notificationSettings()
-        if settings.authorizationStatus == .notDetermined {
-            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
-        }
+        guard [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else { return }
         let count = snapshot.chores(for: person).filter { ["open", "rejected"].contains($0.status) }.count
         guard count > 0, let date = triggerDate(snapshot: snapshot) else { return }
         let content = UNMutableNotificationContent()
@@ -31,7 +35,7 @@ enum ChoreReminders {
         content.body = "You still have \(count) chores"
         content.sound = .default
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/Chicago")!
+        calendar.timeZone = TimeZone(identifier: snapshot.timezone) ?? .current
         var components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         components.timeZone = calendar.timeZone
         try? await center.add(UNNotificationRequest(identifier: identifier, content: content,

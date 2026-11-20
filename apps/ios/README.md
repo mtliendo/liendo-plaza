@@ -90,7 +90,7 @@ Accessibility IDs include `person.noah`, `pin`, `open`, `pairing.code`, `chore.<
 
 ## Out of scope
 
-Calendar, stars/rewards screens and APNs push. Parents can edit dinners,
+Calendar and stars/rewards screens. Parents can edit dinners,
 navigate weeks, manage chore schedules and review proof photos.
 Groceries uses the Apple Reminders list named "Groceries"; share that list
 in Reminders for iCloud sync and Siri. Full Reminders access is required.
@@ -99,12 +99,56 @@ Kids see their star balance and a one-tap chore checkbox.
 Photo chores use the camera (photo library on the simulator) and wait for
 parent review after upload. Kids receive one local reminder for today's open
 chores at the household reminder time (default 6 PM America/Chicago); permission
-is requested on the first kid snapshot. Notifications do not update while the
+is requested after sign-in for parents and kids. Local reminders do not update while the
 app is closed, and a reminder time that has already passed is not rescheduled.
 Snapshot loading is explicit; completion/undo replaces the returned instance
 locally without waiting for the slow full snapshot.
 
 ## TestFlight
+
+### Native push setup
+
+Enable **Push Notifications** on the explicit Apple Developer App ID
+`com.focusotter.liendoplaza` (team `QEP46P7WF2`), then regenerate/refresh
+development and App Store distribution provisioning profiles. Xcode automatic
+signing may do this with developer-portal access. Debug uses the development
+APNs entitlement and sandbox tokens; Release/TestFlight uses production.
+No background remote-notification mode is needed for these visible alerts.
+
+Set these server-only Vercel variables, then redeploy:
+
+- `APNS_KEY_P8`: the APNs-enabled `.p8` private key (not the ASC upload key).
+- `APNS_KEY_ID`: its Apple key ID.
+- `APNS_TEAM_ID=QEP46P7WF2`.
+- `APNS_BUNDLE_ID=com.focusotter.liendoplaza`.
+- Keep `DATABASE_URL`, `FAMILY_ACCESS_SECRET`, and `CRON_SECRET` configured.
+
+Apply `pnpm --filter @liendo/web db:migrate` to the deployment database before
+deploying the new API. `0004_native_push.sql` preserves existing tokens as Expo
+tokens. Never expose APNs variables with a `NEXT_PUBLIC_` prefix.
+
+The app requests permission after authenticated identity is known, registers
+with Apple on launch/sign-in/activation, and posts token changes to
+`POST /api/push/register` with `kind: "apns"` and `environment`.
+Sign-out calls `POST /api/push/unregister` before logout (best effort offline).
+Native token ownership transfers to the current person on shared phones.
+The cached device token is only for unregistering; registration always asks
+Apple again. Denied permission can be changed in iOS Settings.
+
+Native **local chore reminders are retained**. The reminder cron continues to
+send only to Expo tokens rather than also sending APNs chore reminders,
+including while APNs credentials are absent. Proof waiting/review and reward
+request/review pushes go to both providers. Missing APNs variables log a skip;
+Expo continues working. JWTs are cached for 50 minutes. Invalid APNs tokens
+(`410 Unregistered`, `400 BadDeviceToken`) are removed.
+
+An upgrade from the Expo app may retain a working legacy Expo registration for
+the same phone. These opaque tokens cannot be matched to APNs tokens, so remove
+that phone's legacy registration if it causes duplicate alerts. Other Expo
+devices' registrations are deliberately preserved.
+
+APNs signing and physical-device delivery require the real key and provisioned
+device build; simulator/model tests cannot certify delivery to TestFlight.
 
 ```sh
 export ASC_KEY_PATH="/secure/path/AuthKey_YOURKEY.p8"
