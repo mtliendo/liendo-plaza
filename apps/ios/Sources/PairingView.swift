@@ -133,7 +133,7 @@ struct PairingView: View {
                 }
             }
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, !error.isRequestCancellation else { return }
             self.error = error.localizedDescription
             loading = false
         }
@@ -150,6 +150,8 @@ struct PairingView: View {
                 firstParent ? "pair/bootstrap" : "auth/login", method: "POST", body: body)
             try house.accept(response)
             if firstParent { try await house.provisionFamily() }
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            if !error.isRequestCancellation { self.error = error.localizedDescription }
+        }
     }
 }

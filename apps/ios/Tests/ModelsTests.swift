@@ -32,6 +32,15 @@ private final class PhotoProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+private final class CancelledProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
+    }
+    override func stopLoading() {}
+}
+
 private final class ToggleProtocol: URLProtocol {
     static var stars = #"{"stars":[{"personId":"kid","balance":2}]}"#
     static var starsStatus = 200
@@ -62,6 +71,31 @@ private final class ToggleProtocol: URLProtocol {
 }
 
 final class ModelsTests: XCTestCase {
+    func testCancellationClassificationKeepsRealErrors() {
+        XCTAssertTrue(CancellationError().isRequestCancellation)
+        XCTAssertTrue(URLError(.cancelled).isRequestCancellation)
+        XCTAssertFalse(URLError(.timedOut).isRequestCancellation)
+        XCTAssertFalse(APIError(status: 401, message: "Sign in first.").isRequestCancellation)
+    }
+
+    @MainActor
+    func testCancelledLoadAndPairingLinkStaySilent() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [CancelledProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        let house = House(api: APIClient(session: network))
+        house.session = "test-session"
+        await house.load()
+        XCTAssertTrue(house.error.isEmpty)
+        XCTAssertFalse(house.loading)
+        XCTAssertEqual(house.session, "test-session")
+        house.person = nil
+        await house.open(try XCTUnwrap(URL(string: "liendoplaza://pair?code=abc123")))
+        XCTAssertTrue(house.error.isEmpty)
+        XCTAssertNil(house.deviceApproval)
+    }
+
     @MainActor
     func testToggleRefreshesStarsOnCompleteUndoEmptyAndFailure() async throws {
         let configuration = URLSessionConfiguration.ephemeral

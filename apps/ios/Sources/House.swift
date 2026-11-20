@@ -62,13 +62,17 @@ final class House: ObservableObject {
                     try saveFamily(token)
                 }
 #endif
-            } catch { self.error = error.localizedDescription }
+            } catch {
+                if !error.isRequestCancellation { self.error = error.localizedDescription }
+            }
         } else {
             do {
                 try Keychain.migrateExpoTokens()
                 session = Keychain.read("session")
                 family = Keychain.read("family")
-            } catch { self.error = error.localizedDescription }
+            } catch {
+                if !error.isRequestCancellation { self.error = error.localizedDescription }
+            }
         }
     }
 
@@ -110,8 +114,10 @@ final class House: ObservableObject {
         } catch {
             guard session == token else { return }
             if (error as? APIError)?.status == 401 {
-                do { try clearSession() } catch { self.error = error.localizedDescription }
-            } else if !(error is CancellationError) {
+                do { try clearSession() } catch {
+                    if !error.isRequestCancellation { self.error = error.localizedDescription }
+                }
+            } else if !error.isRequestCancellation {
                 self.error = error.localizedDescription
             }
         }
@@ -124,7 +130,9 @@ final class House: ObservableObject {
         let _: OKResponse? = try? await api.request("auth/logout", method: "POST", token: session)
         do {
             try clearSession()
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            if !error.isRequestCancellation { self.error = error.localizedDescription }
+        }
     }
 
     func provisionFamily() async throws {
@@ -155,7 +163,7 @@ final class House: ObservableObject {
             guard session == token else { return }
             snapshot?.stars = result.stars
         } catch {
-            guard session == token else { return }
+            guard session == token, !error.isRequestCancellation else { return }
             self.error = error.localizedDescription
         }
     }
@@ -208,6 +216,8 @@ final class House: ObservableObject {
                 try saveFamily(response.familyToken)
                 pairingVersion = UUID()
             }
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            if !error.isRequestCancellation { self.error = error.localizedDescription }
+        }
     }
 }

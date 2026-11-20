@@ -66,6 +66,12 @@ struct APIError: LocalizedError {
     var errorDescription: String? { message }
 }
 
+extension Error {
+    var isRequestCancellation: Bool {
+        self is CancellationError || (self as? URLError)?.code == .cancelled
+    }
+}
+
 struct APIClient {
     private struct Message: Decodable { let error: String }
     let baseURL: URL
