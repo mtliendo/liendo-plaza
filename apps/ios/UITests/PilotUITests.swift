@@ -128,14 +128,20 @@ final class PilotUITests: XCTestCase {
         ])
         let app = launch(session: try XCTUnwrap(login["token"] as? String), family: family)
         XCTAssertTrue(app.buttons["addDevice"].waitForExistence(timeout: 60))
-        app.buttons["addDevice"].tap()
-        let second = try await api("pair/claim", body: ["deviceKind": "phone"])
+        let second = try await api("pair/claim", body: ["deviceKind": "display"])
         let secondCode = try XCTUnwrap(second["displayCode"] as? String)
+        app.open(try XCTUnwrap(URL(string: "liendoplaza://pair?code=\(secondCode)")))
         let field = app.textFields["addDevice.code"]
         XCTAssertTrue(field.waitForExistence(timeout: 15))
-        field.tap()
-        field.typeText(secondCode.lowercased())
         XCTAssertEqual(field.value as? String, secondCode)
+        XCTAssertTrue(app.staticTexts["addDevice.claim"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["addDevice.claim"].label.contains("Display"))
+        let pending = try await api("pair/poll", body: [
+            "id": try XCTUnwrap(second["id"] as? String),
+            "pollSecret": try XCTUnwrap(second["pollSecret"] as? String)
+        ])
+        XCTAssertEqual(pending["status"] as? String, "pending")
+        XCTAssertFalse(app.staticTexts["addDevice.success"].exists)
         capture(app, "approve-device")
         app.buttons["addDevice.approve"].tap()
         XCTAssertTrue(app.staticTexts["addDevice.success"].waitForExistence(timeout: 30))
@@ -145,6 +151,6 @@ final class PilotUITests: XCTestCase {
             "pollSecret": try XCTUnwrap(second["pollSecret"] as? String)
         ])
         XCTAssertEqual(approved["status"] as? String, "paired")
-        XCTAssertNotNil(approved["familyToken"])
+        XCTAssertNotNil(approved["token"])
     }
 }

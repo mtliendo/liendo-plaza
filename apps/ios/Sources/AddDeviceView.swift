@@ -2,7 +2,6 @@ import SwiftUI
 
 struct AddDeviceView: View {
     @EnvironmentObject private var house: House
-    private let initialCode: String?
     @State private var code = ""
     @State private var pending: [PendingResponse.Item] = []
     @State private var message = ""
@@ -10,7 +9,6 @@ struct AddDeviceView: View {
     @State private var busy = false
 
     init(code: String? = nil) {
-        initialCode = code
         _code = State(initialValue: code ?? "")
     }
 
@@ -25,6 +23,13 @@ struct AddDeviceView: View {
                     .onChange(of: code) { _, value in code = value.uppercased() }
                     .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
                     .accessibilityIdentifier("addDevice.code")
+                if let claim = pending.first(where: {
+                    $0.displayCode.replacingOccurrences(of: "-", with: "").uppercased()
+                        == code.replacingOccurrences(of: "-", with: "").uppercased()
+                }) {
+                    Text("\(claim.label) · \(claim.deviceKind.capitalized)")
+                        .accessibilityIdentifier("addDevice.claim")
+                }
                 Button("Approve this device") { Task { await approve(code) } }
                     .buttonStyle(PrimaryButton()).disabled(busy || code.isEmpty)
                     .accessibilityIdentifier("addDevice.approve")
@@ -38,7 +43,7 @@ struct AddDeviceView: View {
                     Button { Task { await approve(item.displayCode) } } label: {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(item.displayCode).font(Plaza.title(24))
-                            Text(item.label).foregroundStyle(Plaza.muted)
+                            Text("\(item.label) · \(item.deviceKind.capitalized)").foregroundStyle(Plaza.muted)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
@@ -49,7 +54,6 @@ struct AddDeviceView: View {
         }
         .background(Plaza.paper).navigationBarTitleDisplayMode(.inline)
         .task {
-            if let initialCode { await approve(initialCode) }
             while !Task.isCancelled {
                 await refresh()
                 do { try await Task.sleep(for: .seconds(4)) } catch { return }
