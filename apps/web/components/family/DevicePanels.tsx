@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { usePageVisible } from "@/lib/display-activity";
 
 type Pending = { id: string; displayCode: string; label: string | null; deviceKind: string; expiresAt: string };
 type Device = {
@@ -17,6 +18,7 @@ type Device = {
 type Invite = { webUrl: string; deepLink: string; qrDataUrl: string; expiresAt: string };
 
 export function AddDevicePanel() {
+  const visible = usePageVisible();
   const [code, setCode] = useState("");
   const [pending, setPending] = useState<Pending[]>([]);
   const [invite, setInvite] = useState<Invite | null>(null);
@@ -31,10 +33,11 @@ export function AddDevicePanel() {
   }, []);
 
   useEffect(() => {
+    if (!visible) return;
     void loadPending();
     const timer = setInterval(() => void loadPending(), 4000);
     return () => clearInterval(timer);
-  }, [loadPending]);
+  }, [loadPending, visible]);
 
   async function approve(nextCode: string) {
     setError("");

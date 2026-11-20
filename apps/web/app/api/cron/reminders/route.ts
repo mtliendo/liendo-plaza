@@ -15,13 +15,13 @@ export async function GET(req: Request) {
     return json({ error: "Unauthorized." }, 401);
   }
 
-  const settings = await getSettings();
   const now = nowCt();
-  if (now.hour !== settings.choreReminderHour) {
-    return json({ skipped: true, reason: "not the reminder hour" });
-  }
   if (now.minute >= 15) {
     return json({ skipped: true, reason: "past the first quarter hour" });
+  }
+  const settings = await getSettings();
+  if (now.hour !== settings.choreReminderHour) {
+    return json({ skipped: true, reason: "not the reminder hour" });
   }
 
   const today = todayIso(now);

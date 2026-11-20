@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePageVisible } from "@/lib/display-activity";
 
 export type ClaimPayload = {
   id: string;
@@ -12,7 +13,8 @@ export type ClaimPayload = {
   expiresAt: string;
 };
 
-export function useClaim(deviceKind: "display" | "phone" | "browser") {
+export function useClaim(deviceKind: "display" | "phone" | "browser", enabled = true) {
+  const visible = usePageVisible();
   const [claim, setClaim] = useState<ClaimPayload | null>(null);
   const [error, setError] = useState("");
   const [familyToken, setFamilyToken] = useState<string | null>(null);
@@ -36,11 +38,11 @@ export function useClaim(deviceKind: "display" | "phone" | "browser") {
   }, [deviceKind]);
 
   useEffect(() => {
-    void start();
-  }, [start]);
+    if (enabled && visible && !claim && !paired) void start();
+  }, [claim, enabled, paired, start, visible]);
 
   useEffect(() => {
-    if (!claim) return;
+    if (!claim || !enabled || !visible || paired) return;
     let cancelled = false;
     const tick = async () => {
       const res = await fetch("/api/pair/poll", {
@@ -65,7 +67,7 @@ export function useClaim(deviceKind: "display" | "phone" | "browser") {
       cancelled = true;
       clearInterval(poll);
     };
-  }, [claim, start]);
+  }, [claim, enabled, paired, start, visible]);
 
   return { claim, error, familyToken, paired, restart: start };
 }

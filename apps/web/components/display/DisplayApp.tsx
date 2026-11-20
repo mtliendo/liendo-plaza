@@ -9,6 +9,7 @@ import { SoftLink } from "@/components/SoftLink";
 import { PairCard } from "@/components/pair/PairCard";
 import { useClaim } from "@/components/pair/useClaim";
 import { useKitchenReload } from "@/lib/display-refresh";
+import { shouldPollDisplay, usePageVisible } from "@/lib/display-activity";
 import { useChoreToggle, useMe, usePrefetchHouse, useSnapshot, useSoftView } from "@/lib/query";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -57,15 +58,17 @@ export function DisplayApp({ view }: { view: View }) {
   const [boardView, go] = useSoftView(view, DISPLAY_HREFS);
   const me = useMe();
   const paired = me.data ? Boolean(me.data.actor) : me.isPending ? null : false;
-  const snapshotQuery = useSnapshot(paired === true, DISPLAY_REFETCH_MS);
+  const [awakeUntil, setAwakeUntil] = useState(0);
+  const [tick, setTick] = useState(Date.now());
+  const visible = usePageVisible();
+  const polling = shouldPollDisplay(tick, visible, awakeUntil);
+  const snapshotQuery = useSnapshot(paired === true && visible, polling ? DISPLAY_REFETCH_MS : false, !polling);
   const snapshot = snapshotQuery.data ?? null;
   const offline = snapshotQuery.isError;
   const toggle = useChoreToggle();
   const prefetch = usePrefetchHouse();
   const queryClient = useQueryClient();
-  const claim = useClaim("display");
-  const [awakeUntil, setAwakeUntil] = useState(0);
-  const [tick, setTick] = useState(Date.now());
+  const claim = useClaim("display", paired === false && visible);
   const [openChoreId, setOpenChoreId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,9 +91,9 @@ export function DisplayApp({ view }: { view: View }) {
   const openChore = snapshot?.chores.find((item) => item.id === openChoreId) ?? null;
   const forceDim = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("dim") === "1";
   const dim = Boolean(
-    snapshot && (forceDim || isDimHours(hourInChicago(snapshot.now))) && Date.now() > awakeUntil,
+    snapshot && (forceDim || isDimHours(hourInChicago(new Date(tick).toISOString()))) && tick >= awakeUntil,
   );
-  useKitchenReload(dim);
+  useKitchenReload(dim, polling);
 
   const kids = useMemo(() => {
     const order = ["sofia", "noah", "xavier"];
@@ -164,8 +167,8 @@ export function DisplayApp({ view }: { view: View }) {
   const mast = (
     <header className="mast">
       <div>
-        <p className="clock" data-testid="clock">{clockLabel(snapshot.now)}</p>
-        <p className="date">{dateLabel(snapshot.now)}</p>
+        <p className="clock" data-testid="clock">{clockLabel(new Date(tick).toISOString())}</p>
+        <p className="date">{dateLabel(new Date(tick).toISOString())}</p>
       </div>
       <div className="mast-aside">
         <p className="weather num">
@@ -373,7 +376,7 @@ export function DisplayApp({ view }: { view: View }) {
       {offline ? <p className="banner">The board will catch up when the network does.</p> : null}
       {dim ? (
         <button type="button" className="dim" onClick={() => setAwakeUntil(Date.now() + 5 * 60 * 1000)}>
-          <span className="clock">{clockLabel(snapshot.now)}</span>
+          <span className="clock">{clockLabel(new Date(tick).toISOString())}</span>
         </button>
       ) : null}
       {openChore ? (
