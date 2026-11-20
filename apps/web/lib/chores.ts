@@ -1,4 +1,4 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 import type { Chore, ChoreInstance, RepeatType } from "@liendo/shared";
 import { addDays } from "@liendo/shared";
 import { deleteStoredPhoto } from "./blob";
@@ -73,6 +73,17 @@ export async function listChores(): Promise<Chore[]> {
   const db = getDb();
   const rows = await db.select().from(schema.chores);
   return rows.map(asChore);
+}
+
+export async function listPendingInstances(): Promise<ChoreInstance[]> {
+  const rows = await getDb()
+    .select({ instance: schema.choreInstances, chore: schema.chores })
+    .from(schema.choreInstances)
+    .innerJoin(schema.chores, eq(schema.choreInstances.choreId, schema.chores.id))
+    .where(eq(schema.choreInstances.status, "pending"))
+    .orderBy(asc(schema.choreInstances.date), asc(schema.choreInstances.id))
+    .limit(100);
+  return rows.map(({ instance, chore }) => toInstance(instance, chore));
 }
 
 export async function getChore(id: string): Promise<Chore> {

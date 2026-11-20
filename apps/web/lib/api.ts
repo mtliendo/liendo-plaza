@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { FAMILY, fixturesAllowed, parseEventFixture, buildEventFixture } from "@liendo/shared";
 import { addDays, weekDates } from "@liendo/shared";
@@ -33,6 +33,7 @@ import {
   deactivateChore,
   getChore,
   listChores,
+  listPendingInstances,
   markPhotoPending,
   reviewInstance,
   undoInstance,
@@ -71,6 +72,14 @@ function sessionToken(req: Request) {
   const header = req.headers.get("authorization");
   if (header?.startsWith("Bearer ")) return header.slice(7);
   return null;
+}
+
+async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<boolean> {
+  if (!choreIds.length) return false;
+  const [instance] = await getDb().select({ id: schema.choreInstances.id }).from(schema.choreInstances)
+    .where(and(eq(schema.choreInstances.personId, personId), inArray(schema.choreInstances.choreId, choreIds)))
+    .limit(1);
+  return Boolean(instance);
 }
 
 export async function handleApi(req: Request): Promise<Response> {
@@ -233,10 +242,13 @@ export async function handleApi(req: Request): Promise<Response> {
   }
 
   if (path === "snapshot" && method === "GET") {
-    await requireActor(req, ["person", "display"]);
+    const actor = await requireActor(req, ["person", "display"]);
     const from = url.searchParams.get("from") ?? undefined;
     const to = url.searchParams.get("to") ?? undefined;
     const snapshot = await buildSnapshot(from, to);
+    if (actor.kind === "person" && actor.person.role === "kid") {
+      snapshot.chores = snapshot.chores.filter((instance) => instance.personId === actor.person.id);
+    }
     const fixture = parseEventFixture(url.searchParams.get("fixture"));
     if (fixture && fixturesAllowed()) {
       snapshot.events = buildEventFixture(fixture, snapshot.now, snapshot.people);
@@ -256,8 +268,10 @@ export async function handleApi(req: Request): Promise<Response> {
   }
 
   if (path === "chores" && method === "GET") {
-    await requireActor(req, ["person", "display"]);
-    return json({ chores: await listChores() });
+    const actor = await requireActor(req, ["person", "display"]);
+    const chores = await listChores();
+    return json({ chores: actor.kind === "person" && actor.person.role === "kid"
+      ? chores.filter((chore) => chore.assignedPersonId === actor.person.id) : chores });
   }
 
   if (path === "chores" && method === "POST") {
@@ -279,8 +293,13 @@ export async function handleApi(req: Request): Promise<Response> {
 
   const choreMatch = path.match(/^chores\/([^/]+)$/);
   if (choreMatch && method === "GET") {
-    await requireActor(req, ["person", "display"]);
-    return json({ chore: await getChore(choreMatch[1]) });
+    const actor = await requireActor(req, ["person", "display"]);
+    const chore = await getChore(choreMatch[1]);
+    if (actor.kind === "person" && actor.person.role === "kid" && chore.assignedPersonId !== actor.person.id &&
+        !await ownsChoreInstance(actor.person.id, [chore.id])) {
+      throw new HttpError(403, "That chore belongs to someone else.");
+    }
+    return json({ chore });
   }
   if (choreMatch && (method === "PATCH" || method === "DELETE")) {
     const actor = await requireActor(req, ["person"]);
@@ -307,6 +326,12 @@ export async function handleApi(req: Request): Promise<Response> {
     const current = await getChore(guidePhoto[1]);
     await deleteStoredPhoto(current.guidePhotoPath);
     return json({ chore: await updateChore(guidePhoto[1], { guidePhotoPath: null }) });
+  }
+
+  if (path === "chores/instances/pending" && method === "GET") {
+    const actor = await requireActor(req, ["person"], { touchDevice: false });
+    requireParent(actor);
+    return json({ instances: await listPendingInstances() });
   }
 
   const completeMatch = path.match(/^chores\/instances\/([^/]+)\/complete$/);
@@ -553,8 +578,28 @@ export async function handleApi(req: Request): Promise<Response> {
 
   const photoGet = path.match(/^photos\/(.+)$/);
   if (photoGet && method === "GET") {
-    await requireActor(req, ["person", "display"]);
+    const actor = await requireActor(req, ["person", "display"]);
     const stored = decodeURIComponent(photoGet[1]);
+    if (actor.kind === "person" && actor.person.role === "kid") {
+      const db = getDb();
+      const proofs = await db.select({ personId: schema.choreInstances.personId })
+        .from(schema.choreInstances).where(eq(schema.choreInstances.photoPath, stored));
+      if (proofs.some((proof) => proof.personId !== actor.person.id)) {
+        throw new HttpError(403, "That proof belongs to someone else.");
+      }
+      if (!proofs.length) {
+        const [meals, guides] = await Promise.all([
+          db.select({ id: schema.meals.id }).from(schema.meals).where(eq(schema.meals.photoPath, stored)).limit(1),
+          db.select({ id: schema.chores.id, assignedPersonId: schema.chores.assignedPersonId }).from(schema.chores)
+            .where(eq(schema.chores.guidePhotoPath, stored)),
+        ]);
+        if (guides.length && !guides.some((guide) => guide.assignedPersonId === actor.person.id) &&
+            !await ownsChoreInstance(actor.person.id, guides.map((guide) => guide.id))) {
+          throw new HttpError(403, "That guide belongs to someone else.");
+        }
+        if (!meals.length && !guides.length) throw new HttpError(404, "Photo is gone.");
+      }
+    }
     const file = await readPhoto(stored);
     return new Response(file.body as unknown as BodyInit, {
       headers: {

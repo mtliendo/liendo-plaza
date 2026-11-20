@@ -38,10 +38,23 @@ final class House: ObservableObject {
     @Published var family = Keychain.read("family")
     @Published var person: Person?
     @Published var snapshot: Snapshot?
+    @Published var pendingInstances: [ChoreInstance] = []
     @Published var loading = false
     @Published var error = ""
     @Published var pairingVersion = UUID()
     @Published var deviceApproval: DeviceApproval?
+
+    var pendingProofs: [ChoreInstance] {
+        PendingProofs.merge(history: pendingInstances,
+            today: snapshot?.chores.filter { $0.date == snapshot?.today } ?? [])
+            .filter { person?.isParent == true || $0.personId == person?.id }
+    }
+
+    func chore(id: String) -> ChoreInstance? {
+        ((snapshot?.chores ?? []) + pendingInstances).first {
+            $0.id == id && (person?.isParent == true || $0.personId == person?.id)
+        }
+    }
 
     init(api: APIClient = APIClient()) {
         self.api = api
@@ -94,12 +107,13 @@ final class House: ObservableObject {
         session = nil
         person = nil
         snapshot = nil
+        pendingInstances = []
         ChoreReminders.remove()
         deviceApproval = nil
         pairingVersion = UUID()
     }
 
-    func load() async {
+    func load(includingPendingProofs: Bool = true) async {
         guard let token = session else { return }
         loading = true
         error = ""
@@ -120,6 +134,22 @@ final class House: ObservableObject {
             } else if !error.isRequestCancellation {
                 self.error = error.localizedDescription
             }
+        }
+        if includingPendingProofs { await loadPendingProofs() }
+    }
+
+    func loadPendingProofs() async {
+        guard person?.isParent == true, let token = session else {
+            pendingInstances = []
+            return
+        }
+        do {
+            let result: PendingInstancesResponse = try await api.request("chores/instances/pending", token: token)
+            guard session == token else { return }
+            pendingInstances = result.instances
+        } catch {
+            guard session == token, !error.isRequestCancellation else { return }
+            self.error = error.localizedDescription
         }
     }
 
@@ -178,11 +208,15 @@ final class House: ObservableObject {
     }
 
     func review(_ id: String, action: String) async throws {
+        let token = session
         let response: InstanceResponse = try await api.request(
-            "chores/instances/\(id)/review", method: "POST", body: ["action": action], token: session)
+            "chores/instances/\(id)/review", method: "POST", body: ["action": action], token: token)
+        guard session == token else { return }
         if let index = snapshot?.chores.firstIndex(where: { $0.id == id }) {
             snapshot?.chores[index] = response.instance
         }
+        pendingInstances.removeAll { $0.id == id }
+        await loadPendingProofs()
     }
 
     private func updateReminder() async {

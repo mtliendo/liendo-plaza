@@ -39,6 +39,54 @@ final class ParentFeaturesUITests: XCTestCase {
     }
 
     @MainActor
+    func testTodayPullRefreshReachesServer() async throws {
+        try XCTSkipUnless(environment["LP_REFRESH_PROBE"] == "1", "Requires scripts/refresh-fixture.ts")
+        let app = launch(token: try parentToken)
+        XCTAssertTrue(app.buttons["chore.Refresh fixture chore"].waitForExistence(timeout: 30))
+        let before = try await api("qa/requests/today-before", token: parentToken)
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.28))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+        start.press(forDuration: 0.1, thenDragTo: end)
+        var refreshed = false
+        for _ in 0..<30 {
+            let after = try await api("qa/requests/today-after", token: parentToken)
+            if (after["snapshot"] as? Int ?? 0) > (before["snapshot"] as? Int ?? 0),
+               (after["pending"] as? Int ?? 0) > (before["pending"] as? Int ?? 0) {
+                refreshed = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTAssertTrue(refreshed, "The pull must fetch both snapshot and pending proofs, without changing tabs.")
+        capture(app, "Today-pull-refreshed")
+    }
+
+    @MainActor
+    func testDinnerPullRefreshReachesServer() async throws {
+        try XCTSkipUnless(environment["LP_REFRESH_PROBE"] == "1", "Requires scripts/refresh-fixture.ts")
+        let app = launch(token: try parentToken)
+        XCTAssertTrue(app.buttons["chore.Refresh fixture chore"].waitForExistence(timeout: 30))
+        app.tabBars.buttons["Dinner"].tap()
+        XCTAssertTrue(app.staticTexts["This week"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["Nothing written yet"].firstMatch.waitForExistence(timeout: 30))
+        let before = try await api("qa/requests/dinner-before", token: parentToken)
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.28))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+        start.press(forDuration: 0.1, thenDragTo: end)
+        var refreshed = false
+        for _ in 0..<30 {
+            let after = try await api("qa/requests/dinner-after", token: parentToken)
+            if (after["meals"] as? Int ?? 0) > (before["meals"] as? Int ?? 0) {
+                refreshed = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTAssertTrue(refreshed, "The pull must fetch meals without changing tabs or weeks.")
+        capture(app, "Dinner-pull-refreshed")
+    }
+
+    @MainActor
     func testParentEditsTonightDinner() async throws {
         let snapshot = try await api("snapshot", token: parentToken)
         let today = String(try XCTUnwrap(snapshot["now"] as? String).prefix(10))
