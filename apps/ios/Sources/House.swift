@@ -75,9 +75,24 @@ final class House: ObservableObject {
 
     func signOut() async {
         do {
+            if person?.isParent == true && family == nil {
+                try await provisionFamily()
+            }
             let _: OKResponse = try await api.request("auth/logout", method: "POST", token: session)
             try clearSession()
         } catch { self.error = error.localizedDescription }
+    }
+
+    func provisionFamily() async throws {
+        struct Invite: Decodable { let deepLink: String }
+        let invite: Invite = try await api.request("pair/invite", method: "POST",
+                                                   body: ["deviceKind": "phone"], token: session)
+        guard let components = URLComponents(string: invite.deepLink),
+              let value = components.queryItems?.first(where: { $0.name == "invite" })?.value else {
+            throw APIError(status: 0, message: "The house returned an invalid invite.")
+        }
+        let response: FamilyResponse = try await api.request("pair/redeem", method: "POST", body: ["invite": value])
+        try saveFamily(response.familyToken)
     }
 
     func toggle(_ chore: ChoreInstance) async throws {

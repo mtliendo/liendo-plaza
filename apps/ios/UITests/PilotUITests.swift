@@ -60,6 +60,14 @@ final class PilotUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Focus"].exists)
         XCTAssertTrue(app.buttons["chore.Make your bed"].exists)
         capture(app, "bootstrap-today")
+        app.buttons["signOut"].tap()
+        XCTAssertTrue(app.buttons["person.focus"].waitForExistence(timeout: 40))
+        XCTAssertTrue(app.staticTexts["Who are you?"].exists)
+        capture(app, "bootstrap-signed-out")
+        open(app, person: "focus", pin: "123456")
+        XCTAssertTrue(app.buttons["chore.Unload the dishwasher"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.staticTexts["Focus"].exists)
+        capture(app, "bootstrap-signed-back-in")
     }
 
     @MainActor

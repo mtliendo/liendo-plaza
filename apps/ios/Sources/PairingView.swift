@@ -148,6 +148,7 @@ struct PairingView: View {
             let response: SessionResponse = try await house.api.request(
                 firstParent ? "pair/bootstrap" : "auth/login", method: "POST", body: body)
             try house.accept(response)
+            if firstParent { try await house.provisionFamily() }
         } catch { self.error = error.localizedDescription }
     }
 }
