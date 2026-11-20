@@ -35,13 +35,17 @@ let ownId: string;
 let otherId: string;
 let openId: string;
 let kidId: string;
+let otherKidId: string;
 const originalFetch = globalThis.fetch;
 
-async function request(path: string, actor: keyof typeof tokens, method = "GET") {
+async function request(path: string, actor: keyof typeof tokens, method = "GET", body?: Record<string, string>) {
   const headers: Record<string, string> = actor === "display" ?
     { "x-display-token": tokens.display } : { authorization: `Bearer ${tokens[actor]}` };
+  if (body) headers["content-type"] = "application/json";
   try {
-    return await handleApi(new Request("http://photo-access.test/api/" + path, { headers, method }));
+    return await handleApi(new Request("http://photo-access.test/api/" + path, {
+      headers, method, body: body ? JSON.stringify(body) : undefined,
+    }));
   } catch (error) {
     return errorResponse(error);
   }
@@ -69,6 +73,7 @@ before(async () => {
     { slug: "photo-empty", name: "No chores", role: "kid", color: "#123456" },
   ]).returning();
   kidId = people[1].id;
+  otherKidId = people[2].id;
   for (const [index, actor] of (["parent", "kid", "other", "empty"] as const).entries()) {
     await db.insert(schema.sessions).values({
       personId: people[index].id,
@@ -219,5 +224,39 @@ test("a guide shared by own and other chores remains usable for the own chore", 
     assert.equal((await request("photos/" + encodeURIComponent(guidePhoto), "kid")).status, 200);
   } finally {
     await db.update(schema.chores).set({ guidePhotoPath: otherGuidePhoto }).where(eq(schema.chores.id, otherChoreId));
+  }
+});
+
+test("reassignment preserves guide and detail access for the kid retaining a rejected instance", async () => {
+  const guide = otherGuidePhoto + "?reassigned";
+  const [chore] = await db.insert(schema.chores).values({
+    title: "Retry after reassignment", assignedPersonId: kidId, stars: 2,
+    requiresPhoto: true, repeatType: "once", onceDate: todayIso(), guidePhotoPath: guide,
+  }).returning();
+  const [instance] = await db.insert(schema.choreInstances).values({
+    choreId: chore.id, personId: kidId, date: todayIso(), status: "rejected",
+  }).returning();
+  try {
+    const reassigned = await request(`chores/${chore.id}`, "parent", "PATCH", { assignedPersonId: otherKidId });
+    assert.equal(reassigned.status, 200);
+    assert.equal((await reassigned.json()).chore.assignedPersonId, otherKidId);
+    const response = await request(`snapshot?from=${todayIso()}&to=${todayIso()}`, "kid");
+    assert.equal(response.status, 200);
+    const data = await response.json() as DisplaySnapshot;
+    const retained = data.chores.find((item) => item.id === instance.id);
+    assert.equal(retained?.status, "rejected");
+    assert.equal(retained?.guidePhotoPath, guide);
+    const list = await request("chores", "kid");
+    assert.ok(!(await list.json()).chores.some((item: { id: string }) => item.id === chore.id));
+    for (const actor of ["kid", "other", "parent", "display"] as const) {
+      assert.equal((await request(`chores/${chore.id}`, actor)).status, 200);
+      const photo = await request("photos/" + encodeURIComponent(guide), actor);
+      assert.equal(photo.status, 200);
+      assert.deepEqual(Buffer.from(await photo.arrayBuffer()), bytes);
+    }
+    assert.equal((await request(`chores/${chore.id}`, "empty")).status, 403);
+    assert.equal((await request("photos/" + encodeURIComponent(guide), "empty")).status, 403);
+  } finally {
+    await db.delete(schema.chores).where(eq(schema.chores.id, chore.id));
   }
 });

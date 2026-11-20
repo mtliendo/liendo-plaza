@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { FAMILY, fixturesAllowed, parseEventFixture, buildEventFixture } from "@liendo/shared";
 import { addDays, weekDates } from "@liendo/shared";
@@ -72,6 +72,14 @@ function sessionToken(req: Request) {
   const header = req.headers.get("authorization");
   if (header?.startsWith("Bearer ")) return header.slice(7);
   return null;
+}
+
+async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<boolean> {
+  if (!choreIds.length) return false;
+  const [instance] = await getDb().select({ id: schema.choreInstances.id }).from(schema.choreInstances)
+    .where(and(eq(schema.choreInstances.personId, personId), inArray(schema.choreInstances.choreId, choreIds)))
+    .limit(1);
+  return Boolean(instance);
 }
 
 export async function handleApi(req: Request): Promise<Response> {
@@ -287,7 +295,8 @@ export async function handleApi(req: Request): Promise<Response> {
   if (choreMatch && method === "GET") {
     const actor = await requireActor(req, ["person", "display"]);
     const chore = await getChore(choreMatch[1]);
-    if (actor.kind === "person" && actor.person.role === "kid" && chore.assignedPersonId !== actor.person.id) {
+    if (actor.kind === "person" && actor.person.role === "kid" && chore.assignedPersonId !== actor.person.id &&
+        !await ownsChoreInstance(actor.person.id, [chore.id])) {
       throw new HttpError(403, "That chore belongs to someone else.");
     }
     return json({ chore });
@@ -581,10 +590,11 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!proofs.length) {
         const [meals, guides] = await Promise.all([
           db.select({ id: schema.meals.id }).from(schema.meals).where(eq(schema.meals.photoPath, stored)).limit(1),
-          db.select({ assignedPersonId: schema.chores.assignedPersonId }).from(schema.chores)
+          db.select({ id: schema.chores.id, assignedPersonId: schema.chores.assignedPersonId }).from(schema.chores)
             .where(eq(schema.chores.guidePhotoPath, stored)),
         ]);
-        if (guides.length && !guides.some((guide) => guide.assignedPersonId === actor.person.id)) {
+        if (guides.length && !guides.some((guide) => guide.assignedPersonId === actor.person.id) &&
+            !await ownsChoreInstance(actor.person.id, guides.map((guide) => guide.id))) {
           throw new HttpError(403, "That guide belongs to someone else.");
         }
         if (!meals.length && !guides.length) throw new HttpError(404, "Photo is gone.");
