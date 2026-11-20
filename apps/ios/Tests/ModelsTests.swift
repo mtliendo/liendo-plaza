@@ -297,6 +297,25 @@ final class ModelsTests: XCTestCase {
             now: ISO8601DateFormatter().date(from: "2026-11-21T00:00:00Z")!))
     }
 
+    func testReminderRejectsOvernightSnapshotButUsesChicagoDay() throws {
+        let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data("""
+        {"now":"2026-11-20T12:00:00-06:00","timezone":"America/Chicago",
+         "chores":[{"id":"old","choreId":"c","personId":"kid","date":"2026-11-20",
+         "status":"open","title":"Dishes","stars":2,"starsAwarded":0,"requiresPhoto":false,"steps":[]}],
+         "people":[],"meals":[],"settings":{"choreReminderHour":23,"choreReminderMinute":0}}
+        """.utf8))
+        let kid = Person(id: "kid", slug: "kid", name: "Kid", role: "kid", color: "", avatarKey: nil)
+        XCTAssertEqual(snapshot.chores(for: kid).count, 1)
+        let dates = ISO8601DateFormatter()
+        XCTAssertEqual(ChoreReminders.triggerDate(snapshot: snapshot,
+            now: dates.date(from: "2026-11-21T01:00:00Z")!),
+            dates.date(from: "2026-11-21T05:00:00Z"))
+        XCTAssertNil(ChoreReminders.triggerDate(snapshot: snapshot,
+            now: dates.date(from: "2026-11-21T07:00:00Z")!))
+        XCTAssertNil(ChoreReminders.triggerDate(snapshot: snapshot,
+            now: dates.date(from: "2026-11-20T04:00:00Z")!))
+    }
+
     func testReminderDefaultsAndMalformedMeal() throws {
         let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data("""
         {"now":"2026-06-20T12:00:00-05:00","timezone":"America/Chicago",

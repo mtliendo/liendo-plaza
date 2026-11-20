@@ -9,6 +9,12 @@ enum ChoreReminders {
     static func triggerDate(snapshot: Snapshot, now: Date = Date()) -> Date? {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Chicago")!
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard snapshot.today == formatter.string(from: now) else { return nil }
         let day = calendar.dateComponents([.year, .month, .day], from: now)
         var components = day
         components.timeZone = calendar.timeZone
