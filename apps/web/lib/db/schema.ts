@@ -166,7 +166,7 @@ export const pushTokens = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("push_tokens_person_token").on(table.personId, table.token, table.kind, table.environment),
+    uniqueIndex("push_tokens_person_token").on(table.personId, table.token),
     uniqueIndex("push_tokens_apns_device").on(table.token, table.environment).where(sql`${table.kind} = 'apns'`),
   ],
 );

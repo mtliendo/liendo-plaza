@@ -173,29 +173,71 @@ test("registration is authenticated, validated and backward compatible", async (
   assert.deepEqual(await tokensFor([]), []);
 });
 
-test("native registration transfers ownership atomically and isolates environment and unregister actor", async () => {
+test("main's two-column conflict target survives migration and registrations update metadata", async () => {
+  const pool = getPool();
+  const insert = "INSERT INTO push_tokens (person_id, token) VALUES ($1, $2) ON CONFLICT (person_id, token) DO NOTHING";
+  await pool.query(insert, [kidId, native.token]);
+  await pool.query(insert, [kidId, native.token]);
+  const [legacy] = await tokensFor([kidId]);
+  assert.equal((await tokensFor([kidId])).length, 1);
+  assert.equal(legacy.kind, "expo");
+  assert.equal(legacy.environment, "production");
+  await registerPushToken(kidId, native);
+  const [updated] = await tokensFor([kidId]);
+  assert.equal(updated.id, legacy.id);
+  assert.equal(updated.kind, "apns");
+  assert.equal(updated.environment, "sandbox");
+  await pool.query(insert, [kidId, native.token]);
+  assert.equal((await tokensFor([kidId]))[0].kind, "apns");
+  await registerPushToken(kidId, { ...native, kind: "expo", environment: "production" });
+  assert.equal((await tokensFor([kidId]))[0].kind, "expo");
+});
+
+test("native registration transfers ownership and updates the active environment without cross-actor unregister", async () => {
   assert.equal((await api(native, sessions.parent)).status, 200);
   assert.equal((await api({ ...native, token: native.token.toUpperCase() }, sessions.kid)).status, 200);
   assert.equal((await tokensFor([parentId])).length, 0);
   assert.equal((await tokensFor([kidId])).length, 1);
   await api({ ...native, environment: "production" }, sessions.kid);
   await api(native, sessions.parent, "unregister");
-  assert.equal((await tokensFor([kidId])).length, 2);
-  await api(native, sessions.kid, "unregister");
+  assert.equal((await tokensFor([kidId])).length, 1);
   assert.equal((await tokensFor([kidId]))[0].environment, "production");
+  await api(native, sessions.parent);
+  await api(native, sessions.kid, "unregister");
+  await api({ ...native, environment: "production" }, sessions.parent, "unregister");
+  assert.equal((await tokensFor([parentId]))[0].environment, "sandbox");
+  assert.equal((await tokensFor([kidId]))[0].environment, "production");
+  await api(native, sessions.parent, "unregister");
   await api({ ...native, environment: "production" }, sessions.kid, "unregister");
-  assert.equal((await tokensFor([kidId])).length, 0);
+  assert.equal((await tokensFor([kidId, parentId])).length, 0);
+});
+
+test("concurrent native registrations leave one owner without unique-index failures", async () => {
+  await Promise.all(Array.from({ length: 12 }, (_, index) =>
+    registerPushToken(index % 2 ? kidId : parentId, native)));
+  const rows = await tokensFor([kidId, parentId]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].token, native.token);
+});
+
+test("failed native ownership transfers preserve the previous registration", async () => {
+  await registerPushToken(parentId, native);
+  await assert.rejects(registerPushToken(randomUUID(), native));
+  const rows = await tokensFor([kidId, parentId]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].personId, parentId);
 });
 
 test("APNs Unregistered (410) and BadDeviceToken (400) delete only matching native environment", async () => {
   for (const failure of [{ status: 410, reason: "Unregistered" }, { status: 400, reason: "BadDeviceToken" }]) {
     await registerPushToken(kidId, native);
-    await registerPushToken(kidId, { ...native, environment: "production" });
-    await registerPushToken(kidId, { ...native, kind: "expo" });
+    await registerPushToken(parentId, { ...native, environment: "production" });
+    await registerPushToken(kidId, { token: "ExponentPushToken[retained]", kind: "expo", environment: "production" });
     response = failure;
     await sendPush([{ to: native.token, kind: "apns", environment: "sandbox", title: "Hi", body: "Test" }]);
-    const rows = await tokensFor([kidId]);
+    const rows = await tokensFor([kidId, parentId]);
     assert.equal(rows.filter((row) => row.kind === "apns" && row.environment === "sandbox").length, 0);
+    assert.equal(rows.filter((row) => row.kind === "apns" && row.environment === "production").length, 1);
     assert.equal(rows.length, 2);
     await db.delete(schema.pushTokens);
   }

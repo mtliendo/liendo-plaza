@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { apnsConfig, sendAPNs, type APNsEnvironment } from "./apns";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
@@ -36,20 +36,19 @@ export function parsePushRegistration(input: unknown): PushRegistration {
 
 export async function registerPushToken(personId: string, registration: PushRegistration) {
   const db = getDb();
-  if (registration.kind === "apns") {
-    await db.insert(schema.pushTokens).values({ personId, ...registration }).onConflictDoUpdate({
-      target: [schema.pushTokens.token, schema.pushTokens.environment],
-      targetWhere: sql`${schema.pushTokens.kind} = 'apns'`,
-      set: { personId, createdAt: new Date() },
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${registration.token}, 0))`);
+    if (registration.kind === "apns") {
+      await tx.delete(schema.pushTokens).where(and(
+        eq(schema.pushTokens.token, registration.token), eq(schema.pushTokens.kind, "apns"),
+        eq(schema.pushTokens.environment, registration.environment), ne(schema.pushTokens.personId, personId),
+      ));
+    }
+    await tx.insert(schema.pushTokens).values({ personId, ...registration }).onConflictDoUpdate({
+      target: [schema.pushTokens.personId, schema.pushTokens.token],
+      set: { kind: registration.kind, environment: registration.environment, createdAt: new Date() },
     });
-    return;
-  }
-  await db
-    .insert(schema.pushTokens)
-    .values({ personId, ...registration })
-    .onConflictDoNothing({ target: [
-      schema.pushTokens.personId, schema.pushTokens.token, schema.pushTokens.kind, schema.pushTokens.environment,
-    ] });
+  });
 }
 
 export async function unregisterPushToken(personId: string, registration: PushRegistration) {
