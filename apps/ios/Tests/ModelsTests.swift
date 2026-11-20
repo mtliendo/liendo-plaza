@@ -3,6 +3,57 @@ import Security
 @testable import LiendoPlaza
 
 final class ModelsTests: XCTestCase {
+    func testPairingApprovalURLForms() throws {
+        for value in [
+            "liendoplaza://pair?code=abc-123",
+            "https://liendo-plaza.vercel.app/family/pair?code=abc-123",
+            "https://liendo-plaza-git-cursor-liendo-pla-c65a88-focus-otters-projects.vercel.app/family/pair?code=abc-123"
+        ] {
+            XCTAssertEqual(PairingLink(try XCTUnwrap(URL(string: value))), .approval("ABC-123"))
+        }
+    }
+
+    func testPairingURLRejectsEmptyCodesAndUntrustedHosts() throws {
+        for value in [
+            "liendoplaza://pair", "liendoplaza://pair?code=",
+            "liendoplaza://pair?code=%20",
+            "https://example.com/family/pair?code=ABC123",
+            "http://liendo-plaza.vercel.app/family/pair?code=ABC123",
+            "https://liendo-plaza.vercel.app/other?code=ABC123"
+        ] {
+            XCTAssertNil(PairingLink(try XCTUnwrap(URL(string: value))))
+        }
+    }
+
+    func testPairingInviteURLFormsStillWork() throws {
+        for value in [
+            "liendoplaza://?invite=token",
+            "https://liendo-plaza.vercel.app/family?invite=token",
+            "https://liendo-plaza.vercel.app/join?invite=token"
+        ] {
+            XCTAssertEqual(PairingLink(try XCTUnwrap(URL(string: value))), .invite("token"))
+        }
+    }
+
+    @MainActor
+    func testApprovalLinkRequiresParentAndRoutesCode() async throws {
+        let house = House()
+        let link = try XCTUnwrap(URL(string: "liendoplaza://pair?code=abc123"))
+        house.session = nil
+        await house.open(link)
+        XCTAssertEqual(house.error, "Sign in first.")
+        XCTAssertNil(house.deviceApproval)
+        house.session = "test-session"
+        house.person = Person(id: "kid", slug: "noah", name: "Noah", role: "kid", color: "", avatarKey: nil)
+        await house.open(link)
+        XCTAssertEqual(house.error, "Only a parent can do that.")
+        XCTAssertNil(house.deviceApproval)
+        house.person = Person(id: "parent", slug: "focus", name: "Focus", role: "parent", color: "", avatarKey: nil)
+        await house.open(link)
+        XCTAssertEqual(house.deviceApproval?.code, "ABC123")
+        XCTAssertEqual(house.error, "")
+    }
+
     private func withMigrationState(_ run: () throws -> Void) throws {
         let keys = ["session", "family", "expoMigration"]
         let saved = keys.map { Keychain.read($0) }

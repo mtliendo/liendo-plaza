@@ -1,5 +1,36 @@
 import SwiftUI
 
+enum PairingLink: Equatable {
+    case invite(String)
+    case approval(String)
+
+    init?(_ url: URL) {
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        let custom = url.scheme == "liendoplaza"
+        let web = url.scheme == "https" && [
+            "liendo-plaza.vercel.app",
+            "liendo-plaza-git-cursor-liendo-pla-c65a88-focus-otters-projects.vercel.app"
+        ].contains(url.host ?? "")
+        guard custom || web else { return nil }
+        if (custom && url.host == "pair") || (web && url.path == "/family/pair") {
+            guard let code = parts.queryItems?.first(where: { $0.name == "code" })?.value?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !code.isEmpty else { return nil }
+            self = .approval(code.uppercased())
+        } else if custom || ["/family", "/join"].contains(url.path) {
+            guard let invite = parts.queryItems?.first(where: { $0.name == "invite" })?.value,
+                  !invite.isEmpty else { return nil }
+            self = .invite(invite)
+        } else {
+            return nil
+        }
+    }
+}
+
+struct DeviceApproval: Identifiable {
+    let id = UUID()
+    let code: String
+}
+
 @MainActor
 final class House: ObservableObject {
     let api = APIClient()
@@ -10,6 +41,7 @@ final class House: ObservableObject {
     @Published var loading = false
     @Published var error = ""
     @Published var pairingVersion = UUID()
+    @Published var deviceApproval: DeviceApproval?
 
     init() {
         if ProcessInfo.processInfo.arguments.contains("-uiTestReset") {
@@ -55,6 +87,7 @@ final class House: ObservableObject {
         session = nil
         person = nil
         snapshot = nil
+        deviceApproval = nil
         pairingVersion = UUID()
     }
 
@@ -111,18 +144,31 @@ final class House: ObservableObject {
     }
 
     func open(_ url: URL) async {
-        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              url.scheme == "liendoplaza" ||
-                (url.scheme == "https" && [
-                    "liendo-plaza.vercel.app",
-                    "liendo-plaza-git-cursor-liendo-pla-c65a88-focus-otters-projects.vercel.app"
-                ].contains(url.host ?? "") && ["/family", "/join"].contains(url.path)),
-              let invite = parts.queryItems?.first(where: { $0.name == "invite" })?.value else { return }
+        guard let link = PairingLink(url) else { return }
         do {
-            let response: FamilyResponse = try await api.request("pair/redeem", method: "POST", body: ["invite": invite])
-            try clearSession()
-            try saveFamily(response.familyToken)
-            pairingVersion = UUID()
+            switch link {
+            case .approval(let code):
+                guard let token = session else {
+                    error = "Sign in first."
+                    return
+                }
+                if person == nil {
+                    let me: MeResponse = try await api.request("me", token: token)
+                    guard session == token else { return }
+                    person = me.actor.person
+                }
+                guard person?.isParent == true else {
+                    error = "Only a parent can do that."
+                    return
+                }
+                error = ""
+                deviceApproval = DeviceApproval(code: code)
+            case .invite(let invite):
+                let response: FamilyResponse = try await api.request("pair/redeem", method: "POST", body: ["invite": invite])
+                try clearSession()
+                try saveFamily(response.familyToken)
+                pairingVersion = UUID()
+            }
         } catch { self.error = error.localizedDescription }
     }
 }

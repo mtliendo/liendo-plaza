@@ -2,11 +2,17 @@ import SwiftUI
 
 struct AddDeviceView: View {
     @EnvironmentObject private var house: House
+    private let initialCode: String?
     @State private var code = ""
     @State private var pending: [PendingResponse.Item] = []
     @State private var message = ""
     @State private var error = ""
     @State private var busy = false
+
+    init(code: String? = nil) {
+        initialCode = code
+        _code = State(initialValue: code ?? "")
+    }
 
     var body: some View {
         ScrollView {
@@ -43,6 +49,7 @@ struct AddDeviceView: View {
         }
         .background(Plaza.paper).navigationBarTitleDisplayMode(.inline)
         .task {
+            if let initialCode { await approve(initialCode) }
             while !Task.isCancelled {
                 await refresh()
                 do { try await Task.sleep(for: .seconds(4)) } catch { return }
