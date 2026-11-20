@@ -167,13 +167,14 @@ struct MealEditor: View {
 struct MealPhoto: View {
     @EnvironmentObject private var house: House
     let path: String
+    var accessibilityLabel = "Dinner photo"
     @State private var image: UIImage?
     @State private var failed = false
     var body: some View {
         Group {
             if let image {
                 Image(uiImage: image).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 12))
-                    .accessibilityLabel("Dinner photo")
+                    .accessibilityLabel(accessibilityLabel)
             } else if failed {
                 Text("Photo unavailable").font(.caption).foregroundStyle(Plaza.muted)
             } else { ProgressView() }

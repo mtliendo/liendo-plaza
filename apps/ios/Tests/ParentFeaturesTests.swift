@@ -12,6 +12,11 @@ private final class UnavailableGroceriesStore: GroceriesStore {
 }
 
 final class ParentFeaturesTests: XCTestCase {
+    func testPhotoAccessibilityLabelsMatchContext() {
+        XCTAssertEqual(MealPhoto(path: "meal.jpg").accessibilityLabel, "Dinner photo")
+        XCTAssertEqual(MealPhoto(path: "proof.jpg", accessibilityLabel: "Proof photo").accessibilityLabel, "Proof photo")
+    }
+
     func testChoreRepeatPayloadClearsUnrelatedFieldsForCreateAndEdit() throws {
         for id in ["", "existing"] {
             for repeatType in ["daily", "weekdays", "weekly", "once"] {
