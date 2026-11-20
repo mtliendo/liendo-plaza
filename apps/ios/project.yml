@@ -1,0 +1,52 @@
+name: LiendoPlaza
+options:
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: QEP46P7WF2
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    LP_API_URL: http://localhost:3000
+targets:
+  LiendoPlaza:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.focusotter.liendoplaza
+        INFOPLIST_FILE: Info.plist
+        CODE_SIGN_ENTITLEMENTS: LiendoPlaza.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+  LiendoPlazaTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: LiendoPlaza
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.focusotter.liendoplaza.tests
+  LiendoPlazaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: LiendoPlaza
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.focusotter.liendoplaza.uitests
+schemes:
+  LiendoPlaza:
+    build:
+      targets:
+        LiendoPlaza: all
+    test:
+      targets: [LiendoPlazaTests, LiendoPlazaUITests]
