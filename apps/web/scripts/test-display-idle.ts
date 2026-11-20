@@ -17,12 +17,14 @@ async function main() {
   try {
     const page = await browser.newPage();
     const counts: Record<string, number> = {};
+    const snapshotRanges: string[] = [];
     let paired = true;
     let finishPairing = false;
     let versionFails = false;
     await page.clock.install({ time: new Date("2026-01-15T12:00:00-06:00") });
     await page.route("**/api/**", async (route) => {
       const name = new URL(route.request().url()).pathname;
+      if (name === "/api/snapshot") snapshotRanges.push(new URL(route.request().url()).search);
       counts[name] = (counts[name] ?? 0) + 1;
       let body: unknown = {};
       let status = 200;
@@ -80,15 +82,32 @@ async function main() {
     assert.deepEqual(counts, asleep);
     console.log("PASS quiet board: no API traffic; tap wakes it temporarily then polling stops again");
 
+    const sleepingRange = snapshotRanges.at(-1);
+    await page.clock.setSystemTime(new Date("2026-01-15T23:59:30-06:00"));
+    await page.clock.runFor(61_000);
+    assert.deepEqual(counts, asleep);
+    await page.locator("button.dim .clock").waitFor();
+    console.log("PASS visible midnight rollover keeps the sleeping range and makes no API requests");
+
+    await visibility(page, "hidden");
+    await page.clock.setSystemTime(new Date("2026-01-16T23:59:30-06:00"));
+    await page.clock.runFor(61_000);
+    assert.deepEqual(counts, asleep);
+    await visibility(page, "visible");
+    await page.clock.runFor(16_000);
+    assert.deepEqual(counts, asleep);
+    console.log("PASS hidden midnight rollover and nighttime visibility resume make no API requests");
+
     versionFails = true;
-    await page.clock.setSystemTime(new Date("2026-01-16T06:00:00-06:00"));
+    await page.clock.setSystemTime(new Date("2026-01-17T06:00:00-06:00"));
     await page.clock.runFor(76_000);
     assert.ok(counts["/api/snapshot"] > asleep["/api/snapshot"]);
+    assert.notEqual(snapshotRanges.at(-1), sleepingRange);
     await page.getByTestId("clock").waitFor();
     console.log("PASS morning refresh resumes and failed version requests preserve the board");
 
     paired = false;
-    await page.clock.setSystemTime(new Date("2026-01-16T23:00:00-06:00"));
+    await page.clock.setSystemTime(new Date("2026-01-17T23:00:00-06:00"));
     await page.reload();
     await page.getByTestId("kitchen-pair").waitFor();
     await page.clock.runFor(4000);

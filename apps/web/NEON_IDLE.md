@@ -77,11 +77,14 @@ in active time; they must not be added as separate active hours.
 ## Fix and behavior
 
 - A paired board never creates/polls a pairing claim. Pairing stops after
-  success and pauses when hidden.
+  success and pauses when hidden. Unpaired boards start pairing immediately,
+  including during quiet hours, without needing a tap.
 - Board snapshot and version polling stop from **22:00 through 05:59
   America/Chicago**, matching the existing dim hours (there are no quiet-hour
   settings). Hidden boards pause both loops. Normal daytime cadence stays one
   minute. The clock/dimming use local current time, not the last snapshot time.
+  The snapshot range stays fixed while asleep/hidden so midnight cannot change
+  its query key and trigger a fetch. Waking restores the current date range.
 - Tapping the night overlay wakes polling for the existing five-minute window;
   morning resumes automatically. An initial page load still fetches one
   authenticated snapshot, including at night. Focus/reconnect/manual actions

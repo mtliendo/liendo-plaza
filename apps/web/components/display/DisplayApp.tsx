@@ -62,7 +62,7 @@ export function DisplayApp({ view }: { view: View }) {
   const [tick, setTick] = useState(Date.now());
   const visible = usePageVisible();
   const polling = shouldPollDisplay(tick, visible, awakeUntil);
-  const snapshotQuery = useSnapshot(paired === true && visible, polling ? DISPLAY_REFETCH_MS : false);
+  const snapshotQuery = useSnapshot(paired === true && visible, polling ? DISPLAY_REFETCH_MS : false, !polling);
   const snapshot = snapshotQuery.data ?? null;
   const offline = snapshotQuery.isError;
   const toggle = useChoreToggle();

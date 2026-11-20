@@ -57,6 +57,13 @@ test("presence handles missing values and only expires after fifteen minutes", (
   assert.equal(presenceIsStale(new Date(now.getTime() - PRESENCE_INTERVAL_MS), now), true);
 });
 
+test("quiet hours remain asleep across the Chicago midnight boundary", () => {
+  for (const time of ["2026-01-15T23:59:59-06:00", "2026-01-16T00:00:00-06:00"]) {
+    assert.equal(shouldPollDisplay(Date.parse(time), true), false);
+    assert.equal(shouldPollDisplay(Date.parse(time), false), false);
+  }
+});
+
 test("session presence is throttled without caching authorization or hiding revocation", async () => {
   assert.ok(await personFromSession(token));
   const [first] = await db.select().from(schema.devices).where(eq(schema.devices.id, deviceId));

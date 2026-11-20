@@ -19,7 +19,7 @@ import {
   type Reward,
   type RewardRequest,
 } from "@liendo/shared";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 export function makeQueryClient() {
   return new QueryClient({
@@ -96,8 +96,11 @@ export function useMe() {
   return useQuery({ queryKey: queryKeys.me, queryFn: fetchMe, retry: false });
 }
 
-export function useSnapshot(enabled = true, refetchInterval?: number | false) {
-  const { from, to } = weekWindow();
+export function useSnapshot(enabled = true, refetchInterval?: number | false, freezeRange = false) {
+  const currentRange = weekWindow();
+  const range = useRef(currentRange);
+  if (!freezeRange) range.current = currentRange;
+  const { from, to } = range.current;
   const fixture = currentFixture();
   return useQuery({
     queryKey: queryKeys.snapshot(from, to, fixture),
