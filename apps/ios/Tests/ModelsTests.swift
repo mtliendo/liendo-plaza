@@ -32,7 +32,79 @@ private final class PhotoProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+private final class ToggleProtocol: URLProtocol {
+    static var stars = #"{"stars":[{"personId":"kid","balance":2}]}"#
+    static var starsStatus = 200
+    static var toggleStatus = 200
+    static var paths: [String] = []
+    static func instance(_ status: String) -> String {
+        """
+        {"id":"a","choreId":"c","personId":"kid","date":"2026-11-20","status":"\(status)",
+         "title":"Dishes","stars":2,"starsAwarded":\(status == "done" ? 2 : 0),"requiresPhoto":false,"steps":[]}
+        """
+    }
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let path = request.url!.path
+        Self.paths.append(path)
+        let isStars = path == "/api/stars"
+        let status = isStars ? Self.starsStatus : Self.toggleStatus
+        let instance = Self.instance(path.hasSuffix("/undo") ? "open" : "done")
+        let body = status != 200 ? #"{"error":"Try again."}"# :
+            (isStars ? Self.stars : "{\"instance\":\(instance)}")
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status,
+            httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
 final class ModelsTests: XCTestCase {
+    @MainActor
+    func testToggleRefreshesStarsOnCompleteUndoEmptyAndFailure() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ToggleProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        let house = House(api: APIClient(session: network))
+        house.session = "test-session"
+        house.snapshot = try JSONDecoder().decode(Snapshot.self, from: Data("""
+        {"now":"2026-11-20T12:00:00-06:00","timezone":"America/Chicago",
+         "chores":[\(ToggleProtocol.instance("open"))],"people":[],"meals":[],
+         "stars":[{"personId":"kid","balance":0}]}
+        """.utf8))
+        ToggleProtocol.starsStatus = 200
+        ToggleProtocol.toggleStatus = 200
+        ToggleProtocol.paths = []
+        ToggleProtocol.stars = #"{"stars":[{"personId":"kid","balance":2}]}"#
+        try await house.toggle(XCTUnwrap(house.snapshot?.chores.first))
+        XCTAssertEqual(house.snapshot?.stars?.first?.balance, 2)
+        ToggleProtocol.stars = #"{"stars":[{"personId":"kid","balance":0}]}"#
+        try await house.toggle(XCTUnwrap(house.snapshot?.chores.first))
+        XCTAssertEqual(house.snapshot?.stars?.first?.balance, 0)
+        XCTAssertEqual(ToggleProtocol.paths, ["/api/chores/instances/a/complete", "/api/stars",
+                                             "/api/chores/instances/a/undo", "/api/stars"])
+        ToggleProtocol.starsStatus = 500
+        try await house.toggle(XCTUnwrap(house.snapshot?.chores.first))
+        XCTAssertEqual(house.snapshot?.chores.first?.status, "done")
+        XCTAssertEqual(house.snapshot?.stars?.first?.balance, 0)
+        XCTAssertEqual(house.error, "Try again.")
+        ToggleProtocol.starsStatus = 200
+        ToggleProtocol.stars = #"{"stars":[]}"#
+        try await house.toggle(XCTUnwrap(house.snapshot?.chores.first))
+        XCTAssertEqual(house.snapshot?.stars?.count, 0)
+        ToggleProtocol.toggleStatus = 500
+        ToggleProtocol.paths = []
+        do {
+            try await house.toggle(XCTUnwrap(house.snapshot?.chores.first))
+            XCTFail("A failed toggle must throw without fetching stars")
+        } catch { XCTAssertEqual(error.localizedDescription, "Try again.") }
+        XCTAssertEqual(ToggleProtocol.paths, ["/api/chores/instances/a/complete"])
+        XCTAssertEqual(house.snapshot?.chores.first?.status, "open")
+    }
+
     @MainActor
     func testPhotoUploadReplacesInstanceAndPropagatesErrors() async throws {
         let configuration = URLSessionConfiguration.ephemeral

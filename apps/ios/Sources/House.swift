@@ -140,13 +140,24 @@ final class House: ObservableObject {
     }
 
     func toggle(_ chore: ChoreInstance) async throws {
+        let token = session
         let action = chore.status == "done" ? "undo" : "complete"
         let response: InstanceResponse = try await api.request(
-            "chores/instances/\(chore.id)/\(action)", method: "POST", token: session)
+            "chores/instances/\(chore.id)/\(action)", method: "POST", token: token)
+        guard session == token else { return }
         if let index = snapshot?.chores.firstIndex(where: { $0.id == chore.id }) {
             snapshot?.chores[index] = response.instance
         }
         await updateReminder()
+        do {
+            struct StarsResponse: Decodable { let stars: [StarSummary] }
+            let result: StarsResponse = try await api.request("stars", token: token)
+            guard session == token else { return }
+            snapshot?.stars = result.stars
+        } catch {
+            guard session == token else { return }
+            self.error = error.localizedDescription
+        }
     }
 
     func uploadPhoto(_ data: Data, for id: String) async throws {

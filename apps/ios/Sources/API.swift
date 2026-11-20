@@ -37,7 +37,7 @@ struct Snapshot: Codable {
     var chores: [ChoreInstance]
     let meals: [Meal]
     let people: [Person]
-    let stars: [StarSummary]?
+    var stars: [StarSummary]?
     let settings: FamilySettings?
     var today: String { String(now.prefix(10)) }
     func chores(for person: Person) -> [ChoreInstance] {
