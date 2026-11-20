@@ -4,7 +4,7 @@ struct TodayView: View {
     @EnvironmentObject private var house: House
     var body: some View {
         NavigationStack {
-            ScrollView {
+            List {
                 VStack(alignment: .leading, spacing: 24) {
                     if let person = house.person {
                         HStack(spacing: 12) {
@@ -47,8 +47,16 @@ struct TodayView: View {
                     if !house.error.isEmpty {
                         Button("Try again") { Task { await house.load() } }
                     }
-                }.padding(24)
+                }
+                .padding(24)
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .accessibilityIdentifier("today.list")
             .background(Plaza.paper).refreshable {
                 await house.load(includingPendingProofs: false)
                 await house.loadPendingProofs()
