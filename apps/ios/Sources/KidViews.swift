@@ -4,6 +4,7 @@ struct ChoreRow: View {
     @EnvironmentObject private var house: House
     let chore: ChoreInstance
     let canToggle: Bool
+    var showDate = false
     @State private var busy = false
     @State private var error = ""
     var body: some View {
@@ -31,6 +32,7 @@ struct ChoreRow: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(chore.title).font(Plaza.title(23))
+                        if showDate { Text(chore.date).font(.caption).foregroundStyle(Plaza.muted) }
                         HStack {
                             Chip(text: chore.statusLabel).accessibilityIdentifier("status.\(chore.title)")
                             Chip(text: "★ \(chore.stars)")

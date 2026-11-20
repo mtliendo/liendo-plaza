@@ -30,6 +30,16 @@ struct Meal: Codable, Identifiable {
     var id: String { date }
 }
 struct MealsResponse: Decodable { let meals: [Meal] }
+struct PendingInstancesResponse: Decodable { let instances: [ChoreInstance] }
+enum PendingProofs {
+    static func merge(history: [ChoreInstance], today: [ChoreInstance]) -> [ChoreInstance] {
+        var byID: [String: ChoreInstance] = [:]
+        for instance in today + history { byID[instance.id] = instance }
+        return byID.values.filter { $0.status == "pending" }.sorted {
+            $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date
+        }
+    }
+}
 struct StarSummary: Codable { let personId: String; let balance: Int }
 struct FamilySettings: Codable { let choreReminderHour: Int; let choreReminderMinute: Int? }
 struct Snapshot: Codable {

@@ -23,10 +23,10 @@ struct TodayView: View {
                             Text("No chores for today.").foregroundStyle(Plaza.muted)
                         }
                         if person.isParent {
-                            let pending = chores.filter { $0.status == "pending" }
+                            let pending = house.pendingProofs
                             if !pending.isEmpty {
                                 Text("Needs a look").font(Plaza.title(25))
-                                ForEach(pending) { ChoreRow(chore: $0, canToggle: false) }
+                                ForEach(pending) { ChoreRow(chore: $0, canToggle: false, showDate: $0.date != snapshot.today) }
                             }
                             ForEach(snapshot.people) { kid in
                                 let own = chores.filter { $0.personId == kid.id }
@@ -67,6 +67,7 @@ struct TodayView: View {
 
 struct ChoreDetailView: View {
     @EnvironmentObject private var house: House
+    @Environment(\.dismiss) private var dismiss
     let id: String
     @State private var busy = false
     @State private var error = ""
@@ -74,7 +75,7 @@ struct ChoreDetailView: View {
 
     var body: some View {
         ScrollView {
-            if let chore = house.snapshot?.chores.first(where: { $0.id == id }) {
+            if let chore = house.chore(id: id) {
                 VStack(alignment: .leading, spacing: 24) {
                     if let owner = house.snapshot?.people.first(where: { $0.id == chore.personId }) {
                         HStack { Avatar(person: owner); Text(owner.name) }
@@ -140,7 +141,10 @@ struct ChoreDetailView: View {
                 busy = true
                 error = ""
                 defer { busy = false }
-                do { try await house.review(id, action: action) }
+                do {
+                    try await house.review(id, action: action)
+                    dismiss()
+                }
                 catch { self.error = error.localizedDescription }
             }
         }.buttonStyle(PrimaryButton()).disabled(busy).accessibilityIdentifier("chore.review.\(action)")

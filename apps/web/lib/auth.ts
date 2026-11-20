@@ -153,7 +153,7 @@ export async function loginWithPin(
   return { token, person: asPerson(person) };
 }
 
-export async function personFromSession(token: string): Promise<Person | null> {
+export async function personFromSession(token: string, touchDevice = true): Promise<Person | null> {
   const db = getDb();
   const [row] = await db
     .select({
@@ -174,7 +174,9 @@ export async function personFromSession(token: string): Promise<Person | null> {
       .where(and(eq(schema.devices.id, row.deviceId), isNull(schema.devices.revokedAt)))
       .limit(1);
     if (!device) return null;
-    await db.update(schema.devices).set({ lastSeenAt: new Date() }).where(eq(schema.devices.id, device.id));
+    if (touchDevice) {
+      await db.update(schema.devices).set({ lastSeenAt: new Date() }).where(eq(schema.devices.id, device.id));
+    }
   }
   return asPerson(row.person);
 }
@@ -237,7 +239,11 @@ function cookieFromRequest(req: Request, name: string): string | null {
   return null;
 }
 
-export async function requireActor(req: Request, allow: Actor["kind"][] = ["person", "display"]): Promise<Actor> {
+export async function requireActor(
+  req: Request,
+  allow: Actor["kind"][] = ["person", "display"],
+  options: { touchDevice?: boolean } = {},
+): Promise<Actor> {
   if (allow.includes("cron")) {
     const cron = process.env.CRON_SECRET;
     const header = req.headers.get("authorization");
@@ -246,7 +252,7 @@ export async function requireActor(req: Request, allow: Actor["kind"][] = ["pers
 
   const token = bearer(req) ?? cookieFromRequest(req, SESSION_COOKIE);
   if (token && allow.includes("person")) {
-    const person = await personFromSession(token);
+    const person = await personFromSession(token, options.touchDevice !== false);
     if (person) return { kind: "person", person };
   }
 

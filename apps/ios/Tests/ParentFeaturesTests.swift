@@ -1,6 +1,28 @@
 import XCTest
 @testable import LiendoPlaza
 
+private final class PendingProofsProtocol: URLProtocol {
+    static var paths: [String] = []
+    static var failure = false
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let path = request.url!.path
+        Self.paths.append(path)
+        let body = Self.failure ? #"{"error":"Could not load proofs."}"# :
+            (path.hasSuffix("/review") ? """
+            {"instance":{"id":"old","choreId":"c","personId":"kid","date":"2026-11-19",
+             "status":"done","title":"Dishes","stars":2,"starsAwarded":2,"requiresPhoto":true,"steps":[]}}
+            """ : #"{"instances":[]}"#)
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!,
+            statusCode: Self.failure ? 500 : 200, httpVersion: nil, headerFields: nil)!,
+            cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
 @MainActor
 private final class UnavailableGroceriesStore: GroceriesStore {
     var allowed = false
@@ -12,6 +34,63 @@ private final class UnavailableGroceriesStore: GroceriesStore {
 }
 
 final class ParentFeaturesTests: XCTestCase {
+    private func instance(_ id: String, date: String, status: String = "pending") -> ChoreInstance {
+        ChoreInstance(id: id, choreId: "c", personId: "kid", date: date, status: status,
+            title: "Dishes", stars: 2, starsAwarded: 0, requiresPhoto: true,
+            description: nil, photoPath: "local:proof.jpg", steps: [])
+    }
+
+    func testPendingProofsMergeDeduplicatesAndSortsOldestFirst() {
+        let old = instance("old", date: "2026-11-19")
+        let today = instance("today", date: "2026-11-20")
+        let merged = PendingProofs.merge(history: [today, old], today: [today])
+        XCTAssertEqual(merged.map(\.id), ["old", "today"])
+        XCTAssertEqual(PendingProofs.merge(history: [], today: [today]).map(\.id), ["today"])
+        XCTAssertEqual(PendingProofs.merge(history: [old], today: []).map(\.id), ["old"])
+        XCTAssertTrue(PendingProofs.merge(history: [], today: []).isEmpty)
+    }
+
+    func testPendingProofsExcludeReviewedItemsAndPreferFreshHistory() {
+        let stale = instance("same", date: "2026-11-20")
+        for status in ["done", "open", "rejected"] {
+            let fresh = instance("same", date: "2026-11-20", status: status)
+            XCTAssertTrue(PendingProofs.merge(history: [fresh], today: [stale]).isEmpty)
+        }
+        let a = instance("a", date: "2026-11-20")
+        let b = instance("b", date: "2026-11-20")
+        XCTAssertEqual(PendingProofs.merge(history: [b, a], today: []).map(\.id), ["a", "b"])
+    }
+
+    @MainActor
+    func testPendingProofLoadEmptyFailureReviewRefreshAndKidGating() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PendingProofsProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        let house = House(api: APIClient(session: network))
+        house.session = "test-session"
+        house.person = Person(id: "parent", slug: "focus", name: "Parent", role: "parent", color: "", avatarKey: nil)
+        let old = instance("old", date: "2026-11-19")
+        house.pendingInstances = [old]
+        XCTAssertEqual(house.chore(id: old.id)?.id, old.id)
+        PendingProofsProtocol.failure = true
+        PendingProofsProtocol.paths = []
+        await house.loadPendingProofs()
+        XCTAssertEqual(house.pendingProofs.map(\.id), ["old"])
+        XCTAssertEqual(house.error, "Could not load proofs.")
+        PendingProofsProtocol.failure = false
+        try await house.review(old.id, action: "approve")
+        XCTAssertTrue(house.pendingProofs.isEmpty)
+        XCTAssertEqual(PendingProofsProtocol.paths, ["/api/chores/instances/pending",
+            "/api/chores/instances/old/review", "/api/chores/instances/pending"])
+        house.pendingInstances = [old]
+        PendingProofsProtocol.paths = []
+        house.person = Person(id: "kid", slug: "noah", name: "Kid", role: "kid", color: "", avatarKey: nil)
+        await house.loadPendingProofs()
+        XCTAssertTrue(PendingProofsProtocol.paths.isEmpty)
+        XCTAssertTrue(house.pendingInstances.isEmpty)
+    }
+
     func testPhotoAccessibilityLabelsMatchContext() {
         XCTAssertEqual(MealPhoto(path: "meal.jpg").accessibilityLabel, "Dinner photo")
         XCTAssertEqual(MealPhoto(path: "proof.jpg", accessibilityLabel: "Proof photo").accessibilityLabel, "Proof photo")

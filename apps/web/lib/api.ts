@@ -33,6 +33,7 @@ import {
   deactivateChore,
   getChore,
   listChores,
+  listPendingInstances,
   markPhotoPending,
   reviewInstance,
   undoInstance,
@@ -307,6 +308,12 @@ export async function handleApi(req: Request): Promise<Response> {
     const current = await getChore(guidePhoto[1]);
     await deleteStoredPhoto(current.guidePhotoPath);
     return json({ chore: await updateChore(guidePhoto[1], { guidePhotoPath: null }) });
+  }
+
+  if (path === "chores/instances/pending" && method === "GET") {
+    const actor = await requireActor(req, ["person"], { touchDevice: false });
+    requireParent(actor);
+    return json({ instances: await listPendingInstances() });
   }
 
   const completeMatch = path.match(/^chores\/instances\/([^/]+)\/complete$/);
