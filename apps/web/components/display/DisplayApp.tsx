@@ -10,7 +10,7 @@ import { PairCard } from "@/components/pair/PairCard";
 import { useClaim } from "@/components/pair/useClaim";
 import { useKitchenReload } from "@/lib/display-refresh";
 import { shouldPollDisplay, usePageVisible } from "@/lib/display-activity";
-import { useChoreToggle, useMe, usePrefetchHouse, useSnapshot, useSoftView } from "@/lib/query";
+import { useChoreToggle, useMe, useSnapshot, useSoftView } from "@/lib/query";
 import { useQueryClient } from "@tanstack/react-query";
 
 type View = "home" | "week" | "chores" | "meals";
@@ -66,7 +66,6 @@ export function DisplayApp({ view }: { view: View }) {
   const snapshot = snapshotQuery.data ?? null;
   const offline = snapshotQuery.isError;
   const toggle = useChoreToggle();
-  const prefetch = usePrefetchHouse();
   const queryClient = useQueryClient();
   const claim = useClaim("display", paired === false && visible);
   const [openChoreId, setOpenChoreId] = useState<string | null>(null);
@@ -80,10 +79,6 @@ export function DisplayApp({ view }: { view: View }) {
     if (!claim.paired) return;
     void queryClient.invalidateQueries({ queryKey: queryKeys.me });
   }, [claim.paired, queryClient]);
-
-  useEffect(() => {
-    if (paired) prefetch();
-  }, [paired, prefetch]);
 
   const today = snapshot ? eventDay(snapshot.now) : new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const week = weekDates(today);
@@ -149,16 +144,16 @@ export function DisplayApp({ view }: { view: View }) {
   const dinnerPhoto = mealPhotoSrc(tonight?.photoPath);
   const nav = (
     <nav className="kitchen-nav" aria-label="Board">
-      <SoftLink href="/display" current={boardView === "home"} onGo={() => go("home")} onPrefetch={prefetch}>
+      <SoftLink href="/display" current={boardView === "home"} onGo={() => go("home")}>
         Today
       </SoftLink>
-      <SoftLink href="/display/week" current={boardView === "week"} onGo={() => go("week")} onPrefetch={prefetch}>
+      <SoftLink href="/display/week" current={boardView === "week"} onGo={() => go("week")}>
         Week
       </SoftLink>
-      <SoftLink href="/display/chores" current={boardView === "chores"} onGo={() => go("chores")} onPrefetch={prefetch}>
+      <SoftLink href="/display/chores" current={boardView === "chores"} onGo={() => go("chores")}>
         Chores
       </SoftLink>
-      <SoftLink href="/display/meals" current={boardView === "meals"} onGo={() => go("meals")} onPrefetch={prefetch}>
+      <SoftLink href="/display/meals" current={boardView === "meals"} onGo={() => go("meals")}>
         Dinners
       </SoftLink>
     </nav>
@@ -238,7 +233,6 @@ export function DisplayApp({ view }: { view: View }) {
                           href="/display/chores"
                           className="events-more tap"
                           onGo={() => go("chores")}
-                          onPrefetch={prefetch}
                         >
                           +{choreMore} more
                         </SoftLink>

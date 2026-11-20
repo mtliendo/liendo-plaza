@@ -39,7 +39,10 @@ async function main() {
       }
       if (name === "/api/chores") body = { chores: [] };
       if (name === "/api/rewards") body = { rewards: [] };
-      if (name === "/api/rewards/requests") body = { requests: [] };
+      if (name === "/api/rewards/requests") {
+        body = { error: "Sign in first." };
+        status = 401;
+      }
       if (name === "/api/pair/claim") body = {
         id: "idle-claim", displayCode: "ABC-DEF", qrDataUrl: "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
         pollSecret: "test-poll-secret", expiresAt: "2026-01-16T00:00:00Z",
@@ -52,6 +55,17 @@ async function main() {
     await page.clock.runFor(121_000);
     assert.equal(counts["/api/pair/claim"] ?? 0, 0);
     assert.equal(counts["/api/pair/poll"] ?? 0, 0);
+    const week = page.getByRole("navigation", { name: "Board" }).getByRole("link", { name: "Week", exact: true });
+    await week.hover();
+    await week.focus();
+    await week.dispatchEvent("touchstart");
+    await week.click();
+    await page.getByRole("navigation", { name: "Board" }).getByRole("link", { name: "Today", exact: true }).click();
+    await page.clock.runFor(1000);
+    for (const path of ["/api/chores", "/api/rewards", "/api/rewards/requests"]) {
+      assert.equal(counts[path] ?? 0, 0);
+    }
+    console.log("PASS display load and navigation hover/focus/touch do not prefetch unused house lists or retry reward requests");
     assert.ok(counts["/api/snapshot"] >= 2);
     assert.ok(counts["/api/version"] >= 2);
     console.log("PASS paired daytime board: minute refresh preserved; zero pairing requests");

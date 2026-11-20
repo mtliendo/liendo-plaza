@@ -4,9 +4,11 @@ import { after, before, test } from "node:test";
 import { eq } from "drizzle-orm";
 import { Settings } from "luxon";
 import { GET as reminders } from "../app/api/cron/reminders/route";
+import { handleApi } from "../lib/api";
 import { displayFromToken, pairDisplay, personFromSession } from "../lib/auth";
 import { getDb, getPool, schema } from "../lib/db";
 import { shouldPollDisplay } from "../lib/display-activity";
+import { errorResponse } from "../lib/http";
 import { presenceIsStale, PRESENCE_INTERVAL_MS } from "../lib/presence";
 
 const database = new URL(process.env.DATABASE_URL ?? "");
@@ -124,4 +126,23 @@ test("the pg pool closes idle connections instead of keeping a backend connected
   await getPool().query("select 1");
   await new Promise((resolve) => setTimeout(resolve, 1200));
   assert.equal(getPool().totalCount, 0);
+});
+
+test("display-only reward request rejection does not look up authentication in Postgres", async () => {
+  const display = await pairDisplay("Reward prefetch test");
+  const pool = getPool();
+  const query = pool.query;
+  let queries = 0;
+  pool.query = (() => {
+    queries += 1;
+    throw new Error("Display-only rejection must not query Postgres");
+  }) as typeof query;
+  try {
+    const response = await handleApi(new Request("http://idle.test/api/rewards/requests", {
+      headers: { cookie: `lp_display=${display}` },
+    })).catch(errorResponse);
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: "Sign in first." });
+    assert.equal(queries, 0);
+  } finally { pool.query = query; }
 });
