@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
+import { eq } from "drizzle-orm";
 import { addDays, mealPhotoSrc, type DisplaySnapshot } from "@liendo/shared";
 import { handleApi } from "../lib/api";
 import { getDb, getPool, schema } from "../lib/db";
@@ -15,7 +16,7 @@ assert.match(database.pathname, /^\/liendo_photo_access_test_\d+$/,
 assert.ok(["localhost", "127.0.0.1"].includes(database.hostname));
 
 const db = getDb();
-const tokens = { parent: randomUUID(), kid: randomUUID(), other: randomUUID(), display: randomUUID() };
+const tokens = { parent: randomUUID(), kid: randomUUID(), other: randomUUID(), empty: randomUUID(), display: randomUUID() };
 const yesterday = addDays(todayIso(), -1);
 const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
 const photos = createServer((_req, response) => {
@@ -26,6 +27,10 @@ let ownPhoto: string;
 let otherPhoto: string;
 let mealPhoto: string;
 let guidePhoto: string;
+let otherGuidePhoto: string;
+let ownChoreId: string;
+let otherChoreId: string;
+let openChoreId: string;
 let ownId: string;
 let otherId: string;
 let openId: string;
@@ -55,14 +60,16 @@ before(async () => {
   };
   await new Promise<void>((resolve) => photos.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(photos.address() as AddressInfo).port}`;
-  [ownPhoto, otherPhoto, mealPhoto, guidePhoto] = ["own", "other", "meal", "guide"].map((path) => `${base}/${path}.jpg`);
+  [ownPhoto, otherPhoto, mealPhoto, guidePhoto, otherGuidePhoto] =
+    ["own", "other", "meal", "guide", "other-guide"].map((path) => `${base}/${path}.jpg`);
   const people = await db.insert(schema.people).values([
     { slug: "photo-parent", name: "Parent", role: "parent", color: "#123456" },
     { slug: "photo-kid", name: "Kid", role: "kid", color: "#123456" },
     { slug: "photo-other", name: "Other kid", role: "kid", color: "#123456" },
+    { slug: "photo-empty", name: "No chores", role: "kid", color: "#123456" },
   ]).returning();
   kidId = people[1].id;
-  for (const [index, actor] of (["parent", "kid", "other"] as const).entries()) {
+  for (const [index, actor] of (["parent", "kid", "other", "empty"] as const).entries()) {
     await db.insert(schema.sessions).values({
       personId: people[index].id,
       tokenHash: createHash("sha256").update(tokens[actor]).digest("hex"),
@@ -72,10 +79,12 @@ before(async () => {
   await db.insert(schema.displayPairings).values({
     tokenHash: createHash("sha256").update(tokens.display).digest("hex"),
   });
-  const chores = await db.insert(schema.chores).values([people[1], people[2]].map((person) => ({
+  const chores = await db.insert(schema.chores).values([people[1], people[2]].map((person, index) => ({
     title: "Proof for " + person.name, assignedPersonId: person.id, stars: 2,
-    requiresPhoto: true, repeatType: "once", onceDate: yesterday, guidePhotoPath: guidePhoto,
+    requiresPhoto: true, repeatType: "once", onceDate: yesterday,
+    guidePhotoPath: index === 0 ? guidePhoto : otherGuidePhoto,
   }))).returning();
+  [ownChoreId, otherChoreId] = chores.map((chore) => chore.id);
   const instances = await db.insert(schema.choreInstances).values(chores.map((chore, index) => ({
     choreId: chore.id, personId: chore.assignedPersonId, date: yesterday,
     status: "pending", photoPath: index === 0 ? ownPhoto : otherPhoto,
@@ -85,6 +94,7 @@ before(async () => {
     title: "Own open chore", assignedPersonId: kidId, stars: 1,
     requiresPhoto: false, repeatType: "once", onceDate: yesterday,
   }).returning();
+  openChoreId = openChore.id;
   const [openInstance] = await db.insert(schema.choreInstances).values({
     choreId: openChore.id, personId: kidId, date: yesterday, status: "open",
   }).returning();
@@ -155,4 +165,59 @@ test("meal and guide photos stay accessible; public seed images keep their publi
     }
   }
   assert.equal(mealPhotoSrc("/meals/tacos.jpg"), "/meals/tacos.jpg");
+});
+
+test("kid chore lists contain only assigned definitions, including an empty list", async () => {
+  for (const [actor, ids] of [
+    ["kid", [ownChoreId, openChoreId]], ["other", [otherChoreId]], ["empty", []],
+  ] as const) {
+    const response = await request("chores", actor);
+    assert.equal(response.status, 200);
+    const { chores } = await response.json();
+    assert.deepEqual(new Set(chores.map((chore: { id: string }) => chore.id)), new Set(ids));
+  }
+});
+
+test("kid chore detail allows own definition, denies others, and preserves missing 404", async () => {
+  const own = await request(`chores/${ownChoreId}`, "kid");
+  assert.equal(own.status, 200);
+  assert.equal((await own.json()).chore.id, ownChoreId);
+  assert.equal((await request(`chores/${otherChoreId}`, "kid")).status, 403);
+  assert.equal((await request(`chores/${ownChoreId}`, "other")).status, 403);
+  assert.equal((await request(`chores/${randomUUID()}`, "kid")).status, 404);
+});
+
+test("parent and display retain every chore definition and detail", async () => {
+  const ids = [ownChoreId, otherChoreId, openChoreId];
+  for (const actor of ["parent", "display"] as const) {
+    const response = await request("chores", actor);
+    assert.equal(response.status, 200);
+    const { chores } = await response.json();
+    assert.deepEqual(new Set(chores.map((chore: { id: string }) => chore.id)), new Set(ids));
+    for (const id of ids) {
+      const detail = await request(`chores/${id}`, actor);
+      assert.equal(detail.status, 200);
+      assert.equal((await detail.json()).chore.id, id);
+    }
+  }
+});
+
+test("guide downloads enforce assignment without changing parent or display access", async () => {
+  assert.equal((await request("photos/" + encodeURIComponent(guidePhoto), "kid")).status, 200);
+  assert.equal((await request("photos/" + encodeURIComponent(otherGuidePhoto), "kid")).status, 403);
+  assert.equal((await request("photos/" + encodeURIComponent(guidePhoto), "other")).status, 403);
+  for (const actor of ["parent", "display"] as const) {
+    for (const path of [guidePhoto, otherGuidePhoto]) {
+      assert.equal((await request("photos/" + encodeURIComponent(path), actor)).status, 200);
+    }
+  }
+});
+
+test("a guide shared by own and other chores remains usable for the own chore", async () => {
+  await db.update(schema.chores).set({ guidePhotoPath: guidePhoto }).where(eq(schema.chores.id, otherChoreId));
+  try {
+    assert.equal((await request("photos/" + encodeURIComponent(guidePhoto), "kid")).status, 200);
+  } finally {
+    await db.update(schema.chores).set({ guidePhotoPath: otherGuidePhoto }).where(eq(schema.chores.id, otherChoreId));
+  }
 });

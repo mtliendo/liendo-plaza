@@ -260,8 +260,10 @@ export async function handleApi(req: Request): Promise<Response> {
   }
 
   if (path === "chores" && method === "GET") {
-    await requireActor(req, ["person", "display"]);
-    return json({ chores: await listChores() });
+    const actor = await requireActor(req, ["person", "display"]);
+    const chores = await listChores();
+    return json({ chores: actor.kind === "person" && actor.person.role === "kid"
+      ? chores.filter((chore) => chore.assignedPersonId === actor.person.id) : chores });
   }
 
   if (path === "chores" && method === "POST") {
@@ -283,8 +285,12 @@ export async function handleApi(req: Request): Promise<Response> {
 
   const choreMatch = path.match(/^chores\/([^/]+)$/);
   if (choreMatch && method === "GET") {
-    await requireActor(req, ["person", "display"]);
-    return json({ chore: await getChore(choreMatch[1]) });
+    const actor = await requireActor(req, ["person", "display"]);
+    const chore = await getChore(choreMatch[1]);
+    if (actor.kind === "person" && actor.person.role === "kid" && chore.assignedPersonId !== actor.person.id) {
+      throw new HttpError(403, "That chore belongs to someone else.");
+    }
+    return json({ chore });
   }
   if (choreMatch && (method === "PATCH" || method === "DELETE")) {
     const actor = await requireActor(req, ["person"]);
@@ -575,8 +581,12 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!proofs.length) {
         const [meals, guides] = await Promise.all([
           db.select({ id: schema.meals.id }).from(schema.meals).where(eq(schema.meals.photoPath, stored)).limit(1),
-          db.select({ id: schema.chores.id }).from(schema.chores).where(eq(schema.chores.guidePhotoPath, stored)).limit(1),
+          db.select({ assignedPersonId: schema.chores.assignedPersonId }).from(schema.chores)
+            .where(eq(schema.chores.guidePhotoPath, stored)),
         ]);
+        if (guides.length && !guides.some((guide) => guide.assignedPersonId === actor.person.id)) {
+          throw new HttpError(403, "That guide belongs to someone else.");
+        }
         if (!meals.length && !guides.length) throw new HttpError(404, "Photo is gone.");
       }
     }
