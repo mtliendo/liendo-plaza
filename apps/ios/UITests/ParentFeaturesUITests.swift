@@ -39,6 +39,18 @@ final class ParentFeaturesUITests: XCTestCase {
     }
 
     @MainActor
+    func testKidChoreGuidePhotoAppears() throws {
+        try XCTSkipUnless(environment["LP_GUIDE_KID_TOKEN"] != nil, "Requires scripts/guide-fixture.ts")
+        let token = try XCTUnwrap(environment["LP_GUIDE_KID_TOKEN"], "Requires a seeded chore with a guide photo")
+        let app = launch(token: token)
+        let chore = app.buttons["chore.Guide fixture chore"]
+        XCTAssertTrue(chore.waitForExistence(timeout: 30))
+        chore.tap()
+        XCTAssertTrue(app.images["Guide photo"].waitForExistence(timeout: 30))
+        capture(app, "Kid-chore-guide-photo")
+    }
+
+    @MainActor
     func testTodayPullRefreshReachesServer() async throws {
         try XCTSkipUnless(environment["LP_REFRESH_PROBE"] == "1", "Requires scripts/refresh-fixture.ts")
         let app = launch(token: try parentToken)

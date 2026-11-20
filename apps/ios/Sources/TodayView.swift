@@ -95,6 +95,9 @@ struct ChoreDetailView: View {
                     Text("\(chore.statusLabel) · \(chore.stars) \(chore.stars == 1 ? "star" : "stars")")
                         .foregroundStyle(Plaza.muted).accessibilityIdentifier("chore.status")
                     if let description = chore.description, !description.isEmpty { Text(description) }
+                    if let path = chore.guidePhotoPath {
+                        MealPhoto(path: path, accessibilityLabel: "Guide photo")
+                    }
                     ForEach(Array(chore.steps.enumerated()), id: \.offset) { index, step in
                         HStack(alignment: .top, spacing: 14) {
                             Text("\(index + 1).").foregroundStyle(Plaza.muted)

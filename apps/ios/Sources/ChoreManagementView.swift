@@ -13,10 +13,11 @@ struct ChoreDefinition: Codable, Identifiable {
     var description: String?
     var steps: [String]
     var active: Bool
+    var guidePhotoPath: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, title, assignedPersonId, stars, requiresPhoto, repeatType
-        case weekdays, weeklyWeekday, onceDate, description, steps, active
+        case weekdays, weeklyWeekday, onceDate, description, steps, active, guidePhotoPath
     }
 
     func encode(to encoder: Encoder) throws {
@@ -128,6 +129,11 @@ struct ChoreEditor: View {
                     }.accessibilityIdentifier("manage.person")
                     Stepper("Stars: \(chore.stars)", value: $chore.stars, in: 1...50)
                     Toggle("Needs a photo", isOn: $chore.requiresPhoto)
+                }
+                if let path = chore.guidePhotoPath {
+                    Section("Guide photo") {
+                        MealPhoto(path: path, accessibilityLabel: "Guide photo")
+                    }
                 }
                 Section("Repeat") {
                     Picker("Repeat", selection: $chore.repeatType) {
