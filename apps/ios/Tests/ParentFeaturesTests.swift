@@ -12,6 +12,27 @@ private final class UnavailableGroceriesStore: GroceriesStore {
 }
 
 final class ParentFeaturesTests: XCTestCase {
+    func testChoreRepeatPayloadClearsUnrelatedFieldsForCreateAndEdit() throws {
+        for id in ["", "existing"] {
+            for repeatType in ["daily", "weekdays", "weekly", "once"] {
+                let chore = ChoreDefinition(id: id, title: "Plants", assignedPersonId: "kid",
+                    stars: 2, requiresPhoto: false, repeatType: repeatType, weekdays: [1, 3, 5],
+                    weeklyWeekday: 6, onceDate: "2026-11-22", description: nil, steps: [], active: true)
+                let data = try JSONEncoder().encode(chore)
+                let values = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+                if repeatType == "weekdays" {
+                    XCTAssertEqual(values["weekdays"] as? [Int], [1, 3, 5])
+                } else { XCTAssertTrue(values["weekdays"] is NSNull) }
+                if repeatType == "weekly" {
+                    XCTAssertEqual(values["weeklyWeekday"] as? Int, 6)
+                } else { XCTAssertTrue(values["weeklyWeekday"] is NSNull) }
+                if repeatType == "once" {
+                    XCTAssertEqual(values["onceDate"] as? String, "2026-11-22")
+                } else { XCTAssertTrue(values["onceDate"] is NSNull) }
+            }
+        }
+    }
+
     func testPhotoURLsPreservePublicAndStoredPaths() {
         let api = APIClient()
         XCTAssertEqual(api.photoURL("/meals/tacos.jpg").path, "/meals/tacos.jpg")

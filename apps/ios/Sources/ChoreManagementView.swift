@@ -13,6 +13,27 @@ struct ChoreDefinition: Codable, Identifiable {
     var description: String?
     var steps: [String]
     var active: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, assignedPersonId, stars, requiresPhoto, repeatType
+        case weekdays, weeklyWeekday, onceDate, description, steps, active
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(id, forKey: .id)
+        try values.encode(title, forKey: .title)
+        try values.encode(assignedPersonId, forKey: .assignedPersonId)
+        try values.encode(stars, forKey: .stars)
+        try values.encode(requiresPhoto, forKey: .requiresPhoto)
+        try values.encode(repeatType, forKey: .repeatType)
+        try values.encode(repeatType == "weekdays" ? weekdays : nil, forKey: .weekdays)
+        try values.encode(repeatType == "weekly" ? weeklyWeekday : nil, forKey: .weeklyWeekday)
+        try values.encode(repeatType == "once" ? onceDate : nil, forKey: .onceDate)
+        try values.encodeIfPresent(description, forKey: .description)
+        try values.encode(steps, forKey: .steps)
+        try values.encode(active, forKey: .active)
+    }
 }
 
 struct ChoreListResponse: Decodable { let chores: [ChoreDefinition] }
