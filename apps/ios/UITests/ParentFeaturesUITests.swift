@@ -115,6 +115,47 @@ final class ParentFeaturesUITests: XCTestCase {
     }
 
     @MainActor
+    func testParentTodayOpensOnlyTappedMiddleChore() async throws {
+        try XCTSkipUnless(environment["LP_NAVIGATION_KID_TOKEN"] != nil, "Requires scripts/refresh-fixture.ts with kid session")
+        try await verifyMiddleChoreNavigation(token: parentToken, role: "Parent")
+    }
+
+    @MainActor
+    func testKidChoresOpensOnlyTappedMiddleChore() async throws {
+        try XCTSkipUnless(environment["LP_NAVIGATION_KID_TOKEN"] != nil, "Requires scripts/refresh-fixture.ts with kid session")
+        let token = try XCTUnwrap(environment["LP_NAVIGATION_KID_TOKEN"], "Requires scripts/refresh-fixture.ts with kid session")
+        try await verifyMiddleChoreNavigation(token: token, role: "Kid")
+    }
+
+    @MainActor
+    private func verifyMiddleChoreNavigation(token: String, role: String) async throws {
+        let snapshot = try await api("snapshot", token: token)
+        let today = String(try XCTUnwrap(snapshot["now"] as? String).prefix(10))
+        let chores = try XCTUnwrap(snapshot["chores"] as? [[String: Any]]).filter { $0["date"] as? String == today }
+        let ids = chores.compactMap { $0["id"] as? String }
+        XCTAssertEqual(chores.count, 3)
+        XCTAssertEqual(Set(ids).count, 3, "The fixture must have distinct instance IDs")
+        XCTAssertEqual(Set(chores.compactMap { $0["personId"] as? String }).count, 1)
+        let expectedTitle = try XCTUnwrap(chores.dropFirst().first?["title"] as? String)
+        let app = launch(token: token)
+        let list = app.descendants(matching: .any).matching(identifier: "today.list").firstMatch
+        XCTAssertTrue(list.waitForExistence(timeout: 30))
+        for title in ["Refresh fixture chore", "Navigation middle chore", "Navigation last chore"] {
+            XCTAssertTrue(app.buttons["chore.\(title)"].waitForExistence(timeout: 30))
+        }
+        app.buttons["chore.\(expectedTitle)"].tap()
+        let title = app.staticTexts["chore.detail.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 30))
+        capture(app, "\(role)-middle-chore-detail")
+        XCTAssertEqual(title.label, expectedTitle)
+        app.navigationBars["Chore"].buttons.firstMatch.tap()
+        XCTAssertTrue(list.waitForExistence(timeout: 30), "One Back must return directly to the list")
+        XCTAssertFalse(app.navigationBars["Chore"].exists)
+        XCTAssertFalse(title.exists)
+        capture(app, "\(role)-middle-chore-back-once")
+    }
+
+    @MainActor
     func testTodayPullRefreshReachesServer() async throws {
         try XCTSkipUnless(environment["LP_REFRESH_PROBE"] == "1", "Requires scripts/refresh-fixture.ts")
         let app = launch(token: try parentToken)

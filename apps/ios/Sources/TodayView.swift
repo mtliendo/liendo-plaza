@@ -5,34 +5,45 @@ struct TodayView: View {
     var body: some View {
         NavigationStack {
             List {
-                VStack(alignment: .leading, spacing: 24) {
-                    if let person = house.person {
-                        HStack(spacing: 12) {
-                            Avatar(person: person)
-                            Text(person.name).foregroundStyle(Plaza.muted)
+                Group {
+                    VStack(alignment: .leading, spacing: 24) {
+                        if let person = house.person {
+                            HStack(spacing: 12) {
+                                Avatar(person: person)
+                                Text(person.name).foregroundStyle(Plaza.muted)
+                            }
                         }
-                    }
-                    Text(house.person?.isParent == true ? "Today" : "Chores").font(Plaza.title(36)).accessibilityIdentifier("today")
-                    if let snapshot = house.snapshot, let person = house.person {
-                        let chores = snapshot.chores(for: person)
-                        if !person.isParent {
+                        Text(house.person?.isParent == true ? "Today" : "Chores").font(Plaza.title(36)).accessibilityIdentifier("today")
+                        if let snapshot = house.snapshot, let person = house.person, !person.isParent {
                             Text("★ \(snapshot.stars?.first(where: { $0.personId == person.id })?.balance ?? 0) stars")
                                 .font(Plaza.title(25)).accessibilityIdentifier("stars.balance")
                         }
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 16)
+                    if let snapshot = house.snapshot, let person = house.person {
+                        let chores = snapshot.chores(for: person)
                         if chores.isEmpty {
                             Text("No chores for today.").foregroundStyle(Plaza.muted)
                         }
                         if person.isParent {
                             let pending = house.pendingProofs
                             if !pending.isEmpty {
-                                Text("Needs a look").font(Plaza.title(25))
-                                ForEach(pending) { ChoreRow(chore: $0, canToggle: false, showDate: $0.date != snapshot.today) }
+                                Section {
+                                    ForEach(pending) { chore in
+                                        ChoreRow(chore: chore, canToggle: false, showDate: chore.date != snapshot.today)
+                                            .id("pending.\(chore.id)")
+                                    }
+                                } header: { Text("Needs a look").font(Plaza.title(25)) }
                             }
                             ForEach(snapshot.people) { kid in
                                 let own = chores.filter { $0.personId == kid.id }
                                 if !own.isEmpty {
-                                    HStack { Avatar(person: kid); Text(kid.name).font(Plaza.title(25)) }
-                                    ForEach(own) { ChoreRow(chore: $0, canToggle: false) }
+                                    Section {
+                                        ForEach(own) { chore in
+                                            ChoreRow(chore: chore, canToggle: false).id("today.\(chore.id)")
+                                        }
+                                    } header: {
+                                        HStack { Avatar(person: kid); Text(kid.name).font(Plaza.title(25)) }
+                                    }
                                 }
                             }
                         } else {
@@ -48,13 +59,13 @@ struct TodayView: View {
                         Button("Try again") { Task { await house.load() } }
                     }
                 }
-                .padding(24)
                 .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
+            .textCase(nil)
             .scrollContentBackground(.hidden)
             .accessibilityIdentifier("today.list")
             .background(Plaza.paper).refreshable {
@@ -72,6 +83,9 @@ struct TodayView: View {
                 }
             }
             .task { await house.load() }
+            .navigationDestination(for: ChoreDestination.self) { destination in
+                ChoreDetailView(id: destination.id)
+            }
         }
     }
 }
@@ -91,7 +105,7 @@ struct ChoreDetailView: View {
                     if let owner = house.snapshot?.people.first(where: { $0.id == chore.personId }) {
                         HStack { Avatar(person: owner); Text(owner.name) }
                     }
-                    Text(chore.title).font(Plaza.title(32))
+                    Text(chore.title).font(Plaza.title(32)).accessibilityIdentifier("chore.detail.title")
                     Text("\(chore.statusLabel) · \(chore.stars) \(chore.stars == 1 ? "star" : "stars")")
                         .foregroundStyle(Plaza.muted).accessibilityIdentifier("chore.status")
                     if let description = chore.description, !description.isEmpty { Text(description) }

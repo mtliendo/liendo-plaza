@@ -1,5 +1,9 @@
 import SwiftUI
 
+struct ChoreDestination: Hashable {
+    let id: String
+}
+
 struct ChoreRow: View {
     @EnvironmentObject private var house: House
     let chore: ChoreInstance
@@ -27,9 +31,7 @@ struct ChoreRow: View {
                     .accessibilityLabel(chore.status == "done" ? "Undo \(chore.title)" : "Complete \(chore.title)")
                     .accessibilityIdentifier("chore.toggle.\(chore.title)")
                 }
-                NavigationLink {
-                    ChoreDetailView(id: chore.id)
-                } label: {
+                NavigationLink(value: ChoreDestination(id: chore.id)) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(chore.title).font(Plaza.title(23))
                         if showDate { Text(chore.date).font(.caption).foregroundStyle(Plaza.muted) }
