@@ -89,6 +89,33 @@ struct APIClient {
 }
 
 enum Keychain {
+    static func migrateExpoTokens() throws {
+        guard read("expoMigration") == nil else { return }
+        for key in ["session", "family"] where read(key) == nil {
+            let encodedKey = Data("lp.\(key)".utf8)
+            for service in ["app:no-auth", "app"] {
+                let query: [String: Any] = [
+                    kSecClass as String: kSecClassGenericPassword,
+                    kSecAttrService as String: service,
+                    kSecAttrAccount as String: encodedKey,
+                    kSecAttrGeneric as String: encodedKey,
+                    kSecReturnData as String: true,
+                    kSecMatchLimit as String: kSecMatchLimitOne
+                ]
+                var result: CFTypeRef?
+                let status = SecItemCopyMatching(query as CFDictionary, &result)
+                if status == errSecItemNotFound { continue }
+                guard status == errSecSuccess, let data = result as? Data,
+                      let token = String(data: data, encoding: .utf8) else {
+                    throw APIError(status: 0, message: "Could not migrate secure storage (\(status)).")
+                }
+                try write(token, key: key)
+                break
+            }
+        }
+        try write("1", key: "expoMigration")
+    }
+
     private static func query(_ key: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: "com.focusotter.liendoplaza",

@@ -1,7 +1,110 @@
 import XCTest
+import Security
 @testable import LiendoPlaza
 
 final class ModelsTests: XCTestCase {
+    private func withMigrationState(_ run: () throws -> Void) throws {
+        let keys = ["session", "family", "expoMigration"]
+        let saved = keys.map { Keychain.read($0) }
+        var savedExpo: [(query: [String: Any], data: Data)] = []
+        for service in ["app:no-auth", "app"] {
+            for key in ["lp.session", "lp.family"] {
+                let query: [String: Any] = [
+                    kSecClass as String: kSecClassGenericPassword,
+                    kSecAttrService as String: service,
+                    kSecAttrAccount as String: Data(key.utf8),
+                    kSecAttrGeneric as String: Data(key.utf8)
+                ]
+                var search = query
+                search[kSecReturnData as String] = true
+                var result: CFTypeRef?
+                let status = SecItemCopyMatching(search as CFDictionary, &result)
+                XCTAssertTrue(status == errSecSuccess || status == errSecItemNotFound)
+                if let data = result as? Data { savedExpo.append((query, data)) }
+                SecItemDelete(query as CFDictionary)
+            }
+        }
+        defer {
+            for service in ["app:no-auth", "app"] {
+                for key in ["lp.session", "lp.family"] {
+                    SecItemDelete([
+                        kSecClass as String: kSecClassGenericPassword,
+                        kSecAttrService as String: service,
+                        kSecAttrAccount as String: Data(key.utf8)
+                    ] as CFDictionary)
+                }
+            }
+            for entry in savedExpo {
+                var item = entry.query
+                item[kSecValueData as String] = entry.data
+                XCTAssertEqual(SecItemAdd(item as CFDictionary, nil), errSecSuccess)
+            }
+            for (key, value) in zip(keys, saved) { try? Keychain.write(value, key: key) }
+        }
+        for key in keys { try Keychain.write(nil, key: key) }
+        try run()
+    }
+
+    private func writeExpo(_ key: String, data: Data, service: String = "app:no-auth") {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: Data("lp.\(key)".utf8),
+            kSecAttrGeneric as String: Data("lp.\(key)".utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+            kSecValueData as String: data
+        ]
+        XCTAssertEqual(SecItemAdd(query as CFDictionary, nil), errSecSuccess)
+    }
+
+    func testMigratesExpoTokensOnceAndLeavesOriginals() throws {
+        try withMigrationState {
+            writeExpo("session", data: Data("expo-session-✓".utf8))
+            writeExpo("family", data: Data("expo-family".utf8))
+            try Keychain.migrateExpoTokens()
+            XCTAssertEqual(Keychain.read("session"), "expo-session-✓")
+            XCTAssertEqual(Keychain.read("family"), "expo-family")
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "app:no-auth",
+                kSecAttrAccount as String: Data("lp.session".utf8),
+                kSecAttrGeneric as String: Data("lp.session".utf8)
+            ]
+            XCTAssertEqual(SecItemCopyMatching(query as CFDictionary, nil), errSecSuccess)
+            try Keychain.write(nil, key: "session")
+            try Keychain.migrateExpoTokens()
+            XCTAssertNil(Keychain.read("session"))
+        }
+    }
+
+    func testExpoMigrationPreservesNativeAndReadsLegacyService() throws {
+        try withMigrationState {
+            try Keychain.write("native", key: "session")
+            writeExpo("session", data: Data("old".utf8))
+            writeExpo("family", data: Data("legacy-family".utf8), service: "app")
+            try Keychain.migrateExpoTokens()
+            XCTAssertEqual(Keychain.read("session"), "native")
+            XCTAssertEqual(Keychain.read("family"), "legacy-family")
+        }
+    }
+
+    func testExpoMigrationWithNoItems() throws {
+        try withMigrationState {
+            try Keychain.migrateExpoTokens()
+            XCTAssertNil(Keychain.read("session"))
+            XCTAssertNil(Keychain.read("family"))
+            XCTAssertEqual(Keychain.read("expoMigration"), "1")
+        }
+    }
+
+    func testExpoMigrationInvalidEncodingDoesNotMarkComplete() throws {
+        try withMigrationState {
+            writeExpo("session", data: Data([0xFF]))
+            XCTAssertThrowsError(try Keychain.migrateExpoTokens())
+            XCTAssertNil(Keychain.read("expoMigration"))
+        }
+    }
+
     func testSnapshotIgnoresUnneededFieldsAndFiltersByServerDay() throws {
         let data = Data("""
         {"now":"2026-11-20T00:01:00-06:00","timezone":"America/Chicago","weather":null,

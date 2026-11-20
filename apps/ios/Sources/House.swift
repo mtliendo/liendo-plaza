@@ -29,6 +29,12 @@ final class House: ObservableObject {
                 }
 #endif
             } catch { self.error = error.localizedDescription }
+        } else {
+            do {
+                try Keychain.migrateExpoTokens()
+                session = Keychain.read("session")
+                family = Keychain.read("family")
+            } catch { self.error = error.localizedDescription }
         }
     }
 
