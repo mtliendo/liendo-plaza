@@ -21,9 +21,7 @@ enum ChoreReminders {
         let center = UNUserNotificationCenter.current()
         remove()
         let settings = await center.notificationSettings()
-        if settings.authorizationStatus == .notDetermined {
-            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
-        }
+        guard [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else { return }
         let count = snapshot.chores(for: person).filter { ["open", "rejected"].contains($0.status) }.count
         guard count > 0, let date = triggerDate(snapshot: snapshot) else { return }
         let content = UNMutableNotificationContent()

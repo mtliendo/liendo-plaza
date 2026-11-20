@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct LiendoPlazaApp: App {
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var house = House()
     var body: some Scene {
         WindowGroup {
@@ -25,9 +27,27 @@ struct LiendoPlazaApp: App {
                 .foregroundStyle(Plaza.ink).tint(Plaza.accent)
             }
             .onOpenURL { url in Task { await house.open(url) } }
+            .task(id: house.person?.id) { await registerPush() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await registerPush() } }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: PushNotifications.tokenReceived)) { notification in
+                if let data = notification.object as? Data {
+                    Task { await house.registerPushToken(data) }
+                }
+            }
             .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                 if let url = activity.webpageURL { Task { await house.open(url) } }
             }
         }
+    }
+
+    @MainActor
+    private func registerPush() async {
+        guard house.session != nil, house.person != nil,
+              ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
+              !ProcessInfo.processInfo.arguments.contains("-uiTestReset") else { return }
+        await PushNotifications.register()
+        await house.updateReminder()
     }
 }

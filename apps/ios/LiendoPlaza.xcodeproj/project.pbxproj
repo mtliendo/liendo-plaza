@@ -27,10 +27,12 @@
 		A72ADF74A2328646F47E36D1 /* DinnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35753847D70857687FAE3F6A /* DinnerView.swift */; };
 		A7FEA706116D4A4F805BFB2A /* ParentFeaturesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A81B59DE00CE303DA6AE1E1 /* ParentFeaturesTests.swift */; };
 		BB5C201D493B2B2465F3112E /* House.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D8C5480C64C9150932E4BE /* House.swift */; };
+		C53438871BB3B1D79BDDE545 /* PushNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBEC2D32BE3FA2D7E335996 /* PushNotifications.swift */; };
 		CC5A37D821DA4E37362A3024 /* ParentFeaturesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D166E01CCC7228DF7C45B5A1 /* ParentFeaturesUITests.swift */; };
 		D2EDD2B3CFA4E078AE0F01E8 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9AC7F66BFB45BF512FC59DF /* TodayView.swift */; };
 		D391DF8A910139C97B5D02A2 /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBA42910DEBEAC591399712 /* ModelsTests.swift */; };
 		E2AE39592710240E7B7D3036 /* Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = D561F15C2FC5965A46A678C6 /* Camera.swift */; };
+		E9598B0E45F9FE0F0172967E /* PushTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F2198A06DD46FE1474EFE7A /* PushTests.swift */; };
 		EB86FF8446E4B7FE29E1A027 /* ParentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B5EE6B9B7D7B9B31918314B /* ParentViews.swift */; };
 		F286B9A7C101028E4E5A5B62 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBE04C78A7650B0DD69B499 /* Theme.swift */; };
 /* End PBXBuildFile section */
@@ -58,6 +60,7 @@
 		07B216ACF5CAB8A77FCE4CA2 /* xavier.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = xavier.png; sourceTree = "<group>"; };
 		0952F677CCE1300C4350D948 /* ChoreReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoreReminders.swift; sourceTree = "<group>"; };
 		0FBE04C78A7650B0DD69B499 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		1F2198A06DD46FE1474EFE7A /* PushTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushTests.swift; sourceTree = "<group>"; };
 		28AA27811722A1365E492C64 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		29F59B4595A5AAD16E220A3D /* Fraunces.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Fraunces.ttf; sourceTree = "<group>"; };
 		301583A5106F7EAB86ECD948 /* LiendoPlazaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LiendoPlazaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -73,6 +76,7 @@
 		977A137FFB3AB411683E83BE /* LiendoPlaza.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LiendoPlaza.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		99B1FE208660E574E612A307 /* Figtree.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Figtree.ttf; sourceTree = "<group>"; };
 		A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PilotUITests.swift; sourceTree = "<group>"; };
+		ACBEC2D32BE3FA2D7E335996 /* PushNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotifications.swift; sourceTree = "<group>"; };
 		C0BF14D69D539DE0F0A803D7 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		CB9CB601AE01BB2CAD878B5B /* Fraunces-Italic.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-Italic.ttf"; sourceTree = "<group>"; };
 		D166E01CCC7228DF7C45B5A1 /* ParentFeaturesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentFeaturesUITests.swift; sourceTree = "<group>"; };
@@ -144,6 +148,7 @@
 				E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */,
 				DF2CC52EBFDD50263275ED86 /* PairingView.swift */,
 				6B5EE6B9B7D7B9B31918314B /* ParentViews.swift */,
+				ACBEC2D32BE3FA2D7E335996 /* PushNotifications.swift */,
 				0FBE04C78A7650B0DD69B499 /* Theme.swift */,
 				F9AC7F66BFB45BF512FC59DF /* TodayView.swift */,
 				194F821C5EFBF34AE2A2819F /* Resources */,
@@ -156,6 +161,7 @@
 			children = (
 				3DBA42910DEBEAC591399712 /* ModelsTests.swift */,
 				8A81B59DE00CE303DA6AE1E1 /* ParentFeaturesTests.swift */,
+				1F2198A06DD46FE1474EFE7A /* PushTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -233,6 +239,11 @@
 					519B4A70786C9928ADC7D6A3 = {
 						DevelopmentTeam = QEP46P7WF2;
 						ProvisioningStyle = Automatic;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 					CB88892C08928DBD0AC72D29 = {
 						DevelopmentTeam = QEP46P7WF2;
@@ -286,6 +297,7 @@
 			files = (
 				D391DF8A910139C97B5D02A2 /* ModelsTests.swift in Sources */,
 				A7FEA706116D4A4F805BFB2A /* ParentFeaturesTests.swift in Sources */,
+				E9598B0E45F9FE0F0172967E /* PushTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,6 +318,7 @@
 				434D8F5BB50AE6B1AE7C4F8F /* LiendoPlazaApp.swift in Sources */,
 				764D8A96A0C7E068CA14CAC6 /* PairingView.swift in Sources */,
 				EB86FF8446E4B7FE29E1A027 /* ParentViews.swift in Sources */,
+				C53438871BB3B1D79BDDE545 /* PushNotifications.swift in Sources */,
 				F286B9A7C101028E4E5A5B62 /* Theme.swift in Sources */,
 				D2EDD2B3CFA4E078AE0F01E8 /* TodayView.swift in Sources */,
 			);
@@ -339,6 +352,7 @@
 		1542036467A5DB6A71675583 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APNS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = LiendoPlaza.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -488,6 +502,7 @@
 		5C46BEA6BCD094D7B19E6CC2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APNS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = LiendoPlaza.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -160,7 +161,12 @@ export const pushTokens = pgTable(
       .notNull()
       .references(() => people.id, { onDelete: "cascade" }),
     token: text("token").notNull(),
+    kind: text("kind").$type<"expo" | "apns">().notNull().default("expo"),
+    environment: text("environment").$type<"sandbox" | "production">().notNull().default("production"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("push_tokens_person_token").on(table.personId, table.token)],
+  (table) => [
+    uniqueIndex("push_tokens_person_token").on(table.personId, table.token, table.kind, table.environment),
+    uniqueIndex("push_tokens_apns_device").on(table.token, table.environment).where(sql`${table.kind} = 'apns'`),
+  ],
 );

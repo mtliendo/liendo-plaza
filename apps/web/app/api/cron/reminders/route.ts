@@ -42,6 +42,7 @@ export async function GET(req: Request) {
       kid.id,
       "Chores still open",
       count === 1 ? "One chore is still waiting." : `${count} chores are still waiting.`,
+      "expo",
     );
     sent += 1;
   }

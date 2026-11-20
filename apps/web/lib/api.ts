@@ -42,7 +42,7 @@ import {
 import { getDb, schema } from "./db";
 import { deleteStoredPhoto, readPhoto, readUpload, replaceStoredPhoto, storePhoto } from "./blob";
 import { HttpError, errorResponse, json, readJson } from "./http";
-import { notifyParents, notifyPerson, registerPushToken } from "./push";
+import { notifyParents, notifyPerson, parsePushRegistration, registerPushToken, unregisterPushToken } from "./push";
 import { clientIp, rateLimit } from "./rate-limit";
 import { getDisplayRefreshRequestedAt, getSettings, requestDisplayRefresh, updateSettings } from "./settings";
 import { buildSnapshot } from "./snapshot";
@@ -582,12 +582,12 @@ async function dispatchApi(req: Request): Promise<Response> {
     return json({ settings: await updateSettings(body) });
   }
 
-  if (path === "push/register" && method === "POST") {
+  if ((path === "push/register" || path === "push/unregister") && method === "POST") {
     const actor = await requireActor(req, ["person"]);
     const person = requirePerson(actor);
-    const body = await readJson<{ token?: string }>(req);
-    if (!body.token) throw new HttpError(400, "Missing push token.");
-    await registerPushToken(person.id, body.token);
+    const body = parsePushRegistration(await readJson(req));
+    if (path === "push/register") await registerPushToken(person.id, body);
+    else await unregisterPushToken(person.id, body);
     return json({ ok: true });
   }
 
