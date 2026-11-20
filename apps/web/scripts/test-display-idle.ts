@@ -66,8 +66,11 @@ async function main() {
     await page.clock.setSystemTime(new Date("2026-01-15T22:01:00-06:00"));
     await page.clock.runFor(16_000);
     const quiet = { ...counts };
+    const dimmedTime = await page.locator("button.dim .clock").innerText();
     await page.clock.runFor(601_000);
     assert.deepEqual(counts, quiet);
+    assert.notEqual(await page.locator("button.dim .clock").innerText(), dimmedTime);
+    console.log("PASS dimmed clock advances locally without API traffic");
     await page.locator("button.dim").click();
     await page.clock.runFor(61_000);
     assert.ok(counts["/api/snapshot"] > quiet["/api/snapshot"]);

@@ -377,7 +377,7 @@ export function DisplayApp({ view }: { view: View }) {
       {offline ? <p className="banner">The board will catch up when the network does.</p> : null}
       {dim ? (
         <button type="button" className="dim" onClick={() => setAwakeUntil(Date.now() + 5 * 60 * 1000)}>
-          <span className="clock">{clockLabel(snapshot.now)}</span>
+          <span className="clock">{clockLabel(new Date(tick).toISOString())}</span>
         </button>
       ) : null}
       {openChore ? (
