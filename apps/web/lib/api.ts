@@ -234,10 +234,15 @@ export async function handleApi(req: Request): Promise<Response> {
   }
 
   if (path === "snapshot" && method === "GET") {
-    await requireActor(req, ["person", "display"]);
+    const actor = await requireActor(req, ["person", "display"]);
     const from = url.searchParams.get("from") ?? undefined;
     const to = url.searchParams.get("to") ?? undefined;
     const snapshot = await buildSnapshot(from, to);
+    if (actor.kind === "person" && actor.person.role === "kid") {
+      snapshot.chores = snapshot.chores.map((instance) =>
+        instance.personId === actor.person.id ? instance : { ...instance, photoPath: null },
+      );
+    }
     const fixture = parseEventFixture(url.searchParams.get("fixture"));
     if (fixture && fixturesAllowed()) {
       snapshot.events = buildEventFixture(fixture, snapshot.now, snapshot.people);
@@ -560,8 +565,23 @@ export async function handleApi(req: Request): Promise<Response> {
 
   const photoGet = path.match(/^photos\/(.+)$/);
   if (photoGet && method === "GET") {
-    await requireActor(req, ["person", "display"]);
+    const actor = await requireActor(req, ["person", "display"]);
     const stored = decodeURIComponent(photoGet[1]);
+    if (actor.kind === "person" && actor.person.role === "kid") {
+      const db = getDb();
+      const proofs = await db.select({ personId: schema.choreInstances.personId })
+        .from(schema.choreInstances).where(eq(schema.choreInstances.photoPath, stored));
+      if (proofs.some((proof) => proof.personId !== actor.person.id)) {
+        throw new HttpError(403, "That proof belongs to someone else.");
+      }
+      if (!proofs.length) {
+        const [meals, guides] = await Promise.all([
+          db.select({ id: schema.meals.id }).from(schema.meals).where(eq(schema.meals.photoPath, stored)).limit(1),
+          db.select({ id: schema.chores.id }).from(schema.chores).where(eq(schema.chores.guidePhotoPath, stored)).limit(1),
+        ]);
+        if (!meals.length && !guides.length) throw new HttpError(404, "Photo is gone.");
+      }
+    }
     const file = await readPhoto(stored);
     return new Response(file.body as unknown as BodyInit, {
       headers: {
