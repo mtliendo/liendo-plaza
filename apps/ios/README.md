@@ -45,8 +45,13 @@ pairing-launch smoke test. Backend must be running for UI tests:
 ```sh
 xcodebuild -project apps/ios/LiendoPlaza.xcodeproj -scheme LiendoPlaza \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
-  test CODE_SIGNING_ALLOWED=NO
+  test CODE_SIGN_IDENTITY="-"
 ```
+
+A fully unsigned build (`CODE_SIGNING_ALLOWED=NO`) compiles, but Keychain
+requires the simulator's ad-hoc signature at runtime. Simulator builds default
+to `CODE_SIGN_IDENTITY="-"`; no Apple signing identity or provisioning profile
+is needed. Do not disable signing for simulator runs/tests.
 
 A follow-up step will add the full UI test orchestration script. Accessibility
 IDs include `person.noah`, `pin`, `open`, `pairing.code`, `chore.<title>`,

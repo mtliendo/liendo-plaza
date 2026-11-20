@@ -57,6 +57,7 @@ struct APIError: LocalizedError {
 }
 
 struct APIClient {
+    private struct Message: Decodable { let error: String }
     let baseURL: URL
     init() {
         let value = ProcessInfo.processInfo.environment["LP_API_URL"]
@@ -79,7 +80,6 @@ struct APIClient {
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
-            struct Message: Decodable { let error: String }
             let message = (try? JSONDecoder().decode(Message.self, from: data).error)
                 ?? "The house could not answer. Please try again."
             throw APIError(status: status, message: message)
