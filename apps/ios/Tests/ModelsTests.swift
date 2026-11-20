@@ -2,7 +2,42 @@ import XCTest
 import Security
 @testable import LiendoPlaza
 
+private final class RevokedSessionProtocol: URLProtocol {
+    static var paths: [String] = []
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.paths.append(request.url!.path)
+        let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"error":"Sign in first."}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
 final class ModelsTests: XCTestCase {
+    @MainActor
+    func testSignOutClearsRevokedParentDespiteProvisionAndLogoutFailure() async throws {
+        let saved = Keychain.read("session")
+        defer { try? Keychain.write(saved, key: "session") }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RevokedSessionProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        let house = House(api: APIClient(session: network))
+        house.person = Person(id: "parent", slug: "focus", name: "Focus", role: "parent", color: "", avatarKey: nil)
+        house.session = "revoked-session"
+        house.family = nil
+        try Keychain.write("revoked-session", key: "session")
+        RevokedSessionProtocol.paths = []
+        await house.signOut()
+        XCTAssertEqual(RevokedSessionProtocol.paths, ["/api/pair/invite", "/api/auth/logout"])
+        XCTAssertNil(house.session)
+        XCTAssertNil(house.person)
+        XCTAssertNil(Keychain.read("session"))
+    }
+
     func testPairingApprovalURLForms() throws {
         for value in [
             "liendoplaza://pair?code=abc-123",

@@ -59,7 +59,9 @@ struct APIError: LocalizedError {
 struct APIClient {
     private struct Message: Decodable { let error: String }
     let baseURL: URL
-    init() {
+    let session: URLSession
+    init(session: URLSession = .shared) {
+        self.session = session
         let value = ProcessInfo.processInfo.environment["LP_API_URL"]
             ?? Bundle.main.object(forInfoDictionaryKey: "LPAPIURL") as? String
             ?? "http://localhost:3000"
@@ -77,7 +79,7 @@ struct APIClient {
         }
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization") }
         if let family { request.setValue(family, forHTTPHeaderField: "x-family-token") }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             let message = (try? JSONDecoder().decode(Message.self, from: data).error)

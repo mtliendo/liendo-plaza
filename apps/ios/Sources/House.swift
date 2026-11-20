@@ -33,7 +33,7 @@ struct DeviceApproval: Identifiable {
 
 @MainActor
 final class House: ObservableObject {
-    let api = APIClient()
+    let api: APIClient
     @Published var session = Keychain.read("session")
     @Published var family = Keychain.read("family")
     @Published var person: Person?
@@ -43,7 +43,8 @@ final class House: ObservableObject {
     @Published var pairingVersion = UUID()
     @Published var deviceApproval: DeviceApproval?
 
-    init() {
+    init(api: APIClient = APIClient()) {
+        self.api = api
         if ProcessInfo.processInfo.arguments.contains("-uiTestReset") {
             do {
                 try Keychain.write(nil, key: "session")
@@ -113,11 +114,11 @@ final class House: ObservableObject {
     }
 
     func signOut() async {
+        if person?.isParent == true && family == nil {
+            try? await provisionFamily()
+        }
+        let _: OKResponse? = try? await api.request("auth/logout", method: "POST", token: session)
         do {
-            if person?.isParent == true && family == nil {
-                try await provisionFamily()
-            }
-            let _: OKResponse = try await api.request("auth/logout", method: "POST", token: session)
             try clearSession()
         } catch { self.error = error.localizedDescription }
     }
