@@ -16,6 +16,10 @@ export function getPool(): Pool {
   pool = new Pool({
     connectionString: url,
     max: process.env.VERCEL ? 3 : 8,
+    idleTimeoutMillis: 1_000,
+    connectionTimeoutMillis: 10_000,
+    allowExitOnIdle: true,
+    maxLifetimeSeconds: 60,
   });
   return pool;
 }
