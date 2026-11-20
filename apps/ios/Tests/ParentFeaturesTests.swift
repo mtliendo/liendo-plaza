@@ -194,6 +194,21 @@ final class ParentFeaturesTests: XCTestCase {
     func testPhotoAccessibilityLabelsMatchContext() {
         XCTAssertEqual(MealPhoto(path: "meal.jpg").accessibilityLabel, "Dinner photo")
         XCTAssertEqual(MealPhoto(path: "proof.jpg", accessibilityLabel: "Proof photo").accessibilityLabel, "Proof photo")
+        XCTAssertEqual(MealPhoto(path: "guide.jpg", accessibilityLabel: "Guide photo").accessibilityLabel, "Guide photo")
+    }
+
+    func testChoreGuideDecodingSupportsPresentMissingAndNullPaths() throws {
+        let base = try JSONSerialization.jsonObject(with: JSONEncoder().encode(instance("guide", date: "2026-11-20"))) as! [String: Any]
+        for path in ["local:guide.jpg", NSNull()] as [Any] {
+            var json = base
+            json["guidePhotoPath"] = path
+            let chore = try JSONDecoder().decode(ChoreInstance.self, from: JSONSerialization.data(withJSONObject: json))
+            XCTAssertEqual(chore.guidePhotoPath, path as? String)
+        }
+        XCTAssertNil(try JSONDecoder().decode(ChoreInstance.self, from: JSONSerialization.data(withJSONObject: base)).guidePhotoPath)
+        var invalid = base
+        invalid["guidePhotoPath"] = 42
+        XCTAssertThrowsError(try JSONDecoder().decode(ChoreInstance.self, from: JSONSerialization.data(withJSONObject: invalid)))
     }
 
     func testChoreRepeatPayloadClearsUnrelatedFieldsForCreateAndEdit() throws {
@@ -270,10 +285,11 @@ final class ParentFeaturesTests: XCTestCase {
         let data = Data("""
         {"chores":[{"id":"c","title":"Water plants","assignedPersonId":"kid","stars":3,
          "requiresPhoto":true,"repeatType":"weekdays","weekdays":[1,3,5],"weeklyWeekday":null,
-         "onceDate":null,"description":"Use a cup","steps":["Fill cup","Water"],"active":true}]}
+         "onceDate":null,"description":"Use a cup","steps":["Fill cup","Water"],"active":true,"guidePhotoPath":"local:guide.jpg"}]}
         """.utf8)
         let response = try JSONDecoder().decode(ChoreListResponse.self, from: data)
         let chore = try XCTUnwrap(response.chores.first)
+        XCTAssertEqual(chore.guidePhotoPath, "local:guide.jpg")
         let encoded = try JSONDecoder().decode(ChoreDefinition.self, from: JSONEncoder().encode(chore))
         XCTAssertEqual(encoded.weekdays, [1, 3, 5])
         XCTAssertEqual(encoded.steps, ["Fill cup", "Water"])

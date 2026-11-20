@@ -14,6 +14,7 @@ struct ChoreInstance: Codable, Identifiable {
     let description: String?
     let photoPath: String?
     let steps: [String]
+    var guidePhotoPath: String? = nil
     var statusLabel: String {
         switch status {
         case "done": return "Done"

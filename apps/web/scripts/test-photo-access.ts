@@ -4,10 +4,12 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { eq } from "drizzle-orm";
+import sharp from "sharp";
 import { addDays, mealPhotoSrc, type DisplaySnapshot } from "@liendo/shared";
 import { handleApi } from "../lib/api";
 import { getDb, getPool, schema } from "../lib/db";
 import { errorResponse } from "../lib/http";
+import { deleteStoredPhoto } from "../lib/blob";
 import { todayIso } from "../lib/time";
 
 const database = new URL(process.env.DATABASE_URL ?? "");
@@ -37,6 +39,13 @@ let openId: string;
 let kidId: string;
 let otherKidId: string;
 const originalFetch = globalThis.fetch;
+
+function assertPrivatePhoto(response: Response) {
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
+  const vary = response.headers.get("vary")?.toLowerCase().split(",").map((field) => field.trim());
+  assert.ok(vary?.includes("authorization"));
+  assert.ok(vary?.includes("cookie"));
+}
 
 async function request(path: string, actor: keyof typeof tokens, method = "GET", body?: Record<string, string>) {
   const headers: Record<string, string> = actor === "display" ?
@@ -257,6 +266,73 @@ test("reassignment preserves guide and detail access for the kid retaining a rej
     assert.equal((await request(`chores/${chore.id}`, "empty")).status, 403);
     assert.equal((await request("photos/" + encodeURIComponent(guide), "empty")).status, 403);
   } finally {
+    await db.delete(schema.chores).where(eq(schema.chores.id, chore.id));
+  }
+});
+
+test("protected photo reads prohibit caching for every actor and for authorization and missing-photo errors", async () => {
+  for (const actor of ["kid", "parent", "display"] as const) {
+    for (const path of [ownPhoto, guidePhoto, mealPhoto]) {
+      const response = await request("photos/" + encodeURIComponent(path), actor);
+      assert.equal(response.status, 200);
+      assertPrivatePhoto(response);
+    }
+  }
+  for (const path of [otherPhoto, otherGuidePhoto]) {
+    const response = await request("photos/" + encodeURIComponent(path), "kid");
+    assert.equal(response.status, 403);
+    assertPrivatePhoto(response);
+  }
+  const missing = await request("photos/" + encodeURIComponent("local:missing.jpg"), "kid");
+  assert.equal(missing.status, 404);
+  assertPrivatePhoto(missing);
+  const anonymous = await handleApi(new Request("http://photo-access.test/api/photos/" + encodeURIComponent(ownPhoto)));
+  assert.equal(anonymous.status, 401);
+  assertPrivatePhoto(anonymous);
+  const cookie = await handleApi(new Request("http://photo-access.test/api/photos/" + encodeURIComponent(ownPhoto), {
+    headers: { cookie: `lp_session=${tokens.parent}` },
+  }));
+  assert.equal(cookie.status, 200);
+  assertPrivatePhoto(cookie);
+});
+
+test("guide upload and clear responses, including failed mutations, prohibit caching", async () => {
+  const [chore] = await db.insert(schema.chores).values({
+    title: "Cache fixture", assignedPersonId: kidId, stars: 1, requiresPhoto: false, repeatType: "daily",
+  }).returning();
+  let stored: string | undefined;
+  try {
+    const jpeg = await sharp({ create: { width: 16, height: 16, channels: 3, background: "#123456" } }).jpeg().toBuffer();
+    const uploaded = await handleApi(new Request(`http://photo-access.test/api/chores/${chore.id}/guide-photo`, {
+      method: "POST", headers: { authorization: `Bearer ${tokens.parent}`, "content-type": "image/jpeg" },
+      body: new Uint8Array(jpeg),
+    }));
+    assert.equal(uploaded.status, 200);
+    assertPrivatePhoto(uploaded);
+    stored = (await uploaded.json()).chore.guidePhotoPath;
+    assert.ok(stored);
+    const read = await request("photos/" + encodeURIComponent(stored), "kid");
+    assert.equal(read.status, 200);
+    assertPrivatePhoto(read);
+    const removed = await request(`chores/${chore.id}/guide-photo`, "parent", "DELETE");
+    assert.equal(removed.status, 200);
+    assertPrivatePhoto(removed);
+    assert.equal((await removed.json()).chore.guidePhotoPath, null);
+    for (const method of ["POST", "DELETE"]) {
+      const forbidden = await request(`chores/${chore.id}/guide-photo`, "kid", method);
+      assert.equal(forbidden.status, 403);
+      assertPrivatePhoto(forbidden);
+      const missing = await request(`chores/${randomUUID()}/guide-photo`, "parent", method);
+      assert.equal(missing.status, 404);
+      assertPrivatePhoto(missing);
+    }
+    for (const path of [`chores/${chore.id}/guide-photo`, `chores/instances/${ownId}/photo`, `meals/${yesterday}/photo`]) {
+      const empty = await request(path, "parent", "POST");
+      assert.equal(empty.status, 400);
+      assertPrivatePhoto(empty);
+    }
+  } finally {
+    await deleteStoredPhoto(stored);
     await db.delete(schema.chores).where(eq(schema.chores.id, chore.id));
   }
 });

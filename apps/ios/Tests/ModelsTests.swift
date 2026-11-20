@@ -1,5 +1,6 @@
 import XCTest
 import Security
+import UIKit
 @testable import LiendoPlaza
 
 private final class RevokedSessionProtocol: URLProtocol {
@@ -20,10 +21,12 @@ private final class PhotoProtocol: URLProtocol {
     static var status = 200
     static var response = Data()
     static var request: URLRequest?
+    static var requestCount = 0
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.request = request
+        Self.requestCount += 1
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: Self.status,
             httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Self.response)
@@ -176,6 +179,105 @@ final class ModelsTests: XCTestCase {
             XCTFail("Upload errors must reach the caller")
         } catch { XCTAssertEqual(error.localizedDescription, "Attach a photo.") }
         XCTAssertEqual(house.snapshot?.chores.first?.status, "pending")
+    }
+
+    func testGuidePhotoUploadRemovalAndFailures() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PhotoProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        let api = APIClient(session: network)
+        let body = """
+        {"chore":{"id":"c","title":"Dishes","assignedPersonId":"kid","stars":2,
+        "requiresPhoto":false,"repeatType":"daily","steps":[],"active":true,"guidePhotoPath":"local:new.jpg"}}
+        """
+        PhotoProtocol.status = 200
+        PhotoProtocol.response = Data(body.utf8)
+        let path = try await api.setGuidePhoto(Data([0xff, 0xd8]), for: "c", token: "parent")
+        XCTAssertEqual(path, "local:new.jpg")
+        XCTAssertEqual(PhotoProtocol.request?.url?.path, "/api/chores/c/guide-photo")
+        XCTAssertEqual(PhotoProtocol.request?.httpMethod, "POST")
+        XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "Content-Type"), "image/jpeg")
+        XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "authorization"), "Bearer parent")
+        PhotoProtocol.response = Data(body.replacingOccurrences(of: #""local:new.jpg""#, with: "null").utf8)
+        let removed = try await api.setGuidePhoto(nil, for: "c", token: "parent")
+        XCTAssertNil(removed)
+        XCTAssertEqual(PhotoProtocol.request?.httpMethod, "DELETE")
+        PhotoProtocol.response = Data()
+        do {
+            _ = try await api.setGuidePhoto(Data([1]), for: "c", token: "parent")
+            XCTFail("Empty upload responses must fail")
+        } catch { XCTAssertTrue(error is DecodingError) }
+        PhotoProtocol.status = 403
+        PhotoProtocol.response = Data(#"{"error":"Parents only."}"#.utf8)
+        for photo in [Data([1]), nil] as [Data?] {
+            do {
+                _ = try await api.setGuidePhoto(photo, for: "c", token: "kid")
+                XCTFail("Guide errors must reach the editor")
+            } catch { XCTAssertEqual(error.localizedDescription, "Parents only.") }
+        }
+    }
+
+    @MainActor
+    func testCameraPreparationResizesAndProducesDecodableJPEG() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let original = UIGraphicsImageRenderer(size: CGSize(width: 3200, height: 2000), format: format).image { _ in
+            UIColor.systemBlue.setFill()
+            UIRectFill(CGRect(x: 0, y: 0, width: 3200, height: 2000))
+        }
+        let data = try XCTUnwrap(Camera.prepare(original))
+        let image = try XCTUnwrap(UIImage(data: data))
+        XCTAssertEqual(image.size, CGSize(width: 1600, height: 1000))
+        XCTAssertEqual(Array(data.prefix(2)), [0xff, 0xd8])
+    }
+
+    func testSuccessfulReplacementClearsGuideLeftAfterCreateUploadFailure() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PhotoProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        let api = APIClient(session: network)
+        let body = """
+        {"chore":{"id":"created","title":"Dishes","assignedPersonId":"kid","stars":2,
+        "requiresPhoto":false,"repeatType":"daily","steps":[],"active":true,"guidePhotoPath":null}}
+        """
+        PhotoProtocol.status = 200
+        PhotoProtocol.response = Data(body.utf8)
+        PhotoProtocol.requestCount = 0
+        let created: ChoreResponse = try await api.request("chores", method: "POST", token: "parent")
+        var chore = created.chore
+        let original = Data([1])
+        var pendingGuide: Data? = original
+        PhotoProtocol.status = 500
+        PhotoProtocol.response = Data(#"{"error":"Upload failed."}"#.utf8)
+        do {
+            _ = try await api.setGuidePhoto(original, for: chore.id, token: "parent")
+            XCTFail("The initial upload must fail")
+        } catch { XCTAssertEqual(error.localizedDescription, "Upload failed.") }
+        XCTAssertEqual(chore.id, "created")
+        XCTAssertEqual(pendingGuide, original)
+        do {
+            let path = try await api.setGuidePhoto(Data([2]), for: chore.id, token: "parent")
+            chore.didReplaceGuidePhoto(path, pendingGuide: &pendingGuide)
+            XCTFail("The failed replacement must retain the pending photo")
+        } catch { XCTAssertEqual(error.localizedDescription, "Upload failed.") }
+        XCTAssertEqual(pendingGuide, original)
+        PhotoProtocol.status = 200
+        PhotoProtocol.response = Data(body.replacingOccurrences(of: #""guidePhotoPath":null"#,
+            with: #""guidePhotoPath":"local:replacement.jpg""#).utf8)
+        let path = try await api.setGuidePhoto(Data([2]), for: chore.id, token: "parent")
+        chore.didReplaceGuidePhoto(path, pendingGuide: &pendingGuide)
+        XCTAssertNil(pendingGuide)
+        XCTAssertEqual(chore.guidePhotoPath, "local:replacement.jpg")
+        let saved: ChoreResponse = try await api.request("chores/\(chore.id)", method: "PATCH", token: "parent",
+            payload: JSONEncoder().encode(chore))
+        if let photo = pendingGuide {
+            _ = try await api.setGuidePhoto(photo, for: chore.id, token: "parent")
+        }
+        XCTAssertEqual(saved.chore.guidePhotoPath, "local:replacement.jpg")
+        XCTAssertEqual(PhotoProtocol.request?.httpMethod, "PATCH")
+        XCTAssertEqual(PhotoProtocol.requestCount, 5)
     }
 
     func testDinnerAndStarsDecode() throws {
