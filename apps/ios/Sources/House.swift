@@ -51,6 +51,7 @@ final class House: ObservableObject {
                 try Keychain.write(nil, key: "family")
                 session = nil
                 family = nil
+                UserDefaults.standard.removeObject(forKey: "phonePersonId")
 #if DEBUG
                 let environment = ProcessInfo.processInfo.environment
                 if let token = environment["LP_TEST_SESSION_TOKEN"] {
@@ -61,13 +62,17 @@ final class House: ObservableObject {
                     try saveFamily(token)
                 }
 #endif
-            } catch { self.error = error.localizedDescription }
+            } catch {
+                if !error.isRequestCancellation { self.error = error.localizedDescription }
+            }
         } else {
             do {
                 try Keychain.migrateExpoTokens()
                 session = Keychain.read("session")
                 family = Keychain.read("family")
-            } catch { self.error = error.localizedDescription }
+            } catch {
+                if !error.isRequestCancellation { self.error = error.localizedDescription }
+            }
         }
     }
 
@@ -79,6 +84,7 @@ final class House: ObservableObject {
     func accept(_ result: SessionResponse) throws {
         try Keychain.write(result.token, key: "session")
         person = result.person
+        UserDefaults.standard.set(result.person.id, forKey: "phonePersonId")
         session = result.token
         error = ""
     }
@@ -88,6 +94,7 @@ final class House: ObservableObject {
         session = nil
         person = nil
         snapshot = nil
+        ChoreReminders.remove()
         deviceApproval = nil
         pairingVersion = UUID()
     }
@@ -103,11 +110,14 @@ final class House: ObservableObject {
             guard session == token else { return }
             person = me.actor.person
             snapshot = result
+            await updateReminder()
         } catch {
             guard session == token else { return }
             if (error as? APIError)?.status == 401 {
-                do { try clearSession() } catch { self.error = error.localizedDescription }
-            } else if !(error is CancellationError) {
+                do { try clearSession() } catch {
+                    if !error.isRequestCancellation { self.error = error.localizedDescription }
+                }
+            } else if !error.isRequestCancellation {
                 self.error = error.localizedDescription
             }
         }
@@ -120,7 +130,9 @@ final class House: ObservableObject {
         let _: OKResponse? = try? await api.request("auth/logout", method: "POST", token: session)
         do {
             try clearSession()
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            if !error.isRequestCancellation { self.error = error.localizedDescription }
+        }
     }
 
     func provisionFamily() async throws {
@@ -136,12 +148,46 @@ final class House: ObservableObject {
     }
 
     func toggle(_ chore: ChoreInstance) async throws {
+        let token = session
         let action = chore.status == "done" ? "undo" : "complete"
         let response: InstanceResponse = try await api.request(
-            "chores/instances/\(chore.id)/\(action)", method: "POST", token: session)
+            "chores/instances/\(chore.id)/\(action)", method: "POST", token: token)
+        guard session == token else { return }
         if let index = snapshot?.chores.firstIndex(where: { $0.id == chore.id }) {
             snapshot?.chores[index] = response.instance
         }
+        await updateReminder()
+        do {
+            struct StarsResponse: Decodable { let stars: [StarSummary] }
+            let result: StarsResponse = try await api.request("stars", token: token)
+            guard session == token else { return }
+            snapshot?.stars = result.stars
+        } catch {
+            guard session == token, !error.isRequestCancellation else { return }
+            self.error = error.localizedDescription
+        }
+    }
+
+    func uploadPhoto(_ data: Data, for id: String) async throws {
+        let response: InstanceResponse = try await api.request(
+            "chores/instances/\(id)/photo", method: "POST", token: session, photo: data)
+        if let index = snapshot?.chores.firstIndex(where: { $0.id == id }) {
+            snapshot?.chores[index] = response.instance
+        }
+        await updateReminder()
+    }
+
+    func review(_ id: String, action: String) async throws {
+        let response: InstanceResponse = try await api.request(
+            "chores/instances/\(id)/review", method: "POST", body: ["action": action], token: session)
+        if let index = snapshot?.chores.firstIndex(where: { $0.id == id }) {
+            snapshot?.chores[index] = response.instance
+        }
+    }
+
+    private func updateReminder() async {
+        guard let snapshot, let person, !person.isParent else { ChoreReminders.remove(); return }
+        await ChoreReminders.update(snapshot: snapshot, person: person)
     }
 
     func open(_ url: URL) async {
@@ -170,6 +216,8 @@ final class House: ObservableObject {
                 try saveFamily(response.familyToken)
                 pairingVersion = UUID()
             }
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            if !error.isRequestCancellation { self.error = error.localizedDescription }
+        }
     }
 }

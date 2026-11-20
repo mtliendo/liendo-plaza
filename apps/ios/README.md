@@ -1,8 +1,8 @@
 # Liendo Plaza · native iPhone pilot
 
 SwiftUI, iOS 17+, no third-party dependencies. This pilot covers first-parent
-bootstrap, QR/short-code pairing, invite links, Today, chore completion/undo,
-and parent short-code device approval.
+bootstrap, QR/short-code pairing, invite links, role-based tabs, dinner,
+chore completion/undo and photo proof, and parent short-code device approval.
 
 ## Open and run
 
@@ -30,7 +30,7 @@ xcodebuild -project apps/ios/LiendoPlaza.xcodeproj -scheme LiendoPlaza \
 
 Seed PINs: Focus/Jess `123456`, Sofia/Noah/Xavier `1234`.
 Session and short-lived family tokens live in Keychain. `-uiTestReset` clears
-both at launch (uninstall alone does not reliably clear Keychain). Sign out
+both and the remembered person at launch (uninstall alone does not reliably clear Keychain). Sign out
 keeps a family token, but it expires after 15 minutes; the app re-pairs when
 that token is rejected. A first-parent bootstrap returns only a session.
 
@@ -81,6 +81,8 @@ xcrun xcresulttool export attachments --path build/ui-*/paired.xcresult \
 Choose one concrete result path when more than one run exists. Tests use
 30–60 second waits for the slow local snapshot. Debug-only session/family
 injection is accepted only alongside `-uiTestReset`; Release ignores it.
+If the root `.env.local` is absent, the script also accepts an exported
+`DATABASE_URL`, so no backend configuration file needs to be created.
 
 Accessibility IDs include `person.noah`, `pin`, `open`, `pairing.code`, `chore.<title>`,
 `status.<title>`, `chore.status`, `chore.complete`, `chore.undo`, `signOut`,
@@ -88,8 +90,17 @@ Accessibility IDs include `person.noah`, `pin`, `open`, `pairing.code`, `chore.<
 
 ## Out of scope
 
-Calendar, dinner editing, stars/rewards screens, photos/camera, other parent
-management, and APNs push. Photo-required chores display an explanatory note.
+Calendar, stars/rewards screens and APNs push. Parents can edit dinners,
+navigate weeks, manage chore schedules and review proof photos.
+Groceries uses the Apple Reminders list named "Groceries"; share that list
+in Reminders for iCloud sync and Siri. Full Reminders access is required.
+Debug UI tests use `-uiTestGroceries` for an isolated in-memory list.
+Kids see their star balance and a one-tap chore checkbox.
+Photo chores use the camera (photo library on the simulator) and wait for
+parent review after upload. Kids receive one local reminder for today's open
+chores at the household reminder time (default 6 PM America/Chicago); permission
+is requested on the first kid snapshot. Notifications do not update while the
+app is closed, and a reminder time that has already passed is not rescheduled.
 Snapshot loading is explicit; completion/undo replaces the returned instance
 locally without waiting for the slow full snapshot.
 

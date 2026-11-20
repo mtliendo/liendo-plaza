@@ -7,7 +7,7 @@ struct LiendoPlazaApp: App {
         WindowGroup {
             Group {
                 if house.session != nil {
-                    TodayView()
+                    RoleTabs()
                 } else {
                     PairingView().id(house.pairingVersion)
                 }

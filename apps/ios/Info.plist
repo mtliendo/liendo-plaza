@@ -8,6 +8,10 @@
 <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
 <key>LSRequiresIPhoneOS</key><true/>
+<key>NSCameraUsageDescription</key><string>Take a photo to show your finished chore.</string>
+<key>NSPhotoLibraryUsageDescription</key><string>Choose a photo of your finished chore.</string>
+<key>NSRemindersFullAccessUsageDescription</key><string>Manage your family’s Groceries list in Reminders.</string>
+<key>NSRemindersUsageDescription</key><string>Manage your family’s Groceries list in Reminders.</string>
 <key>UILaunchScreen</key><dict/>
 <key>ITSAppUsesNonExemptEncryption</key><false/>
 <key>UIUserInterfaceStyle</key><string>Light</string>
