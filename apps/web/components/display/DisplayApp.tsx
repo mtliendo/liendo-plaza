@@ -68,7 +68,7 @@ export function DisplayApp({ view }: { view: View }) {
   const toggle = useChoreToggle();
   const prefetch = usePrefetchHouse();
   const queryClient = useQueryClient();
-  const claim = useClaim("display", paired === false && polling);
+  const claim = useClaim("display", paired === false && visible);
   const [openChoreId, setOpenChoreId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -104,8 +104,7 @@ export function DisplayApp({ view }: { view: View }) {
 
   if (paired === false) {
     return (
-      <main className="kitchen pair-kitchen" data-testid="kitchen-pair"
-        onPointerDown={() => setAwakeUntil(Date.now() + 5 * 60 * 1000)}>
+      <main className="kitchen pair-kitchen" data-testid="kitchen-pair">
         <header className="mast">
           <h1>Liendo Plaza</h1>
           <p className="small">Kitchen board</p>

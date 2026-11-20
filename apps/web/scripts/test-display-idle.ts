@@ -88,6 +88,7 @@ async function main() {
     console.log("PASS morning refresh resumes and failed version requests preserve the board");
 
     paired = false;
+    await page.clock.setSystemTime(new Date("2026-01-16T23:00:00-06:00"));
     await page.reload();
     await page.getByTestId("kitchen-pair").waitFor();
     await page.clock.runFor(4000);
@@ -106,7 +107,7 @@ async function main() {
     const finished = counts["/api/pair/poll"];
     await page.clock.runFor(10_000);
     assert.equal(counts["/api/pair/poll"], finished);
-    console.log("PASS pairing: polls only while visible and waiting; stops after success");
+    console.log("PASS nighttime pairing: starts without a tap, pauses while hidden, stops after success");
   } finally { await browser.close(); }
 }
 
