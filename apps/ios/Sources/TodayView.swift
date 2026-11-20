@@ -49,7 +49,10 @@ struct TodayView: View {
                     }
                 }.padding(24)
             }
-            .background(Plaza.paper).refreshable { await house.load() }
+            .background(Plaza.paper).refreshable {
+                await house.load(includingPendingProofs: false)
+                await house.loadPendingProofs()
+            }
             .toolbar {
                 if house.person?.isParent == false {
                     ToolbarItem(placement: .topBarTrailing) {

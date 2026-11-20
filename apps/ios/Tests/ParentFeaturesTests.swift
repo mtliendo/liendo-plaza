@@ -4,18 +4,41 @@ import XCTest
 private final class PendingProofsProtocol: URLProtocol {
     static var paths: [String] = []
     static var failure = false
+    static var snapshotFailure = false
+    static var pendingIDs: [String] = []
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let path = request.url!.path
         Self.paths.append(path)
-        let body = Self.failure ? #"{"error":"Could not load proofs."}"# :
-            (path.hasSuffix("/review") ? """
+        let failed = Self.failure || (Self.snapshotFailure && path.hasSuffix("/snapshot"))
+        let body: String
+        if failed {
+            body = #"{"error":"Could not load proofs."}"#
+        } else if path.hasSuffix("/me") {
+            body = """
+            {"actor":{"person":{"id":"parent","slug":"focus","name":"Parent","role":"parent","color":""}}}
+            """
+        } else if path.hasSuffix("/snapshot") {
+            body = """
+            {"now":"2026-11-20T12:00:00Z","timezone":"America/Chicago","chores":[],"meals":[],"people":[]}
+            """
+        } else if path.hasSuffix("/review") {
+            body = """
             {"instance":{"id":"old","choreId":"c","personId":"kid","date":"2026-11-19",
              "status":"done","title":"Dishes","stars":2,"starsAwarded":2,"requiresPhoto":true,"steps":[]}}
-            """ : #"{"instances":[]}"#)
+            """
+        } else {
+            let instances = Self.pendingIDs.map { id in
+                """
+                {"id":"\(id)","choreId":"c","personId":"kid","date":"2026-11-19",
+                 "status":"pending","title":"Dishes","stars":2,"starsAwarded":0,"requiresPhoto":true,"steps":[]}
+                """
+            }.joined(separator: ",")
+            body = #"{"instances":["# + instances + "]}"
+        }
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!,
-            statusCode: Self.failure ? 500 : 200, httpVersion: nil, headerFields: nil)!,
+            statusCode: failed ? 500 : 200, httpVersion: nil, headerFields: nil)!,
             cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(body.utf8))
         client?.urlProtocolDidFinishLoading(self)
@@ -59,6 +82,59 @@ final class ParentFeaturesTests: XCTestCase {
         let a = instance("a", date: "2026-11-20")
         let b = instance("b", date: "2026-11-20")
         XCTAssertEqual(PendingProofs.merge(history: [b, a], today: []).map(\.id), ["a", "b"])
+    }
+
+    @MainActor
+    func testTodayRefreshAwaitsSnapshotAndNewHistoricalProofs() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PendingProofsProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer {
+            network.invalidateAndCancel()
+            PendingProofsProtocol.pendingIDs = []
+        }
+        let house = House(api: APIClient(session: network))
+        house.session = "test-session"
+        PendingProofsProtocol.failure = false
+        PendingProofsProtocol.paths = []
+        await house.load()
+        XCTAssertNotNil(house.snapshot)
+        XCTAssertTrue(house.pendingProofs.isEmpty)
+        XCTAssertEqual(PendingProofsProtocol.paths, ["/api/me", "/api/snapshot", "/api/chores/instances/pending"])
+
+        PendingProofsProtocol.pendingIDs = ["new-old-proof"]
+        PendingProofsProtocol.paths = []
+        await house.load(includingPendingProofs: false)
+        XCTAssertTrue(house.pendingProofs.isEmpty)
+        XCTAssertEqual(PendingProofsProtocol.paths, ["/api/me", "/api/snapshot"])
+        await house.loadPendingProofs()
+        XCTAssertEqual(house.pendingProofs.map(\.id), ["new-old-proof"])
+        XCTAssertEqual(PendingProofsProtocol.paths, ["/api/me", "/api/snapshot", "/api/chores/instances/pending"])
+    }
+
+    @MainActor
+    func testTodayRefreshStillLoadsProofsWhenSnapshotFails() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PendingProofsProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer {
+            network.invalidateAndCancel()
+            PendingProofsProtocol.snapshotFailure = false
+            PendingProofsProtocol.pendingIDs = []
+        }
+        let house = House(api: APIClient(session: network))
+        house.session = "test-session"
+        house.person = Person(id: "parent", slug: "focus", name: "Parent", role: "parent", color: "", avatarKey: nil)
+        PendingProofsProtocol.failure = false
+        PendingProofsProtocol.snapshotFailure = true
+        PendingProofsProtocol.pendingIDs = ["old"]
+        PendingProofsProtocol.paths = []
+        await house.load(includingPendingProofs: false)
+        await house.loadPendingProofs()
+        XCTAssertNil(house.snapshot)
+        XCTAssertFalse(house.error.isEmpty)
+        XCTAssertEqual(house.pendingProofs.map(\.id), ["old"])
+        XCTAssertEqual(PendingProofsProtocol.paths, ["/api/me", "/api/snapshot", "/api/chores/instances/pending"])
     }
 
     @MainActor

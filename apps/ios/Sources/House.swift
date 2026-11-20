@@ -110,7 +110,7 @@ final class House: ObservableObject {
         pairingVersion = UUID()
     }
 
-    func load() async {
+    func load(includingPendingProofs: Bool = true) async {
         guard let token = session else { return }
         loading = true
         error = ""
@@ -122,7 +122,6 @@ final class House: ObservableObject {
             person = me.actor.person
             snapshot = result
             await updateReminder()
-            await loadPendingProofs()
         } catch {
             guard session == token else { return }
             if (error as? APIError)?.status == 401 {
@@ -133,6 +132,7 @@ final class House: ObservableObject {
                 self.error = error.localizedDescription
             }
         }
+        if includingPendingProofs { await loadPendingProofs() }
     }
 
     func loadPendingProofs() async {
