@@ -239,9 +239,7 @@ export async function handleApi(req: Request): Promise<Response> {
     const to = url.searchParams.get("to") ?? undefined;
     const snapshot = await buildSnapshot(from, to);
     if (actor.kind === "person" && actor.person.role === "kid") {
-      snapshot.chores = snapshot.chores.map((instance) =>
-        instance.personId === actor.person.id ? instance : { ...instance, photoPath: null },
-      );
+      snapshot.chores = snapshot.chores.filter((instance) => instance.personId === actor.person.id);
     }
     const fixture = parseEventFixture(url.searchParams.get("fixture"));
     if (fixture && fixturesAllowed()) {

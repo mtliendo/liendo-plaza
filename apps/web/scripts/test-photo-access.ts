@@ -28,13 +28,15 @@ let mealPhoto: string;
 let guidePhoto: string;
 let ownId: string;
 let otherId: string;
+let openId: string;
+let kidId: string;
 const originalFetch = globalThis.fetch;
 
-async function request(path: string, actor: keyof typeof tokens) {
+async function request(path: string, actor: keyof typeof tokens, method = "GET") {
   const headers: Record<string, string> = actor === "display" ?
     { "x-display-token": tokens.display } : { authorization: `Bearer ${tokens[actor]}` };
   try {
-    return await handleApi(new Request("http://photo-access.test/api/" + path, { headers }));
+    return await handleApi(new Request("http://photo-access.test/api/" + path, { headers, method }));
   } catch (error) {
     return errorResponse(error);
   }
@@ -59,6 +61,7 @@ before(async () => {
     { slug: "photo-kid", name: "Kid", role: "kid", color: "#123456" },
     { slug: "photo-other", name: "Other kid", role: "kid", color: "#123456" },
   ]).returning();
+  kidId = people[1].id;
   for (const [index, actor] of (["parent", "kid", "other"] as const).entries()) {
     await db.insert(schema.sessions).values({
       personId: people[index].id,
@@ -78,6 +81,14 @@ before(async () => {
     status: "pending", photoPath: index === 0 ? ownPhoto : otherPhoto,
   }))).returning();
   [ownId, otherId] = instances.map((instance) => instance.id);
+  const [openChore] = await db.insert(schema.chores).values({
+    title: "Own open chore", assignedPersonId: kidId, stars: 1,
+    requiresPhoto: false, repeatType: "once", onceDate: yesterday,
+  }).returning();
+  const [openInstance] = await db.insert(schema.choreInstances).values({
+    choreId: openChore.id, personId: kidId, date: yesterday, status: "open",
+  }).returning();
+  openId = openInstance.id;
   await db.insert(schema.meals).values({ date: yesterday, name: "Dinner", photoPath: mealPhoto });
 });
 
@@ -107,12 +118,26 @@ test("parents and displays retain access to every proof", async () => {
   }
 });
 
-test("kid snapshot hides others' proof paths without changing meals or guides", async () => {
+test("kid snapshot excludes others' instance details without changing own chores or meals", async () => {
   const data = await snapshot("kid");
+  assert.equal(data.chores.length, 2);
+  assert.ok(data.chores.every((instance) => instance.personId === kidId));
   assert.equal(data.chores.find((instance) => instance.id === ownId)?.photoPath, ownPhoto);
-  assert.equal(data.chores.find((instance) => instance.id === otherId)?.photoPath, null);
-  assert.equal(data.chores.find((instance) => instance.id === otherId)?.guidePhotoPath, guidePhoto);
+  assert.equal(data.chores.find((instance) => instance.id === otherId), undefined);
+  assert.equal(data.chores.find((instance) => instance.id === ownId)?.guidePhotoPath, guidePhoto);
+  assert.equal(data.chores.find((instance) => instance.id === openId)?.status, "open");
   assert.equal(data.meals[0].photoPath, mealPhoto);
+  const other = await snapshot("other");
+  assert.deepEqual(other.chores.map((instance) => instance.id), [otherId]);
+});
+
+test("kid can still complete and undo their own non-photo chore", async () => {
+  const completed = await request(`chores/instances/${openId}/complete`, "kid", "POST");
+  assert.equal(completed.status, 200);
+  assert.equal((await completed.json()).instance.status, "done");
+  const undone = await request(`chores/instances/${openId}/undo`, "kid", "POST");
+  assert.equal(undone.status, 200);
+  assert.equal((await undone.json()).instance.status, "open");
 });
 
 test("parent and display snapshots preserve all proof paths", async () => {

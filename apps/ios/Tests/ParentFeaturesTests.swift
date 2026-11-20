@@ -85,6 +85,30 @@ final class ParentFeaturesTests: XCTestCase {
     }
 
     @MainActor
+    func testKidModelsOnlyExposeOwnInstancesEvenWithUnfilteredCachedData() {
+        let house = House()
+        let kid = Person(id: "kid", slug: "noah", name: "Kid", role: "kid", color: "", avatarKey: nil)
+        let own = instance("own", date: "2026-11-20")
+        let other = ChoreInstance(id: "other", choreId: "other-chore", personId: "other-kid",
+            date: "2026-11-20", status: "pending", title: "Private proof title",
+            stars: 2, starsAwarded: 0, requiresPhoto: true, description: nil, photoPath: nil, steps: [])
+        house.snapshot = Snapshot(now: "2026-11-20T12:00:00Z", timezone: "America/Chicago",
+            chores: [own, other], meals: [], people: [kid], stars: nil, settings: nil)
+        house.pendingInstances = [own, other]
+        house.person = kid
+        XCTAssertEqual(house.snapshot?.chores(for: kid).map(\.id), ["own"])
+        XCTAssertEqual(house.pendingProofs.map(\.id), ["own"])
+        XCTAssertNotNil(house.chore(id: own.id))
+        XCTAssertNil(house.chore(id: other.id))
+        house.person = Person(id: "parent", slug: "focus", name: "Parent", role: "parent", color: "", avatarKey: nil)
+        XCTAssertEqual(Set(house.pendingProofs.map(\.id)), Set(["own", "other"]))
+        XCTAssertNotNil(house.chore(id: other.id))
+        house.person = nil
+        XCTAssertTrue(house.pendingProofs.isEmpty)
+        XCTAssertNil(house.chore(id: own.id))
+    }
+
+    @MainActor
     func testTodayRefreshAwaitsSnapshotAndNewHistoricalProofs() async {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [PendingProofsProtocol.self]

@@ -47,10 +47,13 @@ final class House: ObservableObject {
     var pendingProofs: [ChoreInstance] {
         PendingProofs.merge(history: pendingInstances,
             today: snapshot?.chores.filter { $0.date == snapshot?.today } ?? [])
+            .filter { person?.isParent == true || $0.personId == person?.id }
     }
 
     func chore(id: String) -> ChoreInstance? {
-        snapshot?.chores.first { $0.id == id } ?? pendingInstances.first { $0.id == id }
+        ((snapshot?.chores ?? []) + pendingInstances).first {
+            $0.id == id && (person?.isParent == true || $0.personId == person?.id)
+        }
     }
 
     init(api: APIClient = APIClient()) {
