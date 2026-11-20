@@ -16,7 +16,91 @@ private final class RevokedSessionProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+private final class PhotoProtocol: URLProtocol {
+    static var status = 200
+    static var response = Data()
+    static var request: URLRequest?
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.request = request
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: Self.status,
+            httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.response)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
 final class ModelsTests: XCTestCase {
+    @MainActor
+    func testPhotoUploadReplacesInstanceAndPropagatesErrors() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PhotoProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        let house = House(api: APIClient(session: network))
+        house.session = "test-session"
+        let instance = """
+        {"id":"a","choreId":"c","personId":"kid","date":"2026-11-20","status":"open",
+         "title":"Dishes","stars":2,"starsAwarded":0,"requiresPhoto":true,"steps":[]}
+        """
+        house.snapshot = try JSONDecoder().decode(Snapshot.self, from: Data("""
+        {"now":"2026-11-20T12:00:00-06:00","timezone":"America/Chicago",
+         "chores":[\(instance)],"people":[],"meals":[]}
+        """.utf8))
+        PhotoProtocol.status = 200
+        let pending = instance.replacingOccurrences(of: "\"open\"", with: "\"pending\"")
+        PhotoProtocol.response = Data("{\"instance\":\(pending)}".utf8)
+        try await house.uploadPhoto(Data([0xFF, 0xD8]), for: "a")
+        XCTAssertEqual(house.snapshot?.chores.first?.statusLabel, "Waiting")
+        XCTAssertEqual(PhotoProtocol.request?.url?.path, "/api/chores/instances/a/photo")
+        XCTAssertEqual(PhotoProtocol.request?.httpMethod, "POST")
+        XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "Content-Type"), "image/jpeg")
+        XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "authorization"), "Bearer test-session")
+        PhotoProtocol.response = Data()
+        do {
+            try await house.uploadPhoto(Data([1]), for: "a")
+            XCTFail("Empty responses must not replace an instance")
+        } catch { XCTAssertTrue(error is DecodingError) }
+        PhotoProtocol.status = 400
+        PhotoProtocol.response = Data(#"{"error":"Attach a photo."}"#.utf8)
+        do {
+            try await house.uploadPhoto(Data(), for: "a")
+            XCTFail("Upload errors must reach the caller")
+        } catch { XCTAssertEqual(error.localizedDescription, "Attach a photo.") }
+        XCTAssertEqual(house.snapshot?.chores.first?.status, "pending")
+    }
+
+    func testDinnerAndStarsDecode() throws {
+        let data = Data("""
+        {"now":"2026-11-20T12:00:00-06:00","timezone":"America/Chicago",
+         "chores":[],"people":[],"meals":[{"date":"2026-11-20","name":"Pizza","photoPath":"meals/a.jpg"}],
+         "stars":[{"personId":"kid","balance":12,"weekEarned":2}],
+         "settings":{"choreReminderHour":17,"choreReminderMinute":30}}
+        """.utf8)
+        let snapshot = try JSONDecoder().decode(Snapshot.self, from: data)
+        XCTAssertEqual(snapshot.stars?.first?.balance, 12)
+        XCTAssertEqual(snapshot.meals.first?.photoPath, "meals/a.jpg")
+        let now = ISO8601DateFormatter().date(from: "2026-11-20T18:00:00Z")!
+        XCTAssertEqual(ChoreReminders.triggerDate(snapshot: snapshot, now: now),
+                       ISO8601DateFormatter().date(from: "2026-11-20T23:30:00Z"))
+        XCTAssertNil(ChoreReminders.triggerDate(snapshot: snapshot,
+            now: ISO8601DateFormatter().date(from: "2026-11-21T00:00:00Z")!))
+    }
+
+    func testReminderDefaultsAndMalformedMeal() throws {
+        let snapshot = try JSONDecoder().decode(Snapshot.self, from: Data("""
+        {"now":"2026-06-20T12:00:00-05:00","timezone":"America/Chicago",
+         "chores":[],"people":[],"meals":[]}
+        """.utf8))
+        XCTAssertNil(snapshot.stars)
+        XCTAssertEqual(ChoreReminders.triggerDate(snapshot: snapshot,
+            now: ISO8601DateFormatter().date(from: "2026-06-20T17:00:00Z")!),
+            ISO8601DateFormatter().date(from: "2026-06-20T23:00:00Z"))
+        XCTAssertThrowsError(try JSONDecoder().decode(MealsResponse.self, from: Data(#"{"meals":[{"date":"bad"}]}"#.utf8)))
+    }
+
     @MainActor
     func testSignOutClearsRevokedParentDespiteProvisionAndLogoutFailure() async throws {
         let saved = Keychain.read("session")

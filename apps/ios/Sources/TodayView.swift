@@ -12,42 +12,31 @@ struct TodayView: View {
                             Text(person.name).foregroundStyle(Plaza.muted)
                         }
                     }
-                    Text("Today").font(Plaza.title(36)).accessibilityIdentifier("today")
+                    Text(house.person?.isParent == true ? "Today" : "Chores").font(Plaza.title(36)).accessibilityIdentifier("today")
                     if let snapshot = house.snapshot, let person = house.person {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Tonight’s dinner").font(.custom("Fraunces-Italic", size: 22))
-                            Text(snapshot.meals.first(where: { $0.date == snapshot.today })?.name ?? "Nothing written yet")
-                                .font(Plaza.title(25))
-                        }
                         let chores = snapshot.chores(for: person)
+                        if !person.isParent {
+                            Text("★ \(snapshot.stars?.first(where: { $0.personId == person.id })?.balance ?? 0) stars")
+                                .font(Plaza.title(25)).accessibilityIdentifier("stars.balance")
+                        }
                         if chores.isEmpty {
                             Text("No chores for today.").foregroundStyle(Plaza.muted)
                         }
-                        ForEach(chores) { chore in
-                            NavigationLink {
-                                ChoreDetailView(id: chore.id)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    if person.isParent, let owner = snapshot.people.first(where: { $0.id == chore.personId }) {
-                                        Text(owner.name).font(.subheadline).foregroundStyle(Plaza.muted)
-                                    }
-                                    Text(chore.title).font(Plaza.title(23))
-                                    HStack {
-                                        Chip(text: chore.statusLabel).accessibilityIdentifier("status.\(chore.title)")
-                                        Chip(text: "\(chore.stars) \(chore.stars == 1 ? "star" : "stars")")
-                                        if chore.requiresPhoto { Chip(text: "Needs a photo") }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading).padding(18)
-                                .background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
-                                .overlay(alignment: .leading) {
-                                    RoundedRectangle(cornerRadius: 2)
-                                        .fill(Plaza.personColor(snapshot.people.first(where: { $0.id == chore.personId })?.slug ?? ""))
-                                        .frame(width: 3).padding(.vertical, 18)
+                        if person.isParent {
+                            let pending = chores.filter { $0.status == "pending" }
+                            if !pending.isEmpty {
+                                Text("Needs a look").font(Plaza.title(25))
+                                ForEach(pending) { ChoreRow(chore: $0, canToggle: false) }
+                            }
+                            ForEach(snapshot.people) { kid in
+                                let own = chores.filter { $0.personId == kid.id }
+                                if !own.isEmpty {
+                                    HStack { Avatar(person: kid); Text(kid.name).font(Plaza.title(25)) }
+                                    ForEach(own) { ChoreRow(chore: $0, canToggle: false) }
                                 }
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("chore.\(chore.title)")
+                        } else {
+                            ForEach(chores) { ChoreRow(chore: $0, canToggle: true) }
                         }
                     } else if house.loading {
                         ProgressView("Getting today ready…")
@@ -62,14 +51,12 @@ struct TodayView: View {
             }
             .background(Plaza.paper).refreshable { await house.load() }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Sign out") { Task { await house.signOut() } }
-                        .accessibilityIdentifier("signOut")
-                }
-                if house.person?.isParent == true {
+                if house.person?.isParent == false {
                     ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink("Add a device") { AddDeviceView() }
-                            .accessibilityIdentifier("addDevice")
+                        Menu {
+                            Button("Not you?") { Task { await house.signOut() } }
+                                .accessibilityIdentifier("signOut")
+                        } label: { Image(systemName: "ellipsis").accessibilityLabel("More") }
                     }
                 }
             }
@@ -83,6 +70,7 @@ struct ChoreDetailView: View {
     let id: String
     @State private var busy = false
     @State private var error = ""
+    @State private var camera = false
 
     var body: some View {
         ScrollView {
@@ -101,11 +89,12 @@ struct ChoreDetailView: View {
                             Text(step)
                         }
                     }
-                    if chore.requiresPhoto {
-                        Text("Photo proof is coming in the next pilot phase.")
-                            .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
-                    }
                     if let actor = house.person, actor.isParent || actor.id == chore.personId {
+                        if chore.requiresPhoto && ["open", "rejected"].contains(chore.status) {
+                            Button("Take a photo") { camera = true }
+                                .buttonStyle(PrimaryButton()).disabled(busy)
+                                .accessibilityIdentifier("chore.photo")
+                        }
                         if chore.status == "done" || (!chore.requiresPhoto && ["open", "rejected"].contains(chore.status)) {
                             Button(busy ? "Saving…" : chore.status == "done" ? "Not done" : "Mark done") {
                                 Task {
@@ -125,5 +114,16 @@ struct ChoreDetailView: View {
             }
         }
         .background(Plaza.paper).navigationTitle("Chore").navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $camera) {
+            Camera { data in
+                Task {
+                    busy = true
+                    error = ""
+                    defer { busy = false }
+                    do { try await house.uploadPhoto(data, for: id) }
+                    catch { self.error = error.localizedDescription }
+                }
+            }
+        }
     }
 }

@@ -51,6 +51,7 @@ final class House: ObservableObject {
                 try Keychain.write(nil, key: "family")
                 session = nil
                 family = nil
+                UserDefaults.standard.removeObject(forKey: "phonePersonId")
 #if DEBUG
                 let environment = ProcessInfo.processInfo.environment
                 if let token = environment["LP_TEST_SESSION_TOKEN"] {
@@ -79,6 +80,7 @@ final class House: ObservableObject {
     func accept(_ result: SessionResponse) throws {
         try Keychain.write(result.token, key: "session")
         person = result.person
+        UserDefaults.standard.set(result.person.id, forKey: "phonePersonId")
         session = result.token
         error = ""
     }
@@ -88,6 +90,7 @@ final class House: ObservableObject {
         session = nil
         person = nil
         snapshot = nil
+        ChoreReminders.remove()
         deviceApproval = nil
         pairingVersion = UUID()
     }
@@ -103,6 +106,7 @@ final class House: ObservableObject {
             guard session == token else { return }
             person = me.actor.person
             snapshot = result
+            await updateReminder()
         } catch {
             guard session == token else { return }
             if (error as? APIError)?.status == 401 {
@@ -142,6 +146,21 @@ final class House: ObservableObject {
         if let index = snapshot?.chores.firstIndex(where: { $0.id == chore.id }) {
             snapshot?.chores[index] = response.instance
         }
+        await updateReminder()
+    }
+
+    func uploadPhoto(_ data: Data, for id: String) async throws {
+        let response: InstanceResponse = try await api.request(
+            "chores/instances/\(id)/photo", method: "POST", token: session, photo: data)
+        if let index = snapshot?.chores.firstIndex(where: { $0.id == id }) {
+            snapshot?.chores[index] = response.instance
+        }
+        await updateReminder()
+    }
+
+    private func updateReminder() async {
+        guard let snapshot, let person, !person.isParent else { ChoreReminders.remove(); return }
+        await ChoreReminders.update(snapshot: snapshot, person: person)
     }
 
     func open(_ url: URL) async {

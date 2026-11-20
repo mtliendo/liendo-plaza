@@ -23,12 +23,17 @@ struct ChoreInstance: Codable, Identifiable {
     }
 }
 
-struct Meal: Codable { let date, name: String }
+struct Meal: Codable { let date, name: String; let photoPath: String? }
+struct MealsResponse: Decodable { let meals: [Meal] }
+struct StarSummary: Codable { let personId: String; let balance: Int }
+struct FamilySettings: Codable { let choreReminderHour: Int; let choreReminderMinute: Int? }
 struct Snapshot: Codable {
     let now, timezone: String
     var chores: [ChoreInstance]
     let meals: [Meal]
     let people: [Person]
+    let stars: [StarSummary]?
+    let settings: FamilySettings?
     var today: String { String(now.prefix(10)) }
     func chores(for person: Person) -> [ChoreInstance] {
         chores.filter { $0.date == today && (person.isParent || $0.personId == person.id) }
@@ -69,13 +74,17 @@ struct APIClient {
     }
     func request<T: Decodable>(_ path: String, method: String = "GET",
                                body: [String: String]? = nil, token: String? = nil,
-                               family: String? = nil) async throws -> T {
+                               family: String? = nil, photo: Data? = nil) async throws -> T {
         var request = URLRequest(url: baseURL.appendingPathComponent("api/" + path))
         request.httpMethod = method
         request.timeoutInterval = 30
         if let body {
             request.httpBody = try JSONEncoder().encode(body)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        if let photo {
+            request.httpBody = photo
+            request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
         }
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization") }
         if let family { request.setValue(family, forHTTPHeaderField: "x-family-token") }

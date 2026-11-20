@@ -20,7 +20,7 @@ struct PairingView: View {
                     if loading {
                         ProgressView("Getting this phone ready…").frame(maxWidth: .infinity).padding(.top, 60)
                     } else if let picked {
-                        Text(picked.name).font(Plaza.title())
+                        Text("Hi \(picked.name) — PIN").font(Plaza.title())
                         Text(firstParent ? "Enter your 6-digit parent PIN." :
                                 "Enter your \(picked.isParent ? "6" : "4")-digit PIN.")
                             .foregroundStyle(Plaza.muted)
@@ -87,6 +87,7 @@ struct PairingView: View {
     private func loadPeople() async throws {
         let response: PeopleResponse = try await house.api.request("people", family: house.family)
         people = response.people
+        picked = people.first { $0.id == UserDefaults.standard.string(forKey: "phonePersonId") }
         firstParent = false
         claim = nil
     }

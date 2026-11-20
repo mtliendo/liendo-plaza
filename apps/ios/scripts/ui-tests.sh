@@ -17,7 +17,7 @@ if ! curl --fail --silent --show-error --max-time 10 "$API/api/health" |
   echo "Backend unavailable: expected {\"ok\":true} at $API/api/health. Start the backend first." >&2
   exit 1
 fi
-[[ -f "$ROOT/.env.local" ]] || { echo "Missing $ROOT/.env.local (DATABASE_URL required)." >&2; exit 1; }
+[[ -f "$ROOT/.env.local" || -n "${DATABASE_URL:-}" ]] || { echo "Missing $ROOT/.env.local (DATABASE_URL required)." >&2; exit 1; }
 export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
 RUN="$ROOT/apps/ios/build/ui-$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p "$RUN"
@@ -56,7 +56,7 @@ fi
 reset_database() (
   cd "$ROOT"
   set -a
-  source .env.local
+  if [[ -f .env.local ]]; then source .env.local; fi
   set +a
   npx --yes pnpm@10.15.0 db:reset
   npx --yes pnpm@10.15.0 db:seed
