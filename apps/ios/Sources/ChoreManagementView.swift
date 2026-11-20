@@ -41,6 +41,13 @@ struct ChoreDefinition: Codable, Identifiable {
 struct ChoreListResponse: Decodable { let chores: [ChoreDefinition] }
 struct ChoreResponse: Decodable { let chore: ChoreDefinition }
 
+extension ChoreDefinition {
+    mutating func didReplaceGuidePhoto(_ path: String?, pendingGuide: inout Data?) {
+        guidePhotoPath = path
+        pendingGuide = nil
+    }
+}
+
 extension APIClient {
     func setGuidePhoto(_ photo: Data?, for choreID: String, token: String?) async throws -> String? {
         let response: ChoreResponse = try await request("chores/\(choreID)/guide-photo",
@@ -237,7 +244,8 @@ struct ChoreEditor: View {
         error = ""
         defer { busy = false }
         do {
-            chore.guidePhotoPath = try await house.api.setGuidePhoto(data, for: chore.id, token: house.session)
+            let path = try await house.api.setGuidePhoto(data, for: chore.id, token: house.session)
+            chore.didReplaceGuidePhoto(path, pendingGuide: &pendingGuide)
             await house.load()
         } catch { self.error = error.localizedDescription }
     }
