@@ -6,6 +6,7 @@ import type { Person } from "@liendo/shared";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
 import { asPerson } from "./person";
+import { presenceIsStale } from "./presence";
 
 export const DISPLAY_COOKIE = "lp_display";
 export const SESSION_COOKIE = "lp_session";
@@ -174,7 +175,7 @@ export async function personFromSession(token: string, touchDevice = true): Prom
       .where(and(eq(schema.devices.id, row.deviceId), isNull(schema.devices.revokedAt)))
       .limit(1);
     if (!device) return null;
-    if (touchDevice) {
+    if (touchDevice && presenceIsStale(device.lastSeenAt)) {
       await db.update(schema.devices).set({ lastSeenAt: new Date() }).where(eq(schema.devices.id, device.id));
     }
   }
@@ -216,9 +217,11 @@ export async function displayFromToken(token: string): Promise<boolean> {
     .limit(1);
   if (!row) return false;
   const now = new Date();
-  await db.update(schema.displayPairings).set({ lastSeenAt: now }).where(eq(schema.displayPairings.id, row.id));
-  if (row.deviceId) {
-    await db.update(schema.devices).set({ lastSeenAt: now }).where(eq(schema.devices.id, row.deviceId));
+  if (presenceIsStale(row.lastSeenAt, now)) {
+    await db.update(schema.displayPairings).set({ lastSeenAt: now }).where(eq(schema.displayPairings.id, row.id));
+    if (row.deviceId) {
+      await db.update(schema.devices).set({ lastSeenAt: now }).where(eq(schema.devices.id, row.deviceId));
+    }
   }
   return true;
 }

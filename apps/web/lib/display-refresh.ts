@@ -39,7 +39,7 @@ async function readVersion(): Promise<DisplayVersion | null> {
   }
 }
 
-export function useKitchenReload(dimmed: boolean) {
+export function useKitchenReload(dimmed: boolean, enabled = true) {
   const loadedAtRef = useRef(Date.now());
   const loadedBuildIdRef = useRef<string | null>(null);
   const lastTouchRef = useRef(Date.now());
@@ -48,6 +48,7 @@ export function useKitchenReload(dimmed: boolean) {
   dimmedRef.current = dimmed;
 
   useEffect(() => {
+    if (!enabled) return;
     const { pollMs, idleMs, maxWaitMs } = timing();
     let cancelled = false;
     let waitTimer: number | undefined;
@@ -129,7 +130,7 @@ export function useKitchenReload(dimmed: boolean) {
       window.removeEventListener("touchstart", onTouch);
       window.removeEventListener("keydown", onTouch);
     };
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     if (dimmed && pendingRef.current) window.location.reload();
