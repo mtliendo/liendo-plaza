@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ChoreDefinition: Codable, Identifiable {
     var id: String
@@ -39,6 +40,14 @@ struct ChoreDefinition: Codable, Identifiable {
 
 struct ChoreListResponse: Decodable { let chores: [ChoreDefinition] }
 struct ChoreResponse: Decodable { let chore: ChoreDefinition }
+
+extension APIClient {
+    func setGuidePhoto(_ photo: Data?, for choreID: String, token: String?) async throws -> String? {
+        let response: ChoreResponse = try await request("chores/\(choreID)/guide-photo",
+            method: photo == nil ? "DELETE" : "POST", token: token, photo: photo)
+        return response.chore.guidePhotoPath
+    }
+}
 
 struct ChoreManagementView: View {
     @EnvironmentObject private var house: House
@@ -114,6 +123,10 @@ struct ChoreEditor: View {
     @State private var busy = false
     @State private var error = ""
     private let dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    @State private var camera = false
+    @State private var photoOptions = false
+    @State private var cameraSource: UIImagePickerController.SourceType = .photoLibrary
+    @State private var pendingGuide: Data?
     init(chore: ChoreDefinition) {
         _chore = State(initialValue: chore)
         _steps = State(initialValue: chore.steps.joined(separator: "\n"))
@@ -130,9 +143,21 @@ struct ChoreEditor: View {
                     Stepper("Stars: \(chore.stars)", value: $chore.stars, in: 1...50)
                     Toggle("Needs a photo", isOn: $chore.requiresPhoto)
                 }
-                if let path = chore.guidePhotoPath {
-                    Section("Guide photo") {
+                Section("Guide photo") {
+                    if let data = pendingGuide, let image = UIImage(data: data) {
+                        Image(uiImage: image).resizable().scaledToFit()
+                            .frame(maxWidth: .infinity).frame(height: 200)
+                            .accessibilityLabel("Guide photo")
+                    } else if let path = chore.guidePhotoPath {
                         MealPhoto(path: path, accessibilityLabel: "Guide photo")
+                            .frame(maxWidth: .infinity).frame(height: 200)
+                    }
+                    Button(chore.guidePhotoPath == nil && pendingGuide == nil ? "Add photo" : "Replace photo") {
+                        chooseGuidePhoto()
+                    }.accessibilityIdentifier("manage.guide.choose")
+                    if chore.guidePhotoPath != nil || pendingGuide != nil {
+                        Button("Remove photo", role: .destructive) { Task { await removeGuide() } }
+                            .accessibilityIdentifier("manage.guide.remove")
                     }
                 }
                 Section("Repeat") {
@@ -180,7 +205,55 @@ struct ChoreEditor: View {
                         .accessibilityIdentifier("manage.save")
                 }
             }
+            .sheet(isPresented: $camera) {
+                Camera(sourceType: cameraSource) { data in Task { await changeGuide(data) } }
+            }
+            .confirmationDialog("Guide photo", isPresented: $photoOptions, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Take photo") { cameraSource = .camera; camera = true }
+                }
+                Button("Choose from library") { cameraSource = .photoLibrary; camera = true }
+            }
         }
+    }
+    private func chooseGuidePhoto() {
+        #if DEBUG
+        if CommandLine.arguments.contains("-uiTestReset"),
+           let encoded = ProcessInfo.processInfo.environment["LP_TEST_GUIDE_PHOTO"],
+           let data = Data(base64Encoded: encoded), let image = UIImage(data: data),
+           let prepared = Camera.prepare(image) {
+            Task { await changeGuide(prepared) }
+            return
+        }
+        #endif
+        photoOptions = true
+    }
+    private func changeGuide(_ data: Data) async {
+        if chore.id.isEmpty {
+            pendingGuide = data
+            return
+        }
+        busy = true
+        error = ""
+        defer { busy = false }
+        do {
+            chore.guidePhotoPath = try await house.api.setGuidePhoto(data, for: chore.id, token: house.session)
+            await house.load()
+        } catch { self.error = error.localizedDescription }
+    }
+    private func removeGuide() async {
+        if chore.id.isEmpty {
+            pendingGuide = nil
+            return
+        }
+        busy = true
+        error = ""
+        defer { busy = false }
+        do {
+            chore.guidePhotoPath = try await house.api.setGuidePhoto(nil, for: chore.id, token: house.session)
+            pendingGuide = nil
+            await house.load()
+        } catch { self.error = error.localizedDescription }
     }
     private func save() async {
         busy = true
@@ -190,8 +263,13 @@ struct ChoreEditor: View {
             chore.onceDate = MealWeek.formatter().string(from: onceDate)
             chore.steps = steps.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
             if chore.repeatType == "weekly", chore.weeklyWeekday == nil { chore.weeklyWeekday = 1 }
-            let _: ChoreResponse = try await house.api.request(chore.id.isEmpty ? "chores" : "chores/\(chore.id)",
+            let response: ChoreResponse = try await house.api.request(chore.id.isEmpty ? "chores" : "chores/\(chore.id)",
                 method: chore.id.isEmpty ? "POST" : "PATCH", token: house.session, payload: JSONEncoder().encode(chore))
+            chore.id = response.chore.id
+            if let photo = pendingGuide {
+                chore.guidePhotoPath = try await house.api.setGuidePhoto(photo, for: chore.id, token: house.session)
+                pendingGuide = nil
+            }
             await house.load()
             dismiss()
         } catch { self.error = error.localizedDescription }

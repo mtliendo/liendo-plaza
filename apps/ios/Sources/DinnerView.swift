@@ -179,7 +179,7 @@ struct MealPhoto: View {
     @State private var image: UIImage?
     @State private var failed = false
     var body: some View {
-        Group {
+        VStack {
             if let image {
                 Image(uiImage: image).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 12))
                     .accessibilityLabel(accessibilityLabel)

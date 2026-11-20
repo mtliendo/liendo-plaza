@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class ParentFeaturesUITests: XCTestCase {
     private let environment = ProcessInfo.processInfo.environment
@@ -21,11 +22,12 @@ final class ParentFeaturesUITests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
     @MainActor
-    private func launch(token: String) -> XCUIApplication {
+    private func launch(token: String, guidePhoto: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTestReset", "-uiTestGroceries"]
         app.launchEnvironment["LP_API_URL"] = environment["LP_API_URL"] ?? "http://localhost:3000"
         app.launchEnvironment["LP_TEST_SESSION_TOKEN"] = token
+        app.launchEnvironment["LP_TEST_GUIDE_PHOTO"] = guidePhoto
         app.launch()
         XCTAssertTrue(app.staticTexts["today"].waitForExistence(timeout: 60))
         return app
@@ -36,6 +38,68 @@ final class ParentFeaturesUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    @MainActor
+    func testParentGuideEditorShowsReplacesRemovesAndAddsPhoto() async throws {
+        try XCTSkipUnless(environment["LP_GUIDE_EDITOR_PROBE"] == "1", "Requires scripts/guide-fixture.ts")
+        let response = try await api("chores", token: parentToken)
+        let chores = try XCTUnwrap(response["chores"] as? [[String: Any]])
+        let chore = try XCTUnwrap(chores.first { $0["title"] as? String == "Guide fixture chore" })
+        let id = try XCTUnwrap(chore["id"] as? String)
+        let oldPath = try XCTUnwrap(chore["guidePhotoPath"] as? String)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 640, height: 400))
+        let replacement = renderer.image { context in
+            UIColor.systemOrange.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 640, height: 400))
+            ("Replacement guide" as NSString).draw(at: CGPoint(x: 60, y: 180),
+                withAttributes: [.font: UIFont.systemFont(ofSize: 44), .foregroundColor: UIColor.black])
+        }
+        let app = launch(token: try parentToken, guidePhoto: replacement.pngData()!.base64EncodedString())
+        app.tabBars.buttons["Chores"].tap()
+        let row = app.buttons["manage.chore.Guide fixture chore"]
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        row.tap()
+        let image = app.images["Guide photo"]
+        XCTAssertTrue(image.waitForExistence(timeout: 30))
+        capture(app, "Guide-editor-existing")
+        print("Existing guide image frame: \(image.frame)")
+        XCTAssertGreaterThan(image.frame.height, 100, "The Form row must reserve space for the loaded image")
+        let original = image.screenshot().pngRepresentation
+        let choose = app.buttons["manage.guide.choose"]
+        choose.tap()
+        XCTAssertTrue(choose.waitForExistence(timeout: 30))
+        let ready = NSPredicate(format: "enabled == true")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: ready, object: choose)], timeout: 60)
+        XCTAssertTrue(image.waitForExistence(timeout: 30))
+        XCTAssertNotEqual(image.screenshot().pngRepresentation, original)
+        let updated = try await api("chores/\(id)", token: parentToken)
+        let newPath = try XCTUnwrap((updated["chore"] as? [String: Any])?["guidePhotoPath"] as? String)
+        XCTAssertNotEqual(newPath, oldPath)
+        app.buttons["manage.save"].tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 60))
+        row.tap()
+        XCTAssertTrue(image.waitForExistence(timeout: 30))
+        XCTAssertGreaterThan(image.frame.height, 100)
+        XCTAssertNotEqual(image.screenshot().pngRepresentation, original)
+        capture(app, "Guide-editor-replacement-reopened")
+        app.buttons["manage.guide.remove"].tap()
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: ready, object: choose)], timeout: 60)
+        XCTAssertFalse(image.exists)
+        app.buttons["manage.save"].tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 60))
+        row.tap()
+        XCTAssertTrue(app.buttons["Add photo"].waitForExistence(timeout: 30))
+        XCTAssertFalse(image.exists)
+        capture(app, "Guide-editor-removed-reopened")
+        choose.tap()
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: ready, object: choose)], timeout: 60)
+        app.buttons["manage.save"].tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 60))
+        row.tap()
+        XCTAssertTrue(image.waitForExistence(timeout: 30))
+        XCTAssertGreaterThan(image.frame.height, 100)
+        capture(app, "Guide-editor-added-reopened")
     }
 
     @MainActor

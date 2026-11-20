@@ -1,5 +1,6 @@
 import XCTest
 import Security
+import UIKit
 @testable import LiendoPlaza
 
 private final class RevokedSessionProtocol: URLProtocol {
@@ -176,6 +177,57 @@ final class ModelsTests: XCTestCase {
             XCTFail("Upload errors must reach the caller")
         } catch { XCTAssertEqual(error.localizedDescription, "Attach a photo.") }
         XCTAssertEqual(house.snapshot?.chores.first?.status, "pending")
+    }
+
+    func testGuidePhotoUploadRemovalAndFailures() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PhotoProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        let api = APIClient(session: network)
+        let body = """
+        {"chore":{"id":"c","title":"Dishes","assignedPersonId":"kid","stars":2,
+        "requiresPhoto":false,"repeatType":"daily","steps":[],"active":true,"guidePhotoPath":"local:new.jpg"}}
+        """
+        PhotoProtocol.status = 200
+        PhotoProtocol.response = Data(body.utf8)
+        let path = try await api.setGuidePhoto(Data([0xff, 0xd8]), for: "c", token: "parent")
+        XCTAssertEqual(path, "local:new.jpg")
+        XCTAssertEqual(PhotoProtocol.request?.url?.path, "/api/chores/c/guide-photo")
+        XCTAssertEqual(PhotoProtocol.request?.httpMethod, "POST")
+        XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "Content-Type"), "image/jpeg")
+        XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "authorization"), "Bearer parent")
+        PhotoProtocol.response = Data(body.replacingOccurrences(of: #""local:new.jpg""#, with: "null").utf8)
+        let removed = try await api.setGuidePhoto(nil, for: "c", token: "parent")
+        XCTAssertNil(removed)
+        XCTAssertEqual(PhotoProtocol.request?.httpMethod, "DELETE")
+        PhotoProtocol.response = Data()
+        do {
+            _ = try await api.setGuidePhoto(Data([1]), for: "c", token: "parent")
+            XCTFail("Empty upload responses must fail")
+        } catch { XCTAssertTrue(error is DecodingError) }
+        PhotoProtocol.status = 403
+        PhotoProtocol.response = Data(#"{"error":"Parents only."}"#.utf8)
+        for photo in [Data([1]), nil] as [Data?] {
+            do {
+                _ = try await api.setGuidePhoto(photo, for: "c", token: "kid")
+                XCTFail("Guide errors must reach the editor")
+            } catch { XCTAssertEqual(error.localizedDescription, "Parents only.") }
+        }
+    }
+
+    @MainActor
+    func testCameraPreparationResizesAndProducesDecodableJPEG() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let original = UIGraphicsImageRenderer(size: CGSize(width: 3200, height: 2000), format: format).image { _ in
+            UIColor.systemBlue.setFill()
+            UIRectFill(CGRect(x: 0, y: 0, width: 3200, height: 2000))
+        }
+        let data = try XCTUnwrap(Camera.prepare(original))
+        let image = try XCTUnwrap(UIImage(data: data))
+        XCTAssertEqual(image.size, CGSize(width: 1600, height: 1000))
+        XCTAssertEqual(Array(data.prefix(2)), [0xff, 0xd8])
     }
 
     func testDinnerAndStarsDecode() throws {
