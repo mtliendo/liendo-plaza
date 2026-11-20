@@ -1,0 +1,574 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0B5CD839ACB31EB823660632 /* Figtree.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 99B1FE208660E574E612A307 /* Figtree.ttf */; };
+		11A6672254D23069CB3312C8 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0BF14D69D539DE0F0A803D7 /* API.swift */; };
+		14CDABE43FDE4E98AF3C2689 /* sofia.png in Resources */ = {isa = PBXBuildFile; fileRef = 3EA11FDCA1747B3D0DC673B2 /* sofia.png */; };
+		2D750ED5305C1E068D81B4C7 /* Fraunces.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 29F59B4595A5AAD16E220A3D /* Fraunces.ttf */; };
+		3D826A1E9D93B3EDE1271566 /* PilotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */; };
+		434D8F5BB50AE6B1AE7C4F8F /* LiendoPlazaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */; };
+		4AEF8560F2D0478DD01695C5 /* Fraunces-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB9CB601AE01BB2CAD878B5B /* Fraunces-Italic.ttf */; };
+		575C01B6C5077F92988C8557 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 28AA27811722A1365E492C64 /* Assets.xcassets */; };
+		764D8A96A0C7E068CA14CAC6 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2CC52EBFDD50263275ED86 /* PairingView.swift */; };
+		845C8A5F2DA26FA586DF8BA5 /* noah.png in Resources */ = {isa = PBXBuildFile; fileRef = 3C691C97574DD5263DE2716A /* noah.png */; };
+		8909736F8F411A011FBA591A /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056C197EDB5F3A0182A6EDF4 /* AddDeviceView.swift */; };
+		925D2D77B650F44C9B66EE85 /* xavier.png in Resources */ = {isa = PBXBuildFile; fileRef = 07B216ACF5CAB8A77FCE4CA2 /* xavier.png */; };
+		BB5C201D493B2B2465F3112E /* House.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D8C5480C64C9150932E4BE /* House.swift */; };
+		D2EDD2B3CFA4E078AE0F01E8 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9AC7F66BFB45BF512FC59DF /* TodayView.swift */; };
+		D391DF8A910139C97B5D02A2 /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBA42910DEBEAC591399712 /* ModelsTests.swift */; };
+		F286B9A7C101028E4E5A5B62 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBE04C78A7650B0DD69B499 /* Theme.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		97798366EB27B98C77DC0950 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0022B0B577798F2904245BEA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 519B4A70786C9928ADC7D6A3;
+			remoteInfo = LiendoPlaza;
+		};
+		E1200A881B124D755608AFE6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0022B0B577798F2904245BEA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 519B4A70786C9928ADC7D6A3;
+			remoteInfo = LiendoPlaza;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		056C197EDB5F3A0182A6EDF4 /* AddDeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDeviceView.swift; sourceTree = "<group>"; };
+		07B216ACF5CAB8A77FCE4CA2 /* xavier.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = xavier.png; sourceTree = "<group>"; };
+		0FBE04C78A7650B0DD69B499 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		28AA27811722A1365E492C64 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		29F59B4595A5AAD16E220A3D /* Fraunces.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Fraunces.ttf; sourceTree = "<group>"; };
+		301583A5106F7EAB86ECD948 /* LiendoPlazaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LiendoPlazaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C691C97574DD5263DE2716A /* noah.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = noah.png; sourceTree = "<group>"; };
+		3DBA42910DEBEAC591399712 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
+		3EA11FDCA1747B3D0DC673B2 /* sofia.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = sofia.png; sourceTree = "<group>"; };
+		62D8C5480C64C9150932E4BE /* House.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = House.swift; sourceTree = "<group>"; };
+		977A137FFB3AB411683E83BE /* LiendoPlaza.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LiendoPlaza.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		99B1FE208660E574E612A307 /* Figtree.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Figtree.ttf; sourceTree = "<group>"; };
+		A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PilotUITests.swift; sourceTree = "<group>"; };
+		C0BF14D69D539DE0F0A803D7 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
+		CB9CB601AE01BB2CAD878B5B /* Fraunces-Italic.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-Italic.ttf"; sourceTree = "<group>"; };
+		DF2CC52EBFDD50263275ED86 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
+		E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiendoPlazaApp.swift; sourceTree = "<group>"; };
+		EEA7E573DBD46D5C377700C9 /* LiendoPlazaUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LiendoPlazaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F9AC7F66BFB45BF512FC59DF /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0172D17D91B834AA840F2ACA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				977A137FFB3AB411683E83BE /* LiendoPlaza.app */,
+				301583A5106F7EAB86ECD948 /* LiendoPlazaTests.xctest */,
+				EEA7E573DBD46D5C377700C9 /* LiendoPlazaUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		119B102198CF04702962BB87 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		194F821C5EFBF34AE2A2819F /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				28AA27811722A1365E492C64 /* Assets.xcassets */,
+				99B1FE208660E574E612A307 /* Figtree.ttf */,
+				CB9CB601AE01BB2CAD878B5B /* Fraunces-Italic.ttf */,
+				29F59B4595A5AAD16E220A3D /* Fraunces.ttf */,
+				3C691C97574DD5263DE2716A /* noah.png */,
+				3EA11FDCA1747B3D0DC673B2 /* sofia.png */,
+				07B216ACF5CAB8A77FCE4CA2 /* xavier.png */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		40FFF81D2CE72B7B76ECF9D2 = {
+			isa = PBXGroup;
+			children = (
+				93DCA1D5D02BE09F71AF4787 /* Sources */,
+				F32FFA4B85816E393EF5B67E /* Tests */,
+				119B102198CF04702962BB87 /* UITests */,
+				0172D17D91B834AA840F2ACA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		93DCA1D5D02BE09F71AF4787 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				056C197EDB5F3A0182A6EDF4 /* AddDeviceView.swift */,
+				C0BF14D69D539DE0F0A803D7 /* API.swift */,
+				62D8C5480C64C9150932E4BE /* House.swift */,
+				E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */,
+				DF2CC52EBFDD50263275ED86 /* PairingView.swift */,
+				0FBE04C78A7650B0DD69B499 /* Theme.swift */,
+				F9AC7F66BFB45BF512FC59DF /* TodayView.swift */,
+				194F821C5EFBF34AE2A2819F /* Resources */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		F32FFA4B85816E393EF5B67E /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				3DBA42910DEBEAC591399712 /* ModelsTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		05B3CE5CD46AAE051E0B1DA2 /* LiendoPlazaTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 37A70C58BF6523D184F65E46 /* Build configuration list for PBXNativeTarget "LiendoPlazaTests" */;
+			buildPhases = (
+				29C1B92EFF552E83CBF9448D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3644A536E7A4B8523B512656 /* PBXTargetDependency */,
+			);
+			name = LiendoPlazaTests;
+			packageProductDependencies = (
+			);
+			productName = LiendoPlazaTests;
+			productReference = 301583A5106F7EAB86ECD948 /* LiendoPlazaTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		519B4A70786C9928ADC7D6A3 /* LiendoPlaza */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE862FF5EF93B5E0E23AC737 /* Build configuration list for PBXNativeTarget "LiendoPlaza" */;
+			buildPhases = (
+				6DD9ADC7713057AFF2D446BC /* Sources */,
+				6076E5A8BD36A6ABB80BD71C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LiendoPlaza;
+			packageProductDependencies = (
+			);
+			productName = LiendoPlaza;
+			productReference = 977A137FFB3AB411683E83BE /* LiendoPlaza.app */;
+			productType = "com.apple.product-type.application";
+		};
+		CB88892C08928DBD0AC72D29 /* LiendoPlazaUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E7E59A29DB03756FBB371E8B /* Build configuration list for PBXNativeTarget "LiendoPlazaUITests" */;
+			buildPhases = (
+				7DF3F8893B8380099BFDE1BC /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7AC9BA7DA1CD405FFC8007F3 /* PBXTargetDependency */,
+			);
+			name = LiendoPlazaUITests;
+			packageProductDependencies = (
+			);
+			productName = LiendoPlazaUITests;
+			productReference = EEA7E573DBD46D5C377700C9 /* LiendoPlazaUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0022B0B577798F2904245BEA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					05B3CE5CD46AAE051E0B1DA2 = {
+						DevelopmentTeam = QEP46P7WF2;
+						ProvisioningStyle = Automatic;
+					};
+					519B4A70786C9928ADC7D6A3 = {
+						DevelopmentTeam = QEP46P7WF2;
+						ProvisioningStyle = Automatic;
+					};
+					CB88892C08928DBD0AC72D29 = {
+						DevelopmentTeam = QEP46P7WF2;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 519B4A70786C9928ADC7D6A3;
+					};
+				};
+			};
+			buildConfigurationList = 85D1E666FA5BB3496C47800B /* Build configuration list for PBXProject "LiendoPlaza" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 40FFF81D2CE72B7B76ECF9D2;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 0172D17D91B834AA840F2ACA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				519B4A70786C9928ADC7D6A3 /* LiendoPlaza */,
+				05B3CE5CD46AAE051E0B1DA2 /* LiendoPlazaTests */,
+				CB88892C08928DBD0AC72D29 /* LiendoPlazaUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		6076E5A8BD36A6ABB80BD71C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				575C01B6C5077F92988C8557 /* Assets.xcassets in Resources */,
+				0B5CD839ACB31EB823660632 /* Figtree.ttf in Resources */,
+				4AEF8560F2D0478DD01695C5 /* Fraunces-Italic.ttf in Resources */,
+				2D750ED5305C1E068D81B4C7 /* Fraunces.ttf in Resources */,
+				845C8A5F2DA26FA586DF8BA5 /* noah.png in Resources */,
+				14CDABE43FDE4E98AF3C2689 /* sofia.png in Resources */,
+				925D2D77B650F44C9B66EE85 /* xavier.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		29C1B92EFF552E83CBF9448D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D391DF8A910139C97B5D02A2 /* ModelsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6DD9ADC7713057AFF2D446BC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				11A6672254D23069CB3312C8 /* API.swift in Sources */,
+				8909736F8F411A011FBA591A /* AddDeviceView.swift in Sources */,
+				BB5C201D493B2B2465F3112E /* House.swift in Sources */,
+				434D8F5BB50AE6B1AE7C4F8F /* LiendoPlazaApp.swift in Sources */,
+				764D8A96A0C7E068CA14CAC6 /* PairingView.swift in Sources */,
+				F286B9A7C101028E4E5A5B62 /* Theme.swift in Sources */,
+				D2EDD2B3CFA4E078AE0F01E8 /* TodayView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DF3F8893B8380099BFDE1BC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3D826A1E9D93B3EDE1271566 /* PilotUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3644A536E7A4B8523B512656 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 519B4A70786C9928ADC7D6A3 /* LiendoPlaza */;
+			targetProxy = 97798366EB27B98C77DC0950 /* PBXContainerItemProxy */;
+		};
+		7AC9BA7DA1CD405FFC8007F3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 519B4A70786C9928ADC7D6A3 /* LiendoPlaza */;
+			targetProxy = E1200A881B124D755608AFE6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1542036467A5DB6A71675583 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = LiendoPlaza.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.focusotter.liendoplaza;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		47078EC9B3797172B15D8CCB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = QEP46P7WF2;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LP_API_URL = "http://localhost:3000";
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		4C4C26F7DCD79B69426EFE9D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = QEP46P7WF2;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LP_API_URL = "http://localhost:3000";
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5C46BEA6BCD094D7B19E6CC2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = LiendoPlaza.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.focusotter.liendoplaza;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		68220B57858A9B62A1F78361 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.focusotter.liendoplaza.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = LiendoPlaza;
+			};
+			name = Release;
+		};
+		6E3D3B8152E1F44E051BE4E5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.focusotter.liendoplaza.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LiendoPlaza.app/LiendoPlaza";
+			};
+			name = Debug;
+		};
+		EA946E07DA41BFB1AC77B2CC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.focusotter.liendoplaza.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LiendoPlaza.app/LiendoPlaza";
+			};
+			name = Release;
+		};
+		ECCFDD7BA708916F8E78655A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.focusotter.liendoplaza.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = LiendoPlaza;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		37A70C58BF6523D184F65E46 /* Build configuration list for PBXNativeTarget "LiendoPlazaTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6E3D3B8152E1F44E051BE4E5 /* Debug */,
+				EA946E07DA41BFB1AC77B2CC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		85D1E666FA5BB3496C47800B /* Build configuration list for PBXProject "LiendoPlaza" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C4C26F7DCD79B69426EFE9D /* Debug */,
+				47078EC9B3797172B15D8CCB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CE862FF5EF93B5E0E23AC737 /* Build configuration list for PBXNativeTarget "LiendoPlaza" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5C46BEA6BCD094D7B19E6CC2 /* Debug */,
+				1542036467A5DB6A71675583 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E7E59A29DB03756FBB371E8B /* Build configuration list for PBXNativeTarget "LiendoPlazaUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ECCFDD7BA708916F8E78655A /* Debug */,
+				68220B57858A9B62A1F78361 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0022B0B577798F2904245BEA /* Project object */;
+}
