@@ -57,6 +57,15 @@ private final class UnavailableGroceriesStore: GroceriesStore {
 }
 
 final class ParentFeaturesTests: XCTestCase {
+    func testChoreDestinationsUseInstanceIdentity() {
+        let first = ChoreDestination(id: "instance-a")
+        let repeated = ChoreDestination(id: "instance-a")
+        let second = ChoreDestination(id: "instance-b")
+        XCTAssertEqual(first, repeated)
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(Set([first, repeated, second]).count, 2)
+    }
+
     private func instance(_ id: String, date: String, status: String = "pending") -> ChoreInstance {
         ChoreInstance(id: id, choreId: "c", personId: "kid", date: date, status: status,
             title: "Dishes", stars: 2, starsAwarded: 0, requiresPhoto: true,

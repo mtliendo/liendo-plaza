@@ -19,16 +19,25 @@ async function main() {
     { slug: "refresh-parent", name: "Parent", role: "parent", color: "#123456" },
     { slug: "refresh-kid", name: "Kid", role: "kid", color: "#123456" },
   ]).returning();
-  await db.insert(schema.chores).values({
-    title: "Refresh fixture chore", assignedPersonId: kid.id, stars: 1,
+  await db.insert(schema.chores).values(["Refresh fixture chore", "Navigation middle chore", "Navigation last chore"].map((title) => ({
+    title, assignedPersonId: kid.id, stars: 1,
     requiresPhoto: false, repeatType: "daily",
-  });
+  })));
   const token = randomUUID();
   await db.insert(schema.sessions).values({
     personId: parent.id, tokenHash: createHash("sha256").update(token).digest("hex"),
     expiresAt: new Date(Date.now() + 24 * 3600_000),
   });
   await writeFile(sessionFile, token, { mode: 0o600 });
+  const kidSessionFile = process.env.LP_REFRESH_KID_SESSION_FILE;
+  if (kidSessionFile) {
+    const kidToken = randomUUID();
+    await db.insert(schema.sessions).values({
+      personId: kid.id, tokenHash: createHash("sha256").update(kidToken).digest("hex"),
+      expiresAt: new Date(Date.now() + 24 * 3600_000),
+    });
+    await writeFile(kidSessionFile, kidToken, { mode: 0o600 });
+  }
   const counts = { snapshot: 0, pending: 0, meals: 0 };
   const server = createServer(async (incoming, outgoing) => {
     const url = new URL(incoming.url ?? "/", `http://127.0.0.1:${port}`);
