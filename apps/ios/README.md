@@ -90,8 +90,12 @@ Accessibility IDs include `person.noah`, `pin`, `open`, `pairing.code`, `chore.<
 
 ## Out of scope
 
-Calendar, dinner editing, stars/rewards screens, other parent management,
-and APNs push. Kids see their star balance and a one-tap chore checkbox.
+Calendar, stars/rewards screens and APNs push. Parents can edit dinners,
+navigate weeks, manage chore schedules and review proof photos.
+Groceries uses the Apple Reminders list named "Groceries"; share that list
+in Reminders for iCloud sync and Siri. Full Reminders access is required.
+Debug UI tests use `-uiTestGroceries` for an isolated in-memory list.
+Kids see their star balance and a one-tap chore checkbox.
 Photo chores use the camera (photo library on the simulator) and wait for
 parent review after upload. Kids receive one local reminder for today's open
 chores at the household reminder time (default 6 PM America/Chicago); permission

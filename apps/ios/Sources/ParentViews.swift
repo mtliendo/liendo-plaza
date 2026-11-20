@@ -8,6 +8,8 @@ struct RoleTabs: View {
                 .tabItem { Label(house.person?.isParent == true ? "Today" : "Chores", systemImage: "checkmark.circle") }
             DinnerView().tabItem { Label("Dinner", systemImage: "fork.knife") }
             if house.person?.isParent == true {
+                GroceriesView().tabItem { Label("Groceries", systemImage: "basket") }
+                ChoreManagementView().tabItem { Label("Chores", systemImage: "list.bullet") }
                 FamilyView().tabItem { Label("Family", systemImage: "person.2") }
             }
         }

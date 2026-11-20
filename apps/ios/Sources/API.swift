@@ -12,6 +12,7 @@ struct ChoreInstance: Codable, Identifiable {
     let stars, starsAwarded: Int
     let requiresPhoto: Bool
     let description: String?
+    let photoPath: String?
     let steps: [String]
     var statusLabel: String {
         switch status {
@@ -23,7 +24,11 @@ struct ChoreInstance: Codable, Identifiable {
     }
 }
 
-struct Meal: Codable { let date, name: String; let photoPath: String? }
+struct Meal: Codable, Identifiable {
+    let date, name: String
+    let photoPath: String?
+    var id: String { date }
+}
 struct MealsResponse: Decodable { let meals: [Meal] }
 struct StarSummary: Codable { let personId: String; let balance: Int }
 struct FamilySettings: Codable { let choreReminderHour: Int; let choreReminderMinute: Int? }
@@ -72,10 +77,19 @@ struct APIClient {
             ?? "http://localhost:3000"
         baseURL = URL(string: value)!
     }
+    func photoURL(_ path: String) -> URL {
+        if path.hasPrefix("/") { return baseURL.appendingPathComponent(String(path.dropFirst())) }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        let component = path.addingPercentEncoding(withAllowedCharacters: allowed)!
+        return URL(string: baseURL.appendingPathComponent("api/photos").absoluteString + "/" + component)!
+    }
     func request<T: Decodable>(_ path: String, method: String = "GET",
                                body: [String: String]? = nil, token: String? = nil,
-                               family: String? = nil, photo: Data? = nil) async throws -> T {
-        var request = URLRequest(url: baseURL.appendingPathComponent("api/" + path))
+                               family: String? = nil, photo: Data? = nil,
+                               query: [String: String] = [:], payload: Data? = nil) async throws -> T {
+        var url = URLComponents(url: baseURL.appendingPathComponent("api/" + path), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty { url.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) } }
+        var request = URLRequest(url: url.url!)
         request.httpMethod = method
         request.timeoutInterval = 30
         if let body {
@@ -85,6 +99,10 @@ struct APIClient {
         if let photo {
             request.httpBody = photo
             request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        }
+        if let payload {
+            request.httpBody = payload
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization") }
         if let family { request.setValue(family, forHTTPHeaderField: "x-family-token") }

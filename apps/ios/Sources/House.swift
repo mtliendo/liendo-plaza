@@ -158,6 +158,14 @@ final class House: ObservableObject {
         await updateReminder()
     }
 
+    func review(_ id: String, action: String) async throws {
+        let response: InstanceResponse = try await api.request(
+            "chores/instances/\(id)/review", method: "POST", body: ["action": action], token: session)
+        if let index = snapshot?.chores.firstIndex(where: { $0.id == id }) {
+            snapshot?.chores[index] = response.instance
+        }
+    }
+
     private func updateReminder() async {
         guard let snapshot, let person, !person.isParent else { ChoreReminders.remove(); return }
         await ChoreReminders.update(snapshot: snapshot, person: person)

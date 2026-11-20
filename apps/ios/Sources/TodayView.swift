@@ -90,6 +90,13 @@ struct ChoreDetailView: View {
                         }
                     }
                     if let actor = house.person, actor.isParent || actor.id == chore.personId {
+                        if actor.isParent && chore.status == "pending" {
+                            if let path = chore.photoPath { MealPhoto(path: path) }
+                            HStack {
+                                reviewButton("Approve", action: "approve")
+                                reviewButton("Send back", action: "reject")
+                            }
+                        }
                         if chore.requiresPhoto && ["open", "rejected"].contains(chore.status) {
                             Button("Take a photo") { camera = true }
                                 .buttonStyle(PrimaryButton()).disabled(busy)
@@ -125,5 +132,17 @@ struct ChoreDetailView: View {
                 }
             }
         }
+    }
+
+    private func reviewButton(_ title: String, action: String) -> some View {
+        Button(title) {
+            Task {
+                busy = true
+                error = ""
+                defer { busy = false }
+                do { try await house.review(id, action: action) }
+                catch { self.error = error.localizedDescription }
+            }
+        }.buttonStyle(PrimaryButton()).disabled(busy).accessibilityIdentifier("chore.review.\(action)")
     }
 }

@@ -10,7 +10,10 @@
 		0B5CD839ACB31EB823660632 /* Figtree.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 99B1FE208660E574E612A307 /* Figtree.ttf */; };
 		11A6672254D23069CB3312C8 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0BF14D69D539DE0F0A803D7 /* API.swift */; };
 		14CDABE43FDE4E98AF3C2689 /* sofia.png in Resources */ = {isa = PBXBuildFile; fileRef = 3EA11FDCA1747B3D0DC673B2 /* sofia.png */; };
+		2CDAD91528A7D35697DC05B4 /* ChoreManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C553B4A8B8F4134AD152758 /* ChoreManagementView.swift */; };
 		2D750ED5305C1E068D81B4C7 /* Fraunces.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 29F59B4595A5AAD16E220A3D /* Fraunces.ttf */; };
+		2F842293A997A71D336CB6EA /* GroceriesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73F984D0AB74AEF842DAA179 /* GroceriesStore.swift */; };
+		337F18626D1B80086D05F712 /* GroceriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D506FC40F000CD513A899783 /* GroceriesView.swift */; };
 		3D826A1E9D93B3EDE1271566 /* PilotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */; };
 		434D8F5BB50AE6B1AE7C4F8F /* LiendoPlazaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */; };
 		4AEF8560F2D0478DD01695C5 /* Fraunces-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB9CB601AE01BB2CAD878B5B /* Fraunces-Italic.ttf */; };
@@ -22,7 +25,9 @@
 		8909736F8F411A011FBA591A /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056C197EDB5F3A0182A6EDF4 /* AddDeviceView.swift */; };
 		925D2D77B650F44C9B66EE85 /* xavier.png in Resources */ = {isa = PBXBuildFile; fileRef = 07B216ACF5CAB8A77FCE4CA2 /* xavier.png */; };
 		A72ADF74A2328646F47E36D1 /* DinnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35753847D70857687FAE3F6A /* DinnerView.swift */; };
+		A7FEA706116D4A4F805BFB2A /* ParentFeaturesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A81B59DE00CE303DA6AE1E1 /* ParentFeaturesTests.swift */; };
 		BB5C201D493B2B2465F3112E /* House.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D8C5480C64C9150932E4BE /* House.swift */; };
+		CC5A37D821DA4E37362A3024 /* ParentFeaturesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D166E01CCC7228DF7C45B5A1 /* ParentFeaturesUITests.swift */; };
 		D2EDD2B3CFA4E078AE0F01E8 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9AC7F66BFB45BF512FC59DF /* TodayView.swift */; };
 		D391DF8A910139C97B5D02A2 /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBA42910DEBEAC591399712 /* ModelsTests.swift */; };
 		E2AE39592710240E7B7D3036 /* Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = D561F15C2FC5965A46A678C6 /* Camera.swift */; };
@@ -57,16 +62,21 @@
 		29F59B4595A5AAD16E220A3D /* Fraunces.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Fraunces.ttf; sourceTree = "<group>"; };
 		301583A5106F7EAB86ECD948 /* LiendoPlazaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LiendoPlazaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		35753847D70857687FAE3F6A /* DinnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DinnerView.swift; sourceTree = "<group>"; };
+		3C553B4A8B8F4134AD152758 /* ChoreManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoreManagementView.swift; sourceTree = "<group>"; };
 		3C691C97574DD5263DE2716A /* noah.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = noah.png; sourceTree = "<group>"; };
 		3DBA42910DEBEAC591399712 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
 		3EA11FDCA1747B3D0DC673B2 /* sofia.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = sofia.png; sourceTree = "<group>"; };
 		62D8C5480C64C9150932E4BE /* House.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = House.swift; sourceTree = "<group>"; };
 		6B5EE6B9B7D7B9B31918314B /* ParentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentViews.swift; sourceTree = "<group>"; };
+		73F984D0AB74AEF842DAA179 /* GroceriesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceriesStore.swift; sourceTree = "<group>"; };
+		8A81B59DE00CE303DA6AE1E1 /* ParentFeaturesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentFeaturesTests.swift; sourceTree = "<group>"; };
 		977A137FFB3AB411683E83BE /* LiendoPlaza.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LiendoPlaza.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		99B1FE208660E574E612A307 /* Figtree.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Figtree.ttf; sourceTree = "<group>"; };
 		A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PilotUITests.swift; sourceTree = "<group>"; };
 		C0BF14D69D539DE0F0A803D7 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		CB9CB601AE01BB2CAD878B5B /* Fraunces-Italic.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-Italic.ttf"; sourceTree = "<group>"; };
+		D166E01CCC7228DF7C45B5A1 /* ParentFeaturesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentFeaturesUITests.swift; sourceTree = "<group>"; };
+		D506FC40F000CD513A899783 /* GroceriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceriesView.swift; sourceTree = "<group>"; };
 		D561F15C2FC5965A46A678C6 /* Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Camera.swift; sourceTree = "<group>"; };
 		DF2CC52EBFDD50263275ED86 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
 		E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiendoPlazaApp.swift; sourceTree = "<group>"; };
@@ -88,6 +98,7 @@
 		119B102198CF04702962BB87 /* UITests */ = {
 			isa = PBXGroup;
 			children = (
+				D166E01CCC7228DF7C45B5A1 /* ParentFeaturesUITests.swift */,
 				A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */,
 			);
 			path = UITests;
@@ -123,8 +134,11 @@
 				056C197EDB5F3A0182A6EDF4 /* AddDeviceView.swift */,
 				C0BF14D69D539DE0F0A803D7 /* API.swift */,
 				D561F15C2FC5965A46A678C6 /* Camera.swift */,
+				3C553B4A8B8F4134AD152758 /* ChoreManagementView.swift */,
 				0952F677CCE1300C4350D948 /* ChoreReminders.swift */,
 				35753847D70857687FAE3F6A /* DinnerView.swift */,
+				73F984D0AB74AEF842DAA179 /* GroceriesStore.swift */,
+				D506FC40F000CD513A899783 /* GroceriesView.swift */,
 				62D8C5480C64C9150932E4BE /* House.swift */,
 				0409C0F05F99F06D19BC6B07 /* KidViews.swift */,
 				E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */,
@@ -141,6 +155,7 @@
 			isa = PBXGroup;
 			children = (
 				3DBA42910DEBEAC591399712 /* ModelsTests.swift */,
+				8A81B59DE00CE303DA6AE1E1 /* ParentFeaturesTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -270,6 +285,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D391DF8A910139C97B5D02A2 /* ModelsTests.swift in Sources */,
+				A7FEA706116D4A4F805BFB2A /* ParentFeaturesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -280,8 +296,11 @@
 				11A6672254D23069CB3312C8 /* API.swift in Sources */,
 				8909736F8F411A011FBA591A /* AddDeviceView.swift in Sources */,
 				E2AE39592710240E7B7D3036 /* Camera.swift in Sources */,
+				2CDAD91528A7D35697DC05B4 /* ChoreManagementView.swift in Sources */,
 				82D02D91AF46828E6776F6B4 /* ChoreReminders.swift in Sources */,
 				A72ADF74A2328646F47E36D1 /* DinnerView.swift in Sources */,
+				2F842293A997A71D336CB6EA /* GroceriesStore.swift in Sources */,
+				337F18626D1B80086D05F712 /* GroceriesView.swift in Sources */,
 				BB5C201D493B2B2465F3112E /* House.swift in Sources */,
 				836C4C59AAB1FB9EA4C2BC7A /* KidViews.swift in Sources */,
 				434D8F5BB50AE6B1AE7C4F8F /* LiendoPlazaApp.swift in Sources */,
@@ -296,6 +315,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC5A37D821DA4E37362A3024 /* ParentFeaturesUITests.swift in Sources */,
 				3D826A1E9D93B3EDE1271566 /* PilotUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
