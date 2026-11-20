@@ -10,7 +10,7 @@ struct DinnerView: View {
     private var days: [String] { MealWeek.days(offset: weekOffset) }
     var body: some View {
         NavigationStack {
-            ScrollView {
+            List {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack {
                         Button { weekOffset -= 1 } label: { Image(systemName: "chevron.left") }
@@ -36,8 +36,16 @@ struct DinnerView: View {
                     }
                     InlineError(message: error)
                     if !error.isEmpty { Button("Try again") { Task { await load() } } }
-                }.padding(24)
+                }
+                .padding(24)
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .accessibilityIdentifier("dinner.list")
             .background(Plaza.paper).navigationTitle("Dinner")
             .task(id: weekOffset) { await load() }.refreshable { await load() }
             .sheet(item: $editing, onDismiss: { Task { await load() } }) { meal in
