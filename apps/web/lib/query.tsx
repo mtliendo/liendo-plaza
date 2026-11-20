@@ -102,10 +102,12 @@ export function useSnapshot(enabled = true, refetchInterval?: number | false, fr
   if (!freezeRange) range.current = currentRange;
   const { from, to } = range.current;
   const fixture = currentFixture();
+  const queryKey = queryKeys.snapshot(from, to, fixture);
+  const queryClient = useQueryClient();
   return useQuery({
-    queryKey: queryKeys.snapshot(from, to, fixture),
+    queryKey,
     queryFn: () => fetchSnapshot(from, to, fixture),
-    enabled,
+    enabled: enabled && (!freezeRange || queryClient.getQueryData(queryKey) === undefined),
     refetchInterval,
   });
 }
