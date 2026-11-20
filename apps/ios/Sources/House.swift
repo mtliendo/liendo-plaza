@@ -18,6 +18,16 @@ final class House: ObservableObject {
                 try Keychain.write(nil, key: "family")
                 session = nil
                 family = nil
+#if DEBUG
+                let environment = ProcessInfo.processInfo.environment
+                if let token = environment["LP_TEST_SESSION_TOKEN"] {
+                    try Keychain.write(token, key: "session")
+                    session = token
+                }
+                if let token = environment["LP_TEST_FAMILY_TOKEN"] {
+                    try saveFamily(token)
+                }
+#endif
             } catch { self.error = error.localizedDescription }
         }
     }
