@@ -41,7 +41,7 @@ import {
 } from "./chores";
 import { getDb, schema } from "./db";
 import { deleteStoredPhoto, readPhoto, readUpload, replaceStoredPhoto, storePhoto } from "./blob";
-import { HttpError, json, readJson } from "./http";
+import { HttpError, errorResponse, json, readJson } from "./http";
 import { notifyParents, notifyPerson, registerPushToken } from "./push";
 import { clientIp, rateLimit } from "./rate-limit";
 import { getDisplayRefreshRequestedAt, getSettings, requestDisplayRefresh, updateSettings } from "./settings";
@@ -83,6 +83,21 @@ async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<
 }
 
 export async function handleApi(req: Request): Promise<Response> {
+  const path = pathOf(req);
+  const protectedPhoto = path === "photos" || path.startsWith("photos/") || /\/(?:guide-photo|photo)$/.test(path);
+  if (!protectedPhoto) return dispatchApi(req);
+  let response: Response;
+  try {
+    response = await dispatchApi(req);
+  } catch (error) {
+    response = errorResponse(error);
+  }
+  response.headers.set("cache-control", "private, no-store");
+  response.headers.append("vary", "Authorization, Cookie");
+  return response;
+}
+
+async function dispatchApi(req: Request): Promise<Response> {
   const path = pathOf(req);
   const method = req.method;
   const url = new URL(req.url);
@@ -604,7 +619,6 @@ export async function handleApi(req: Request): Promise<Response> {
     return new Response(file.body as unknown as BodyInit, {
       headers: {
         "content-type": file.contentType,
-        "cache-control": "private, max-age=3600",
       },
     });
   }
