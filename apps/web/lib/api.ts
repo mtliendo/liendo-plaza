@@ -88,7 +88,7 @@ async function dispatchApi(req: Request): Promise<Response> {
     const actor = await requireActor(req, ["person"]);
     const parent = requireParent(actor);
     if (path.endsWith("/propose")) {
-      rateLimit(`chore-agent:${parent.id}`, 20, 600_000);
+      await rateLimit(`chore-agent:${parent.id}`, 20, 600_000);
       return json(await proposeChores(proposalRequest.parse(await readJson(req))));
     }
     const body = z.object({ changes: z.array(z.unknown()).max(50) }).parse(await readJson(req));
@@ -138,7 +138,7 @@ async function dispatchApi(req: Request): Promise<Response> {
 
   if (path === "auth/codes/setup" && method === "POST") {
     const parent = requireParent(await requireActor(req, ["person"]));
-    rateLimit(`setup:${clientIp(req)}`, 10, 60_000);
+    await rateLimit(`setup:${clientIp(req)}`, 10, 60_000);
     const body = await readJson<Record<string, unknown>>(req);
     if (body.personId !== parent.id) throw new HttpError(403, "Set up using your own parent profile.");
     const kind = body.deviceKind === "phone" ? "phone" : "browser";
@@ -155,7 +155,7 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "auth/login" && method === "POST") {
-    rateLimit(`login:${clientIp(req)}`, 20, 60_000);
+    await rateLimit(`login:${clientIp(req)}`, 20, 60_000);
     const body = await readJson<{
       code?: string;
       cookie?: boolean;
@@ -187,7 +187,7 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "pair/claim" && method === "POST") {
-    rateLimit(`claim:${clientIp(req)}`, 20, 60_000);
+    await rateLimit(`claim:${clientIp(req)}`, 20, 60_000);
     const body = await readJson<{ deviceKind?: "display" | "phone" | "browser"; label?: string }>(req);
     if (body.deviceKind && body.deviceKind !== "display") throw new HttpError(410, "Phones and browsers sign in with a family code.");
     const deviceKind = "display";
@@ -201,7 +201,7 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "pair/poll" && method === "POST") {
-    rateLimit(`poll:${clientIp(req)}`, 120, 60_000);
+    await rateLimit(`poll:${clientIp(req)}`, 120, 60_000);
     const body = await readJson<{ id?: string; pollSecret?: string }>(req);
     if (!body.id || !body.pollSecret) throw new HttpError(400, "Missing pairing poll.");
     return json(await pollClaim(body.id, body.pollSecret));
@@ -225,7 +225,7 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "pair/redeem" && method === "POST") {
-    rateLimit(`redeem:${clientIp(req)}`, 20, 60_000);
+    await rateLimit(`redeem:${clientIp(req)}`, 20, 60_000);
     const body = await readJson<{ invite?: string }>(req);
     return json(await redeemInvite(body.invite ?? ""));
   }

@@ -111,6 +111,31 @@ pnpm db:seed
 pnpm db:reset && pnpm db:seed && pnpm test:e2e   # e2e expects bootstrap to be open
 ```
 
+## API rate limits
+
+All API rate-limit buckets are shared in Postgres, so cold starts and multiple
+server instances enforce the same quota. Limits and the 429 response are unchanged.
+If the bucket table is missing (`42P01`), the app warns once per process and
+temporarily uses the previous in-memory limiter so login, setup, and pairing stay
+available. All other database errors still fail closed.
+
+Apply `apps/web/drizzle/0006_rate_limits.sql` using `pnpm db:migrate`, preferably
+before deployment. Vercel's configured build runs only the web build, not
+migrations: production and preview databases each need this explicit step with
+their own `DATABASE_URL` (use the direct database connection for migrations).
+The migration is idempotent and compatible with the previous app version.
+Until applied, quotas are only per process and reset on cold starts; they are not
+enforced globally. Every request retries Postgres, so durable limiting resumes
+automatically once the table exists, without restarting the app.
+
+Expired buckets reset lazily when reused; to remove inactive keys, database
+maintenance can run `DELETE FROM rate_limit_buckets WHERE reset_at < now()`.
+Once migrated, restarting the app no longer clears quotas. Use a fresh local test
+database or wait for the window to expire between live audits.
+
+Run `pnpm --filter @liendo/web test:rate-limit` against a dedicated local test
+database to check cold processes, concurrent requests, expiry, and key isolation.
+
 ## Design
 
 Kitchen UI follows Hallmark theme **Solstice**: cream paper, Fraunces (SOFT 100, WONK, high opsz) and Figtree, gold hairlines, one vermilion signal. Person colors do the rest. Copy is plain.
