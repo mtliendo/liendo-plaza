@@ -22,7 +22,6 @@ struct FamilyView: View {
         NavigationStack {
             List {
                 NavigationLink("Family codes") { FamilyCodesView() }.accessibilityIdentifier("familyCodes")
-                NavigationLink("Add a device") { AddDeviceView() }.accessibilityIdentifier("addDevice")
                 Button("Sign out") { Task { await house.signOut() } }.accessibilityIdentifier("signOut")
                 Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
                     .foregroundStyle(Plaza.muted)

@@ -156,36 +156,4 @@ final class PilotUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
         _ = try await api("auth/codes", body: ["personId": try XCTUnwrap(focus["id"] as? String), "code": "123456", "confirmation": "123456"], token: parentToken)
     }
-
-    @MainActor
-    func testParentApprovesDeviceInApp() async throws {
-        let app = launch(session: try parentToken)
-        XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
-        app.tabBars.buttons["Family"].tap()
-        XCTAssertTrue(app.buttons["addDevice"].waitForExistence(timeout: 60))
-        let second = try await api("pair/claim", body: ["deviceKind": "display"])
-        let secondCode = try XCTUnwrap(second["displayCode"] as? String)
-        app.open(try XCTUnwrap(URL(string: "liendoplaza://pair?code=\(secondCode)")))
-        let field = app.textFields["addDevice.code"]
-        XCTAssertTrue(field.waitForExistence(timeout: 15))
-        XCTAssertEqual(field.value as? String, secondCode)
-        XCTAssertTrue(app.staticTexts["addDevice.claim"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["addDevice.claim"].label.contains("Display"))
-        let pending = try await api("pair/poll", body: [
-            "id": try XCTUnwrap(second["id"] as? String),
-            "pollSecret": try XCTUnwrap(second["pollSecret"] as? String)
-        ])
-        XCTAssertEqual(pending["status"] as? String, "pending")
-        XCTAssertFalse(app.staticTexts["addDevice.success"].exists)
-        capture(app, "approve-device")
-        app.buttons["addDevice.approve"].tap()
-        XCTAssertTrue(app.staticTexts["addDevice.success"].waitForExistence(timeout: 30))
-        capture(app, "device-approved")
-        let approved = try await api("pair/poll", body: [
-            "id": try XCTUnwrap(second["id"] as? String),
-            "pollSecret": try XCTUnwrap(second["pollSecret"] as? String)
-        ])
-        XCTAssertEqual(approved["status"] as? String, "paired")
-        XCTAssertNotNil(approved["token"])
-    }
 }

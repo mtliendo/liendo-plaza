@@ -2,7 +2,8 @@
 
 SwiftUI, iOS 17+, no third-party dependencies. This pilot covers family-code
 setup/sign-in, role-based tabs, dinner,
-chore completion/undo and photo proof, and parent short-code device approval.
+chore completion/undo and photo proof. Kitchen boards are approved from the
+web app, not the phone.
 
 ## Open and run
 
@@ -65,7 +66,7 @@ database. Set `DATABASE_URL` explicitly, or use the root `.env.local`.
 **The script resets and seeds that database twice**, refusing remote/non-test URLs.
 It checks `/api/health` before doing anything destructive, builds for testing
 once, runs setup alone, resets again, sets up a curl parent, and runs
-the kid complete/undo and parent device-approval tests plus model tests.
+the kid complete/undo and parent Family tab tests plus model tests.
 Every UI test starts with `-uiTestReset`. Parent authorization is passed through
 `TEST_RUNNER_LP_PARENT_TOKEN`; never enable shell tracing or commit this token.
 `LP_API_URL` defaults to localhost:3000; `DESTINATION` overrides the default
@@ -87,8 +88,7 @@ If the root `.env.local` is absent, the script also accepts an exported
 `DATABASE_URL`, so no backend configuration file needs to be created.
 
 Accessibility IDs include `person.noah`, `pin`, `open`, `pairing.code`, `chore.<title>`,
-`status.<title>`, `chore.status`, `chore.complete`, `chore.undo`, `signOut`,
-`addDevice`, `addDevice.code`, and `addDevice.approve`.
+`status.<title>`, `chore.status`, `chore.complete`, `chore.undo`, and `signOut`.
 
 ## Out of scope
 
