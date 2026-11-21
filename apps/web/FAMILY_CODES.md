@@ -75,6 +75,22 @@ database. Set `ROLE_AUDIT_BASE_URL` to its local Next server and optionally
 finding is reported separately pending the stacked follow-up; it is not counted
 as a passing boundary.
 
+For `GET /api/auth/codes`, the HTTP audit records 401 for anonymous callers,
+403 for a signed-in kid, and sanitized code settings for each parent. Display-only
+credentials also get 401 on this person-only route. Replaying a revoked session
+after logout returns 401, not 403.
+
+## Non-blocking QA notes (no change)
+
+- Web has no sign-out button.
+- Chrome Back shows a cached page after logout until reload.
+- iPhone proof-image cache eviction is unchecked; URLCache model coverage does
+  not establish physical-device proof-image eviction.
+
+These QA notes are recorded without behavior changes.
+
+## Running local checks
+
 Use dedicated local Postgres databases, migrate them with `pnpm db:migrate`,
 then run `pnpm --filter @liendo/web exec tsx scripts/test-family-codes.ts` with
 `DATABASE_URL=postgres://…@127.0.0.1:5432/liendo_codes_test_<timestamp>`.
