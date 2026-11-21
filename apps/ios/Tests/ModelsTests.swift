@@ -74,6 +74,56 @@ private final class ToggleProtocol: URLProtocol {
 }
 
 final class ModelsTests: XCTestCase {
+    @MainActor
+    func testSignInAndSignOutClearURLCache() throws {
+        let cache = URLCache(memoryCapacity: 512_000, diskCapacity: 512_000, diskPath: "role-audit-\(UUID().uuidString)")
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = cache
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); cache.removeAllCachedResponses() }
+        let house = House(api: APIClient(session: network))
+        defer { try? house.clearSession() }
+        let request = URLRequest(url: URL(string: "https://cache.test/api/snapshot")!)
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+            headerFields: ["Cache-Control": "public, max-age=600"])!
+        let cached = CachedURLResponse(response: response, data: Data("private proof metadata".utf8), storagePolicy: .allowed)
+        cache.storeCachedResponse(cached, for: request)
+        XCTAssertNotNil(cache.cachedResponse(for: request))
+        let person = Person(id: "parent", slug: "focus", name: "Focus", role: "parent", color: "", avatarKey: nil)
+        try house.accept(SessionResponse(token: "code-issued-session", person: person))
+        XCTAssertNil(cache.cachedResponse(for: request))
+        cache.storeCachedResponse(cached, for: request)
+        XCTAssertNotNil(cache.cachedResponse(for: request))
+        try house.clearSession()
+        XCTAssertNil(cache.cachedResponse(for: request))
+    }
+
+    @MainActor
+    func testAcceptClearsPreviousIdentityState() throws {
+        let kid = Person(id: "kid", slug: "noah", name: "Noah", role: "kid", color: "", avatarKey: nil)
+        let focus = Person(id: "focus", slug: "focus", name: "Focus", role: "parent", color: "", avatarKey: nil)
+        let jess = Person(id: "jess", slug: "jess", name: "Jess", role: "parent", color: "", avatarKey: nil)
+        for (previous, next) in [(focus, kid), (kid, focus), (focus, jess)] {
+            let house = House()
+            defer { try? house.clearSession() }
+            let proof = ChoreInstance(id: "proof", choreId: "chore", personId: "other-kid", date: "2026-11-20",
+                status: "pending", title: "Private chore", stars: 2, starsAwarded: 0,
+                requiresPhoto: true, description: nil, photoPath: "local:private.jpg", steps: [])
+            house.session = "old-session"
+            house.person = previous
+            house.snapshot = Snapshot(now: "2026-11-20T12:00:00-06:00", timezone: "America/Chicago",
+                chores: [proof], meals: [], people: [previous], stars: nil, settings: nil)
+            house.pendingInstances = [proof]
+            house.codeSetupRequired = true
+            try house.accept(SessionResponse(token: "new-session", person: next))
+            XCTAssertEqual(house.person, next)
+            XCTAssertEqual(house.session, "new-session")
+            XCTAssertFalse(house.codeSetupRequired)
+            XCTAssertNil(house.snapshot)
+            XCTAssertTrue(house.pendingInstances.isEmpty)
+        }
+    }
+
     func testCancellationClassificationKeepsRealErrors() {
         XCTAssertTrue(CancellationError().isRequestCancellation)
         XCTAssertTrue(URLError(.cancelled).isRequestCancellation)
@@ -82,7 +132,7 @@ final class ModelsTests: XCTestCase {
     }
 
     @MainActor
-    func testCancelledLoadAndPairingLinkStaySilent() async throws {
+    func testCancelledLoadStaysSilent() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [CancelledProtocol.self]
         let network = URLSession(configuration: configuration)
@@ -93,10 +143,6 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(house.error.isEmpty)
         XCTAssertFalse(house.loading)
         XCTAssertEqual(house.session, "test-session")
-        house.person = nil
-        await house.open(try XCTUnwrap(URL(string: "liendoplaza://pair?code=abc123")))
-        XCTAssertTrue(house.error.isEmpty)
-        XCTAssertNil(house.deviceApproval)
     }
 
     @MainActor
@@ -362,21 +408,12 @@ final class ModelsTests: XCTestCase {
         XCTAssertNil(Keychain.read("session"))
     }
 
-    func testPairingApprovalURLForms() throws {
+    func testPairingURLRejectsBoardApprovalEmptyInvitesAndUntrustedHosts() throws {
         for value in [
-            "liendoplaza://pair?code=abc-123",
-            "https://liendo-plaza.vercel.app/family/pair?code=abc-123",
-            "https://liendo-plaza-git-cursor-liendo-pla-c65a88-focus-otters-projects.vercel.app/family/pair?code=abc-123"
-        ] {
-            XCTAssertEqual(PairingLink(try XCTUnwrap(URL(string: value))), .approval("ABC-123"))
-        }
-    }
-
-    func testPairingURLRejectsEmptyCodesAndUntrustedHosts() throws {
-        for value in [
-            "liendoplaza://pair", "liendoplaza://pair?code=",
-            "liendoplaza://pair?code=%20",
-            "https://example.com/family/pair?code=ABC123",
+            "liendoplaza://pair?code=ABC123",
+            "https://liendo-plaza.vercel.app/family/pair?code=ABC123",
+            "liendoplaza://?invite=",
+            "https://example.com/family?invite=token",
             "http://liendo-plaza.vercel.app/family/pair?code=ABC123",
             "https://liendo-plaza.vercel.app/other?code=ABC123"
         ] {
@@ -392,25 +429,6 @@ final class ModelsTests: XCTestCase {
         ] {
             XCTAssertEqual(PairingLink(try XCTUnwrap(URL(string: value))), .invite("token"))
         }
-    }
-
-    @MainActor
-    func testApprovalLinkRequiresParentAndRoutesCode() async throws {
-        let house = House()
-        let link = try XCTUnwrap(URL(string: "liendoplaza://pair?code=abc123"))
-        house.session = nil
-        await house.open(link)
-        XCTAssertEqual(house.error, "Sign in first.")
-        XCTAssertNil(house.deviceApproval)
-        house.session = "test-session"
-        house.person = Person(id: "kid", slug: "noah", name: "Noah", role: "kid", color: "", avatarKey: nil)
-        await house.open(link)
-        XCTAssertEqual(house.error, "Only a parent can do that.")
-        XCTAssertNil(house.deviceApproval)
-        house.person = Person(id: "parent", slug: "focus", name: "Focus", role: "parent", color: "", avatarKey: nil)
-        await house.open(link)
-        XCTAssertEqual(house.deviceApproval?.code, "ABC123")
-        XCTAssertEqual(house.error, "")
     }
 
     private func withMigrationState(_ run: () throws -> Void) throws {
@@ -552,9 +570,40 @@ final class ModelsTests: XCTestCase {
         let setup = try decoder.decode(CodeStatus.self, from: Data("{\"setupRequired\":true,\"people\":[]}".utf8))
         XCTAssertTrue(setup.setupRequired)
         XCTAssertTrue(setup.people.isEmpty)
-        let choice = try decoder.decode(CodeLogin.self, from: Data("{\"parents\":[]}".utf8))
-        XCTAssertNil(choice.token)
-        XCTAssertNotNil(choice.parents)
+        let anonymous = try decoder.decode(CodeStatus.self, from: Data("{\"setupRequired\":true}".utf8))
+        XCTAssertTrue(anonymous.setupRequired)
+        XCTAssertTrue(anonymous.people.isEmpty)
+        let login = try decoder.decode(CodeLogin.self, from: Data(#"{"token":"session","person":{"id":"parent","slug":"focus","name":"Focus","role":"parent","color":"red"}}"#.utf8))
+        XCTAssertEqual(login.token, "session")
+        XCTAssertTrue(login.person.isParent)
+        XCTAssertThrowsError(try decoder.decode(CodeLogin.self, from: Data("{}".utf8)))
+        let settings = try decoder.decode(CodeSettings.self, from: Data("{\"configuredPersonIds\":[\"parent\"]}".utf8))
+        XCTAssertEqual(settings.configuredPersonIds, ["parent"])
         XCTAssertThrowsError(try decoder.decode(CodeStatus.self, from: Data("{}".utf8)))
+    }
+
+    @MainActor
+    func testStoredSessionChecksSetupWithAuthenticationBeforeChoosingRole() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PhotoProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        for role in ["parent", "kid"] {
+            PhotoProtocol.status = 200
+            PhotoProtocol.requestCount = 0
+            PhotoProtocol.response = Data("""
+                {"setupRequired":true,"actor":{"kind":"person","person":{
+                "id":"stored-person","slug":"focus","name":"Focus","role":"\(role)","color":"red"}}}
+                """.utf8)
+            let house = House(api: APIClient(session: network))
+            house.session = "build8-session"
+            house.person = nil
+            await house.checkCodeSetup()
+            XCTAssertTrue(house.codeSetupRequired)
+            XCTAssertEqual(house.session, "build8-session")
+            XCTAssertEqual(house.person?.role, role)
+            XCTAssertEqual(PhotoProtocol.requestCount, 2)
+            XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "Authorization"), "Bearer build8-session")
+        }
     }
 }

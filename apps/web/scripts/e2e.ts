@@ -2,6 +2,8 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { getDb, schema } from "../lib/db";
+import { loginWithPin } from "../lib/auth";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
 
@@ -32,10 +34,14 @@ async function main() {
   const retired = await json("auth/family", "POST", { secret: "nope" });
   assert(retired.res.status === 410, "family secret route should be retired");
 
-  const status = await req("auth/codes/status");
+  const existing = (await getDb().select().from(schema.people)).find((person) => person.slug === "focus");
+  assert(existing, "existing parent fixture missing");
+  const legacy = await loginWithPin(existing.id, "123456", { kind: "browser", label: "Existing e2e parent" });
+  const setupAuth = { authorization: `Bearer ${legacy.token}` };
+  const status = await req("auth/codes/status", { headers: setupAuth });
   const parents = (status.data.people as { id: string; slug: string }[]) ?? [];
   const focus = parents.find((p) => p.slug === "focus");
-  assert(status.data.setupRequired === true && focus, "setup should be open on a fresh database");
+  assert(status.data.setupRequired === true && focus, "setup should be available to an existing parent");
 
   const bootstrap = await json("auth/codes/setup", "POST", {
     personId: focus.id,
@@ -44,7 +50,7 @@ async function main() {
     kids: parents.filter((p) => ["sofia", "noah", "xavier"].includes(p.slug)).map((p) => ({ personId: p.id, code: ({ sofia: "0101", noah: "1234", xavier: "0303" } as Record<string, string>)[p.slug] })),
     deviceKind: "browser",
     deviceLabel: "e2e parent",
-  });
+  }, setupAuth);
   assert(bootstrap.res.ok, `bootstrap failed: ${JSON.stringify(bootstrap.data)}`);
   const parentToken = String(bootstrap.data.token);
   const auth = { authorization: `Bearer ${parentToken}` };
@@ -241,11 +247,14 @@ async function main() {
   assert(photoChoreDelete.res.ok, "chore delete should clean up its photo");
 
   let locked = false;
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 10; i += 1) {
     const attempt = await json("auth/login", "POST", { code: "0000" });
+    assert(attempt.res.status === (i === 9 ? 423 : 401), "Code lockout threshold should be ten failures");
     if (attempt.res.status === 423) locked = true;
   }
   assert(locked, "Code lockout did not trigger");
+  const parentAfterKidLock = await json("auth/login", "POST", { code: "123456" });
+  assert(parentAfterKidLock.res.ok, "kid-code lockout must not block parent sign-in");
 
   const devices = await req("devices", { headers: auth });
   assert(Array.isArray(devices.data.devices), "devices list missing");

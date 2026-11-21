@@ -1,16 +1,28 @@
 import SwiftUI
 
-struct CodeStatus: Decodable { let setupRequired: Bool; let people: [Person] }
-struct CodeLogin: Decodable { let token: String?; let person: Person?; let parents: [Person]? }
+struct CodeStatus: Decodable {
+    let setupRequired: Bool
+    let people: [Person]
+
+    enum CodingKeys: String, CodingKey { case setupRequired, people }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        setupRequired = try values.decode(Bool.self, forKey: .setupRequired)
+        people = try values.decodeIfPresent([Person].self, forKey: .people) ?? []
+    }
+}
+struct CodeLogin: Decodable { let token: String; let person: Person }
+struct CodeSettings: Decodable { let configuredPersonIds: [String] }
 
 struct PairingView: View {
     @EnvironmentObject private var house: House
     @State private var status: CodeStatus?
-    @State private var parents: [Person] = []
     @State private var personId = ""
     @State private var code = ""
     @State private var confirmation = ""
     @State private var kids: [String: String] = [:]
+    @State private var parentCodes: [String: String] = [:]
     @State private var busy = false
     @State private var error = ""
 
@@ -19,17 +31,17 @@ struct PairingView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     Text("Liendo Plaza").font(.custom("Figtree", size: 15)).foregroundStyle(Plaza.muted)
-                    Text(status?.setupRequired == true ? "Set up Liendo Plaza" : parents.isEmpty ? "Enter your code" : "Who are you?")
+                    Text(status?.setupRequired == true ? "Set up Liendo Plaza" : "Enter your code")
                         .font(Plaza.title())
                     if let status {
-                        if !parents.isEmpty {
-                            ForEach(parents) { person in
-                                Button(person.name) { Task { await submit(person.id) } }
-                                    .buttonStyle(PrimaryButton()).disabled(busy)
-                                    .accessibilityIdentifier("person.\(person.slug)")
-                            }
-                            Button("Use another code") { parents = []; code = ""; error = "" }.disabled(busy)
+                        if status.setupRequired && personId.isEmpty {
+                            Text("Liendo Plaza isn't set up yet. Open it on a parent's phone that's already signed in to finish setup.")
+                                .accessibilityIdentifier("setup.parentRequired")
                         } else {
+                            if status.setupRequired {
+                                Text("Setting up as \(house.person?.name ?? "")")
+                                    .accessibilityIdentifier("setup.parent")
+                            }
                             SecureField(status.setupRequired ? "Parent code (6+ digits)" : "Enter your code", text: $code)
                                 .keyboardType(.numberPad).textContentType(status.setupRequired ? .newPassword : .password)
                                 .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
@@ -39,9 +51,13 @@ struct PairingView: View {
                                     .keyboardType(.numberPad).textContentType(.newPassword)
                                     .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
                                     .accessibilityIdentifier("code.confirmation")
-                                Picker("Sign in as", selection: $personId) {
-                                    ForEach(status.people.filter(\.isParent)) { Text($0.name).tag($0.id) }
-                                }.accessibilityIdentifier("setup.parent")
+                                ForEach(status.people.filter { $0.isParent && $0.id != personId }) { person in
+                                    SecureField("\(person.name) code (optional, 6+ digits)", text: Binding(
+                                        get: { parentCodes[person.id] ?? "" }, set: { parentCodes[person.id] = $0 }))
+                                        .keyboardType(.numberPad).textContentType(.newPassword)
+                                        .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .accessibilityIdentifier("setup.\(person.slug)")
+                                }
                                 Text("Optional: each kid’s birthday as four digits (MMDD). You can set these later in Family.")
                                     .foregroundStyle(Plaza.muted)
                                 ForEach(status.people.filter { !$0.isParent }) { person in
@@ -70,13 +86,14 @@ struct PairingView: View {
     private func prepare() async {
         error = ""
         do {
-            let result: CodeStatus = try await house.api.request("auth/codes/status")
+            let result: CodeStatus = try await house.api.request("auth/codes/status", token: house.session)
             status = result
-            personId = result.people.first(where: \.isParent)?.id ?? ""
+            personId = house.person?.isParent == true && result.people.contains(where: { $0.id == house.person?.id })
+                ? house.person?.id ?? "" : ""
         } catch { if !error.isRequestCancellation { self.error = error.localizedDescription } }
     }
 
-    private func submit(_ picked: String? = nil) async {
+    private func submit() async {
         busy = true; error = ""
         defer { busy = false }
         do {
@@ -85,14 +102,12 @@ struct PairingView: View {
                 body["confirmation"] = confirmation
                 body["personId"] = personId
                 body["kids"] = kids.filter { !$0.value.isEmpty }.map { ["personId": $0.key, "code": $0.value] }
-            } else if let picked { body["personId"] = picked }
+                body["parents"] = parentCodes.filter { $0.key != personId && !$0.value.isEmpty }.map { ["personId": $0.key, "code": $0.value] }
+            }
             let result: CodeLogin = try await house.api.request(status?.setupRequired == true ? "auth/codes/setup" : "auth/login",
-                                                               method: "POST", payload: JSONSerialization.data(withJSONObject: body))
-            if let parents = result.parents { self.parents = parents }
-            else if let token = result.token, let person = result.person {
-                try house.accept(SessionResponse(token: token, person: person))
-                code = ""; confirmation = ""; kids = [:]
-            } else { throw APIError(status: 0, message: "Please try again.") }
+                                                               method: "POST", token: house.session, payload: JSONSerialization.data(withJSONObject: body))
+            try house.accept(SessionResponse(token: result.token, person: result.person))
+            code = ""; confirmation = ""; kids = [:]; parentCodes = [:]
         } catch {
             if (error as? APIError)?.status == 409 && status?.setupRequired == true {
                 await prepare(); code = ""; confirmation = ""; kids = [:]

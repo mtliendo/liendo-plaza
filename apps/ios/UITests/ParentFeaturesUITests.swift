@@ -50,7 +50,8 @@ final class ParentFeaturesUITests: XCTestCase {
         XCTAssertEqual(own.count, 2)
         let firstTitle = try XCTUnwrap(own[0]["title"] as? String)
         let lastTitle = try XCTUnwrap(own[1]["title"] as? String)
-        let app = launch(token: try parentToken)
+        let login = try await api("auth/login", body: ["code": "123456", "deviceKind": "phone"])
+        let app = launch(token: try XCTUnwrap(login["token"] as? String))
         app.tabBars.buttons["Chores"].tap()
         let first = app.buttons["manage.chore.\(firstTitle)"]
         let last = app.buttons["manage.chore.\(lastTitle)"]
@@ -338,6 +339,7 @@ final class ParentFeaturesUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Dinner"].exists)
         XCTAssertFalse(app.tabBars.buttons["Groceries"].exists)
         XCTAssertFalse(app.buttons["manage.add"].exists)
+        XCTAssertFalse(app.buttons["manage.reorder"].exists)
         capture(app, "Today-kid")
     }
 }

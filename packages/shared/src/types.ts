@@ -109,6 +109,7 @@ export type FamilySettings = {
 export type DisplayVersion = {
   buildId: string;
   refreshRequestedAt: string | null;
+  revision?: string | null;
 };
 
 export type DisplaySnapshot = {

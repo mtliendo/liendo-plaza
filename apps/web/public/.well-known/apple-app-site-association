@@ -4,7 +4,7 @@
     "details": [
       {
         "appID": "QEP46P7WF2.com.focusotter.liendoplaza",
-        "paths": ["/family", "/family/*", "/join", "/join/*"]
+        "paths": ["NOT /family/pair", "NOT /family/pair/*", "/family", "/family/*", "/join", "/join/*"]
       }
     ]
   }

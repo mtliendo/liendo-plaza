@@ -33,19 +33,23 @@ async function readVersion(): Promise<DisplayVersion | null> {
     return {
       buildId: body.buildId,
       refreshRequestedAt: body.refreshRequestedAt ?? null,
+      revision: body.revision ?? null,
     };
   } catch {
     return null;
   }
 }
 
-export function useKitchenReload(dimmed: boolean, enabled = true) {
+export function useKitchenReload(dimmed: boolean, enabled = true, onRevision?: () => void) {
   const loadedAtRef = useRef(Date.now());
   const loadedBuildIdRef = useRef<string | null>(null);
   const lastTouchRef = useRef(Date.now());
   const pendingRef = useRef<Pending | null>(null);
   const dimmedRef = useRef(dimmed);
   dimmedRef.current = dimmed;
+  const revisionRef = useRef<string | null>(null);
+  const onRevisionRef = useRef(onRevision);
+  onRevisionRef.current = onRevision;
 
   useEffect(() => {
     if (!enabled) return;
@@ -95,6 +99,10 @@ export function useKitchenReload(dimmed: boolean, enabled = true) {
     };
 
     const consider = (version: DisplayVersion) => {
+      if (version.revision) {
+        if (revisionRef.current && version.revision !== revisionRef.current) onRevisionRef.current?.();
+        revisionRef.current = version.revision;
+      }
       if (!loadedBuildIdRef.current) {
         loadedBuildIdRef.current = version.buildId;
       } else if (version.buildId !== loadedBuildIdRef.current) {

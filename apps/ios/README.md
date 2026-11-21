@@ -2,7 +2,8 @@
 
 SwiftUI, iOS 17+, no third-party dependencies. This pilot covers family-code
 setup/sign-in, role-based tabs, dinner,
-chore completion/undo and photo proof, and parent short-code device approval.
+chore completion/undo and photo proof. Kitchen boards are approved from the
+web app, not the phone.
 
 ## Open and run
 
@@ -28,10 +29,11 @@ xcodebuild -project apps/ios/LiendoPlaza.xcodeproj -scheme LiendoPlaza \
   build CODE_SIGNING_ALLOWED=NO
 ```
 
-After migration, set up one shared parent code (6+ digits, entered twice) and
-optional unique kid birthday codes (4 digits). Phones no longer pair or need
-an invite. A valid parent code offers a parent name picker; a kid code signs
-in directly. Parents manage codes under Family. See
+After migration, choose your parent name and set your own code (6+ digits,
+entered twice), optionally setting the other parent's code and unique kid
+birthday codes (4 digits). Phones no longer pair or need an invite. Each code
+signs its owner in directly. The Family tab lists your code, the other
+parent's and each kid's as Set or Not set; tap one to reset it. See
 [family-code API/storage notes](../web/FAMILY_CODES.md).
 Sessions stay in the same Keychain service/account. `-uiTestReset` clears stored
 test credentials at launch (uninstall alone does not reliably clear Keychain).
@@ -63,8 +65,9 @@ The backend must already be running with a migrated, dedicated local test
 database. Set `DATABASE_URL` explicitly, or use the root `.env.local`.
 **The script resets and seeds that database twice**, refusing remote/non-test URLs.
 It checks `/api/health` before doing anything destructive, builds for testing
-once, runs setup alone, resets again, sets up a curl parent, and runs
-the kid complete/undo and parent device-approval tests plus model tests.
+once, runs setup using an existing live parent fixture, resets again, sets up
+through an authenticated parent session, and runs
+the kid complete/undo and parent Family tab tests plus model tests.
 Every UI test starts with `-uiTestReset`. Parent authorization is passed through
 `TEST_RUNNER_LP_PARENT_TOKEN`; never enable shell tracing or commit this token.
 `LP_API_URL` defaults to localhost:3000; `DESTINATION` overrides the default
@@ -86,8 +89,7 @@ If the root `.env.local` is absent, the script also accepts an exported
 `DATABASE_URL`, so no backend configuration file needs to be created.
 
 Accessibility IDs include `person.noah`, `pin`, `open`, `pairing.code`, `chore.<title>`,
-`status.<title>`, `chore.status`, `chore.complete`, `chore.undo`, `signOut`,
-`addDevice`, `addDevice.code`, and `addDevice.approve`.
+`status.<title>`, `chore.status`, `chore.complete`, `chore.undo`, and `signOut`.
 
 ## Out of scope
 
