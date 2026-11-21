@@ -79,6 +79,28 @@ final class ParentFeaturesUITests: XCTestCase {
         XCTAssertTrue(last.waitForExistence(timeout: 30))
         XCTAssertLessThan(last.frame.minY, first.frame.minY)
         capture(app, "Chore-reorder-persisted")
+        let snapshot = try await api("snapshot", token: parentToken)
+        let today = String(try XCTUnwrap(snapshot["now"] as? String).prefix(10))
+        let due = try XCTUnwrap(snapshot["chores"] as? [[String: Any]])
+            .filter { $0["personId"] as? String == personID && $0["date"] as? String == today }
+        let expectedTitles: [String] = [lastTitle, firstTitle].filter { title in
+            due.contains { $0["title"] as? String == title }
+        }
+        XCTAssertFalse(expectedTitles.isEmpty)
+        app.tabBars.buttons["Family"].tap()
+        app.buttons["signOut"].tap()
+        let code = app.secureTextFields["code"]
+        XCTAssertTrue(code.waitForExistence(timeout: 20))
+        code.tap()
+        code.typeText("0101")
+        app.buttons["open"].tap()
+        let kidRows = expectedTitles.map { app.buttons["chore.\($0)"] }
+        for row in kidRows { XCTAssertTrue(row.waitForExistence(timeout: 30)) }
+        for (first, last) in zip(kidRows, kidRows.dropFirst()) {
+            XCTAssertLessThan(first.frame.minY, last.frame.minY)
+        }
+        XCTAssertTrue(app.staticTexts["Sofia"].exists)
+        capture(app, "Sofia-reordered-chores")
     }
 
     @MainActor

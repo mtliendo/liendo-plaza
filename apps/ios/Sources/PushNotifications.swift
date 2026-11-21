@@ -6,9 +6,12 @@ import Combine
 final class PushNavigation: ObservableObject {
     static let shared = PushNavigation()
     @Published var tab = "today"
+    @Published private(set) var refreshID: UUID?
 
-    func receive(_ userInfo: [AnyHashable: Any]) {
-        if userInfo["type"] as? String == "chores" { tab = "today" }
+    func receive(_ userInfo: [AnyHashable: Any], openChores: Bool = true) {
+        guard userInfo["type"] as? String == "chores" else { return }
+        if openChores { tab = "today" }
+        refreshID = UUID()
     }
 }
 
@@ -61,7 +64,10 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound])
+        Task { @MainActor in
+            PushNavigation.shared.receive(notification.request.content.userInfo, openChores: false)
+            completionHandler([.banner, .sound])
+        }
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,

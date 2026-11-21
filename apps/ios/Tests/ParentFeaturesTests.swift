@@ -325,14 +325,24 @@ final class ParentFeaturesTests: XCTestCase {
     }
 
     @MainActor
-    func testChoreNotificationSelectsTodayOnlyForChorePayloads() {
+    func testChoreNotificationRequestsRefreshInForegroundAndOnTap() {
         let navigation = PushNavigation()
         navigation.tab = "dinner"
         navigation.receive([:])
         XCTAssertEqual(navigation.tab, "dinner")
+        XCTAssertNil(navigation.refreshID)
         navigation.receive(["type": "reward"])
         XCTAssertEqual(navigation.tab, "dinner")
+        XCTAssertNil(navigation.refreshID)
+        navigation.receive(["type": "chores"], openChores: false)
+        let foregroundRefresh = navigation.refreshID
+        XCTAssertNotNil(foregroundRefresh)
+        XCTAssertEqual(navigation.tab, "dinner")
         navigation.receive(["type": "chores"])
+        XCTAssertNotEqual(navigation.refreshID, foregroundRefresh)
         XCTAssertEqual(navigation.tab, "today")
+        let tapRefresh = navigation.refreshID
+        navigation.receive(["type": "reward"])
+        XCTAssertEqual(navigation.refreshID, tapRefresh)
     }
 }
