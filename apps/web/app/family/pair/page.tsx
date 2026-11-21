@@ -45,7 +45,7 @@ function PairApprove() {
   }
 
   if (!loaded) return <main className="phone"><p>Getting ready.</p></main>;
-  if (!me) return <FamilyCodeGate onReady={loadMe} />;
+  if (!me) return <FamilyCodeGate person={me} onReady={loadMe} />;
 
   if (me.role !== "parent") {
     return (
