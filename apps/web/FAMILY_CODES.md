@@ -6,9 +6,13 @@ four-digit codes, suggested as birthdays (MMDD). Every code signs its owner in
 directly. No parent name picker, family token, QR or PIN prerequisite.
 
 First use after migration shows **Set up Liendo Plaza**, including on an already
-signed-in phone/browser. Anyone can perform this initial setup, as requested:
-choose which parent you are, enter your code twice, and optionally set the other
-parents' and kids' codes. Coordinate the first setup after deployment. Setup is
+signed-in phone/browser. Only an existing, live parent session can finish setup:
+the parent's identity is locked to that session. Enter your code twice and
+optionally set the other parents' and kids' codes. Anonymous, kid and display
+devices see a message directing them to an already-signed-in parent's phone,
+not a setup form or roster. Do not sign out the existing parent before setup.
+If no live parent session remains, setup needs an authorized recovery outside
+this flow; anonymous callers cannot claim a parent. Setup is
 required only when no parent has a code. A transaction-level advisory lock and
 the parent person-ID rows atomically prevent a second setup (HTTP 409).
 No default or old PIN is accepted as a new code. Optional unset kids cannot
@@ -29,10 +33,15 @@ or migration 0006 is needed: 0005 remains unchanged and works with the existing
 empty production table. A shared lock serializes setup, code edits and sign-in
 verification across server instances, including duplicate parent/kid checks.
 
-- `GET /api/auth/codes/status`: setup flag; people only before initial setup.
+- `GET /api/auth/codes/status`: always includes a `people` array for older iOS
+  decoders. Anonymous/kid/display receive `{setupRequired, people: []}`. Only a
+  live parent before setup gets a nonempty sanitized roster; everyone gets an
+  empty array after setup. Responses remain private/no-store with Vary.
 - `POST /api/auth/codes/setup`: `{code, confirmation, personId, parents?:
   [{personId, code}], kids?: [{personId, code}], deviceKind?, cookie?}`.
-  Returns the chosen parent's normal session; optional entries are role-checked.
+  Requires a live parent bearer/cookie session. Anonymous/display return 401,
+  kid 403, mismatched personId 403. Returns that parent's normal session;
+  optional entries are role-checked. A subsequent valid setup returns 409.
 - `POST /api/auth/login`: `{code, deviceKind?, cookie?}`. Always returns the
   normal `{token, person}` device-backed session. A supplied personId cannot
   select a different identity.
@@ -74,6 +83,22 @@ database. Set `ROLE_AUDIT_BASE_URL` to its local Next server and optionally
 `ROLE_AUDIT_REPORT` to a Markdown output path. Its known reward-request scoping
 finding is reported separately pending the stacked follow-up; it is not counted
 as a passing boundary.
+
+For `GET /api/auth/codes`, the HTTP audit records 401 for anonymous callers,
+403 for a signed-in kid, and sanitized code settings for each parent. Display-only
+credentials also get 401 on this person-only route. Replaying a revoked session
+after logout returns 401, not 403.
+
+## Non-blocking QA notes (no change)
+
+- Web has no sign-out button.
+- Chrome Back shows a cached page after logout until reload.
+- iPhone proof-image cache eviction is unchecked; URLCache model coverage does
+  not establish physical-device proof-image eviction.
+
+These QA notes are recorded without behavior changes.
+
+## Running local checks
 
 Use dedicated local Postgres databases, migrate them with `pnpm db:migrate`,
 then run `pnpm --filter @liendo/web exec tsx scripts/test-family-codes.ts` with

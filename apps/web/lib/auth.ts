@@ -6,6 +6,7 @@ import type { Person } from "@liendo/shared";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
 import { asPerson } from "./person";
+import { householdCached } from "./household-cache";
 import { presenceIsStale } from "./presence";
 
 export const DISPLAY_COOKIE = "lp_display";
@@ -231,6 +232,9 @@ export async function displayFromToken(token: string): Promise<boolean> {
   return true;
 }
 
+// Display presence is refreshed when this cache misses (writes or hourly), not every 15 minutes.
+export const cachedDisplayFromToken = householdCached(displayFromToken, "display-token");
+
 function bearer(req: Request): string | null {
   const header = req.headers.get("authorization");
   if (!header?.startsWith("Bearer ")) return null;
@@ -269,7 +273,7 @@ export async function requireActor(
   }
 
   const display = cookieFromRequest(req, DISPLAY_COOKIE) ?? req.headers.get("x-display-token");
-  if (display && allow.includes("display") && (await displayFromToken(display))) {
+  if (display && allow.includes("display") && (await cachedDisplayFromToken(display))) {
     return { kind: "display" };
   }
 

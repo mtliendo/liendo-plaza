@@ -138,7 +138,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   }
 
   if (phase === "gate") {
-    return <FamilyCodeGate onReady={async () => {
+    return <FamilyCodeGate person={me} onReady={async () => {
       setPhase("loading");
       setOpenChoreId(null);
       setSuggestions([]);

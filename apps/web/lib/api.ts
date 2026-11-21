@@ -42,6 +42,7 @@ import { notifyParents, notifyPerson, parsePushRegistration, registerPushToken, 
 import { clientIp, rateLimit } from "./rate-limit";
 import { getDisplayRefreshRequestedAt, getSettings, requestDisplayRefresh, updateSettings } from "./settings";
 import { buildSnapshot } from "./snapshot";
+import { householdCached, invalidateHousehold } from "./household-cache";
 import { listRewardRequests, listRewards, requestReward, reviewReward, starSummaries } from "./stars";
 import { mealSuggestions, mealsInRange, peopleList } from "./snapshot";
 import { calendarWindow, todayIso } from "./time";
@@ -80,10 +81,15 @@ export async function handleApi(req: Request): Promise<Response> {
   } catch (error) {
     response = errorResponse(error);
   }
+  if (req.method !== "GET" && response.ok) invalidateHousehold();
   response.headers.set("cache-control", "private, no-store");
   response.headers.append("vary", "Authorization, Cookie, X-Display-Token, X-Family-Token");
   return response;
 }
+
+const cachedDisplayRefreshRequestedAt = householdCached(getDisplayRefreshRequestedAt, "display-refresh");
+// Changes whenever the household tag is invalidated, so the display can poll it without touching Neon.
+const cachedHouseholdRevision = householdCached(async () => new Date().toISOString(), "household-revision");
 
 async function dispatchApi(req: Request): Promise<Response> {
   const path = pathOf(req);
@@ -98,11 +104,14 @@ async function dispatchApi(req: Request): Promise<Response> {
     const buildId = process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || "dev";
     let refreshRequestedAt: string | null = null;
     try {
-      refreshRequestedAt = await getDisplayRefreshRequestedAt();
+      refreshRequestedAt = await cachedDisplayRefreshRequestedAt();
     } catch {
       refreshRequestedAt = null;
     }
-    return json({ buildId, refreshRequestedAt }, 200, { "cache-control": "no-store, must-revalidate" });
+    // Only a paired display gets the revision; it would otherwise reveal when the household changes.
+    const paired = await requireActor(req, ["display"]).then(() => true, () => false);
+    const revision = paired ? await cachedHouseholdRevision().catch(() => null) : null;
+    return json({ buildId, refreshRequestedAt, revision }, 200, { "cache-control": "no-store, must-revalidate" });
   }
 
   if (path === "display/refresh" && method === "POST") {
@@ -121,12 +130,18 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "auth/codes/status" && method === "GET") {
-    return json(await familyCodeStatus(), 200, { "cache-control": "no-store" });
+    const actor = await requireActor(req, ["person"]).catch((error: unknown) => {
+      if (error instanceof HttpError && error.status === 401) return null;
+      throw error;
+    });
+    return json(await familyCodeStatus(actor?.kind === "person" ? actor.person : undefined), 200, { "cache-control": "no-store" });
   }
 
   if (path === "auth/codes/setup" && method === "POST") {
+    const parent = requireParent(await requireActor(req, ["person"]));
     rateLimit(`setup:${clientIp(req)}`, 10, 60_000);
     const body = await readJson<Record<string, unknown>>(req);
+    if (body.personId !== parent.id) throw new HttpError(403, "Set up using your own parent profile.");
     const kind = body.deviceKind === "phone" ? "phone" : "browser";
     const result = await setupFamilyCodes(body, { kind, label: defaultDeviceLabel(kind, req.headers.get("user-agent") ?? "") });
     if (body.cookie === true) await setSessionCookie(result.token);
@@ -243,7 +258,7 @@ async function dispatchApi(req: Request): Promise<Response> {
     const actor = await requireActor(req, ["person", "display"]);
     const from = url.searchParams.get("from") ?? undefined;
     const to = url.searchParams.get("to") ?? undefined;
-    const snapshot = await buildSnapshot(from, to);
+    const snapshot = await buildSnapshot(from, to, { cached: actor.kind === "display" });
     if (actor.kind === "person" && actor.person.role === "kid") {
       snapshot.chores = snapshot.chores.filter((instance) => instance.personId === actor.person.id);
     }
@@ -435,8 +450,8 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "rewards/requests" && method === "GET") {
-    await requireActor(req, ["person"]);
-    return json({ requests: await listRewardRequests() });
+    const person = requirePerson(await requireActor(req, ["person"]));
+    return json({ requests: await listRewardRequests(person) });
   }
 
   if (path === "rewards/requests" && method === "POST") {

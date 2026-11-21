@@ -2,7 +2,6 @@ import SwiftUI
 
 enum PairingLink: Equatable {
     case invite(String)
-    case approval(String)
 
     init?(_ url: URL) {
         guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
@@ -11,24 +10,11 @@ enum PairingLink: Equatable {
             "liendo-plaza.vercel.app",
             "liendo-plaza-git-cursor-liendo-pla-c65a88-focus-otters-projects.vercel.app"
         ].contains(url.host ?? "")
-        guard custom || web else { return nil }
-        if (custom && url.host == "pair") || (web && url.path == "/family/pair") {
-            guard let code = parts.queryItems?.first(where: { $0.name == "code" })?.value?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !code.isEmpty else { return nil }
-            self = .approval(code.uppercased())
-        } else if custom || ["/family", "/join"].contains(url.path) {
-            guard let invite = parts.queryItems?.first(where: { $0.name == "invite" })?.value,
-                  !invite.isEmpty else { return nil }
-            self = .invite(invite)
-        } else {
-            return nil
-        }
+        guard custom || (web && ["/family", "/join"].contains(url.path)),
+              let invite = parts.queryItems?.first(where: { $0.name == "invite" })?.value,
+              !invite.isEmpty else { return nil }
+        self = .invite(invite)
     }
-}
-
-struct DeviceApproval: Identifiable {
-    let id = UUID()
-    let code: String
 }
 
 @MainActor
@@ -46,7 +32,6 @@ final class House: ObservableObject {
     @Published var codeSetupRequired = false
     @Published var error = ""
     @Published var pairingVersion = UUID()
-    @Published var deviceApproval: DeviceApproval?
 
     var pendingProofs: [ChoreInstance] {
         PendingProofs.merge(history: pendingInstances,
@@ -103,7 +88,6 @@ final class House: ObservableObject {
         api.session.configuration.urlCache?.removeAllCachedResponses()
         snapshot = nil
         pendingInstances = []
-        deviceApproval = nil
         ChoreReminders.remove()
         person = result.person
         UserDefaults.standard.set(result.person.id, forKey: "phonePersonId")
@@ -120,7 +104,6 @@ final class House: ObservableObject {
         snapshot = nil
         pendingInstances = []
         ChoreReminders.remove()
-        deviceApproval = nil
         pairingVersion = UUID()
     }
 
@@ -152,10 +135,20 @@ final class House: ObservableObject {
     func checkCodeSetup() async {
         guard let token = session else { return }
         do {
-            let status: CodeStatus = try await api.request("auth/codes/status")
+            let status: CodeStatus = try await api.request("auth/codes/status", token: token)
+            if status.setupRequired {
+                let me: MeResponse = try await api.request("me", token: token)
+                guard session == token else { return }
+                person = me.actor.person
+            }
             guard session == token else { return }
             codeSetupRequired = status.setupRequired
         } catch {
+            guard session == token else { return }
+            if (error as? APIError)?.status == 401 {
+                do { try clearSession() } catch { self.error = error.localizedDescription }
+                return
+            }
             if !error.isRequestCancellation { self.error = error.localizedDescription }
         }
     }
@@ -285,22 +278,6 @@ final class House: ObservableObject {
         guard let link = PairingLink(url) else { return }
         do {
             switch link {
-            case .approval(let code):
-                guard let token = session else {
-                    error = "Sign in first."
-                    return
-                }
-                if person == nil {
-                    let me: MeResponse = try await api.request("me", token: token)
-                    guard session == token else { return }
-                    person = me.actor.person
-                }
-                guard person?.isParent == true else {
-                    error = "Only a parent can do that."
-                    return
-                }
-                error = ""
-                deviceApproval = DeviceApproval(code: code)
             case .invite(let invite):
                 let response: FamilyResponse = try await api.request("pair/redeem", method: "POST", body: ["invite": invite])
                 try clearSession()

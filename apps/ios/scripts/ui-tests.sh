@@ -63,21 +63,25 @@ reset_database() (
   npx --yes pnpm@10.15.0 db:seed
 )
 export TEST_RUNNER_LP_API_URL="$API"
+legacy_parent_session() (
+  cd "$ROOT"
+  set -a
+  if [[ -z "${DATABASE_URL:-}" && -f .env.local ]]; then source .env.local; fi
+  set +a
+  LP_API_URL="$API" pnpm --filter @liendo/web exec tsx scripts/legacy-parent-fixture.ts "$@"
+)
 unset TEST_RUNNER_LP_PARENT_TOKEN
 xcodebuild "${OPTIONS[@]}" build-for-testing >"$RUN/build.log" 2>&1 ||
   { tail -60 "$RUN/build.log"; exit 1; }
 reset_database
+TEST_RUNNER_LP_PARENT_TOKEN="$(legacy_parent_session)"
+export TEST_RUNNER_LP_PARENT_TOKEN
 xcodebuild "${OPTIONS[@]}" test-without-building \
   -only-testing:LiendoPlazaUITests/PilotUITests/testFirstParentBootstrapShowsToday \
   -resultBundlePath "$RUN/bootstrap.xcresult" | tee "$RUN/bootstrap.log"
 reset_database
-PARENTS="$(curl --fail --silent --show-error "$API/api/auth/codes/status")"
-SETUP="$(printf '%s' "$PARENTS" | python3 -c 'import json,sys; p=json.load(sys.stdin)["people"]; print(json.dumps({"personId":next(x["id"] for x in p if x["slug"]=="focus"), "code":"123456", "confirmation":"123456", "deviceKind":"phone", "kids":[{"personId":x["id"],"code":{"noah":"1234","sofia":"0101","xavier":"0303"}[x["slug"]]} for x in p if x["role"]=="kid"]}))')"
-RESPONSE="$(curl --fail --silent --show-error -H 'Content-Type: application/json' \
-  -d "$SETUP" "$API/api/auth/codes/setup")"
-TEST_RUNNER_LP_PARENT_TOKEN="$(printf '%s' "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
+TEST_RUNNER_LP_PARENT_TOKEN="$(legacy_parent_session --setup)"
 export TEST_RUNNER_LP_PARENT_TOKEN
-unset RESPONSE
 xcodebuild "${OPTIONS[@]}" test-without-building \
   -skip-testing:LiendoPlazaUITests/PilotUITests/testFirstParentBootstrapShowsToday \
   -resultBundlePath "$RUN/paired.xcresult" | tee "$RUN/paired.log"

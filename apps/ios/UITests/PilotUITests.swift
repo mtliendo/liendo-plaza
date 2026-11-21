@@ -52,10 +52,27 @@ final class PilotUITests: XCTestCase {
     }
 
     @MainActor
-    func testFirstParentBootstrapShowsToday() {
+    func testFirstParentBootstrapShowsToday() throws {
         let app = launch()
+        XCTAssertTrue(app.staticTexts["setup.parentRequired"].waitForExistence(timeout: 40))
+        XCTAssertEqual(app.secureTextFields.count, 0)
+        XCTAssertFalse(app.staticTexts["Jess"].exists)
+        XCTAssertFalse(app.staticTexts["Sofia"].exists)
+        capture(app, "setup-anonymous-parent-required")
+        app.terminate()
+        app.launchEnvironment["LP_TEST_SESSION_TOKEN"] = try parentToken
+        app.launch()
+        XCTAssertTrue(app.staticTexts["setup.parent"].waitForExistence(timeout: 40))
+        app.terminate()
+        app.launchArguments = []
+        app.launchEnvironment["LP_TEST_SESSION_TOKEN"] = nil
+        app.launch()
         XCTAssertTrue(app.staticTexts["Set up Liendo Plaza"].waitForExistence(timeout: 40))
-        capture(app, "setup")
+        XCTAssertTrue(app.staticTexts["setup.parent"].waitForExistence(timeout: 40))
+        XCTAssertEqual(app.staticTexts["setup.parent"].label, "Setting up as Focus")
+        XCTAssertEqual(app.pickers.count, 0)
+        XCTAssertTrue(app.secureTextFields["setup.jess"].exists)
+        capture(app, "setup-existing-parent-after-relaunch")
         app.secureTextFields["code"].tap()
         app.secureTextFields["code"].typeText("123456")
         app.secureTextFields["code.confirmation"].tap()
@@ -125,8 +142,11 @@ final class PilotUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Jess"].exists)
         app.tabBars.buttons["Family"].tap()
-        app.buttons["familyCodes"].tap()
+        XCTAssertTrue(app.buttons["code.jess"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["code.jess"].label.contains("Jess (you)"))
+        app.buttons["code.jess"].tap()
         XCTAssertTrue(app.secureTextFields["codes.new"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["codes.clear"].exists)
         capture(app, "individual-parent-code")
         _ = try await api("auth/codes", body: ["personId": try XCTUnwrap(jess["id"] as? String), "code": ""], token: parentToken)
     }
@@ -140,11 +160,11 @@ final class PilotUITests: XCTestCase {
         let app = launch(session: try XCTUnwrap(login["token"] as? String))
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
         app.tabBars.buttons["Family"].tap()
-        app.buttons["familyCodes"].tap()
+        XCTAssertTrue(app.buttons["code.focus"].waitForExistence(timeout: 20))
+        app.buttons["code.focus"].tap()
         let code = app.secureTextFields["codes.new"]
         XCTAssertTrue(code.waitForExistence(timeout: 20))
-        XCTAssertTrue(app.staticTexts["Keep at least one parent code. Enter a new code to replace this one."].exists)
-        XCTAssertEqual(app.buttons["codes.save"].label, "Save code")
+        XCTAssertFalse(app.buttons["codes.clear"].exists)
         XCTAssertFalse(app.buttons["codes.save"].isEnabled)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Leave a code empty to clear it.")).firstMatch.exists)
         code.tap(); code.typeText("654321")
@@ -224,13 +244,10 @@ final class PilotUITests: XCTestCase {
             capture(app, "audit-\(name)-chore-editor")
             app.buttons["Cancel"].tap()
             app.tabBars.buttons["Family"].tap()
-            app.buttons["familyCodes"].tap()
+            XCTAssertFalse(app.buttons["addDevice"].exists)
+            app.buttons["code.noah"].tap()
             XCTAssertTrue(app.secureTextFields["codes.new"].waitForExistence(timeout: 20))
             capture(app, "audit-\(name)-codes")
-            app.navigationBars.buttons.element(boundBy: 0).tap()
-            app.buttons["addDevice"].tap()
-            XCTAssertTrue(app.textFields["addDevice.code"].waitForExistence(timeout: 15))
-            capture(app, "audit-\(name)-add-device")
             app.navigationBars.buttons.element(boundBy: 0).tap()
             app.buttons["signOut"].tap()
             XCTAssertTrue(app.secureTextFields["code"].waitForExistence(timeout: 30))
@@ -276,34 +293,59 @@ final class PilotUITests: XCTestCase {
     }
 
     @MainActor
-    func testParentApprovesDeviceInApp() async throws {
-        let app = launch(session: try parentToken)
+    func testFamilyTabResetsOtherParentAndKidCodes() async throws {
+        let response = try await api("people", token: parentToken)
+        let people = try XCTUnwrap(response["people"] as? [[String: Any]])
+        let jess = try XCTUnwrap(people.first { $0["slug"] as? String == "jess" }?["id"] as? String)
+        let noah = try XCTUnwrap(people.first { $0["slug"] as? String == "noah" }?["id"] as? String)
+        let login = try await api("auth/login", body: ["code": "123456", "deviceKind": "phone"])
+        let app = launch(session: try XCTUnwrap(login["token"] as? String))
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
         app.tabBars.buttons["Family"].tap()
-        XCTAssertTrue(app.buttons["addDevice"].waitForExistence(timeout: 60))
-        let second = try await api("pair/claim", body: ["deviceKind": "display"])
-        let secondCode = try XCTUnwrap(second["displayCode"] as? String)
-        app.open(try XCTUnwrap(URL(string: "liendoplaza://pair?code=\(secondCode)")))
-        let field = app.textFields["addDevice.code"]
-        XCTAssertTrue(field.waitForExistence(timeout: 15))
-        XCTAssertEqual(field.value as? String, secondCode)
-        XCTAssertTrue(app.staticTexts["addDevice.claim"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["addDevice.claim"].label.contains("Display"))
-        let pending = try await api("pair/poll", body: [
-            "id": try XCTUnwrap(second["id"] as? String),
-            "pollSecret": try XCTUnwrap(second["pollSecret"] as? String)
-        ])
-        XCTAssertEqual(pending["status"] as? String, "pending")
-        XCTAssertFalse(app.staticTexts["addDevice.success"].exists)
-        capture(app, "approve-device")
-        app.buttons["addDevice.approve"].tap()
-        XCTAssertTrue(app.staticTexts["addDevice.success"].waitForExistence(timeout: 30))
-        capture(app, "device-approved")
-        let approved = try await api("pair/poll", body: [
-            "id": try XCTUnwrap(second["id"] as? String),
-            "pollSecret": try XCTUnwrap(second["pollSecret"] as? String)
-        ])
-        XCTAssertEqual(approved["status"] as? String, "paired")
-        XCTAssertNotNil(approved["token"])
+        XCTAssertTrue(app.buttons["code.focus"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["code.jess"].exists)
+        XCTAssertTrue(app.buttons["code.noah"].exists)
+        XCTAssertTrue(app.buttons["signOut"].exists)
+        XCTAssertFalse(app.buttons["addDevice"].exists)
+        XCTAssertFalse(app.buttons["familyCodes"].exists)
+        XCTAssertTrue(app.buttons["code.jess"].label.contains("Not set"))
+        capture(app, "family-tab")
+
+        app.buttons["code.jess"].tap()
+        let code = app.secureTextFields["codes.new"]
+        XCTAssertTrue(code.waitForExistence(timeout: 20))
+        code.tap(); code.typeText("345678")
+        app.secureTextFields["codes.confirmation"].tap()
+        app.secureTextFields["codes.confirmation"].typeText("345678")
+        app.buttons["codes.save"].tap()
+        XCTAssertTrue(app.staticTexts["codes.success"].waitForExistence(timeout: 30))
+        capture(app, "other-parent-code-saved")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["code.jess"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["code.jess"].label.contains("Set"))
+
+        app.buttons["code.noah"].tap()
+        XCTAssertTrue(code.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["codes.clear"].exists)
+        code.tap(); code.typeText("0412")
+        XCTAssertFalse(app.secureTextFields["codes.confirmation"].exists)
+        app.buttons["codes.save"].tap()
+        XCTAssertTrue(app.staticTexts["codes.success"].waitForExistence(timeout: 30))
+        capture(app, "kid-code-saved")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["signOut"].tap()
+
+        open(app, pin: "345678")
+        XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.staticTexts["Jess"].exists)
+        app.tabBars.buttons["Family"].tap()
+        app.buttons["signOut"].tap()
+        open(app, pin: "0412")
+        XCTAssertTrue(app.buttons["chore.Unload the dishwasher"].waitForExistence(timeout: 60))
+        XCTAssertFalse(app.tabBars.buttons["Family"].exists)
+        capture(app, "kid-signed-in-with-new-code")
+
+        _ = try await api("auth/codes", body: ["personId": noah, "code": "1234"], token: parentToken)
+        _ = try await api("auth/codes", body: ["personId": jess, "code": ""], token: parentToken)
     }
 }
