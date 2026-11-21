@@ -85,6 +85,7 @@ export const devices = pgTable("devices", {
 
 export const chores = pgTable("chores", {
   id: uuid("id").primaryKey().defaultRandom(),
+  sortOrder: integer("sort_order").notNull().default(0),
   title: text("title").notNull(),
   assignedPersonId: uuid("assigned_person_id")
     .notNull()

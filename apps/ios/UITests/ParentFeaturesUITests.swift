@@ -41,6 +41,47 @@ final class ParentFeaturesUITests: XCTestCase {
     }
 
     @MainActor
+    func testParentReordersKidChoresAndRefreshPersistsOrder() async throws {
+        let response = try await api("chores", token: parentToken)
+        let definitions = try XCTUnwrap(response["chores"] as? [[String: Any]])
+        let bed = try XCTUnwrap(definitions.first { $0["title"] as? String == "Make your bed" })
+        let personID = try XCTUnwrap(bed["assignedPersonId"] as? String)
+        let own = definitions.filter { $0["assignedPersonId"] as? String == personID && $0["active"] as? Bool == true }
+        XCTAssertEqual(own.count, 2)
+        let firstTitle = try XCTUnwrap(own[0]["title"] as? String)
+        let lastTitle = try XCTUnwrap(own[1]["title"] as? String)
+        let app = launch(token: try parentToken)
+        app.tabBars.buttons["Chores"].tap()
+        let first = app.buttons["manage.chore.\(firstTitle)"]
+        let last = app.buttons["manage.chore.\(lastTitle)"]
+        XCTAssertTrue(last.waitForExistence(timeout: 30))
+        app.buttons["manage.reorder"].tap()
+        let handle = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Reorder \(lastTitle)")).firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 10))
+        handle.press(forDuration: 1, thenDragTo: first)
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            last.frame.minY < first.frame.minY
+        }, object: nil)
+        await fulfillment(of: [moved], timeout: 15)
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.buttons["manage.reorder"].isEnabled
+        }, object: nil)
+        await fulfillment(of: [saved], timeout: 15)
+        app.buttons["manage.reorder"].tap()
+        let list = app.collectionViews.firstMatch
+        list.swipeDown()
+        let refreshed = try await api("chores", token: parentToken)
+        let updated = try XCTUnwrap(refreshed["chores"] as? [[String: Any]])
+            .filter { $0["assignedPersonId"] as? String == personID && $0["active"] as? Bool == true }
+        XCTAssertEqual(updated.compactMap { $0["title"] as? String }, [lastTitle, firstTitle])
+        app.tabBars.buttons["Today"].tap()
+        app.tabBars.buttons["Chores"].tap()
+        XCTAssertTrue(last.waitForExistence(timeout: 30))
+        XCTAssertLessThan(last.frame.minY, first.frame.minY)
+        capture(app, "Chore-reorder-persisted")
+    }
+
+    @MainActor
     func testParentGuideEditorShowsReplacesRemovesAndAddsPhoto() async throws {
         try XCTSkipUnless(environment["LP_GUIDE_EDITOR_PROBE"] == "1", "Requires scripts/guide-fixture.ts")
         let response = try await api("chores", token: parentToken)

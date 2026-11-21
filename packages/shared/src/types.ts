@@ -32,6 +32,7 @@ export type WeatherSnapshot = {
 
 export type Chore = {
   id: string;
+  sortOrder: number;
   title: string;
   assignedPersonId: string;
   stars: number;
@@ -48,6 +49,7 @@ export type Chore = {
 
 export type ChoreInstance = {
   id: string;
+  sortOrder: number;
   choreId: string;
   personId: string;
   date: string;

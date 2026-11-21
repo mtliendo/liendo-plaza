@@ -41,6 +41,18 @@ struct ChoreDefinition: Codable, Identifiable {
 struct ChoreListResponse: Decodable { let chores: [ChoreDefinition] }
 struct ChoreResponse: Decodable { let chore: ChoreDefinition }
 
+struct ChoreReorder: Encodable {
+    let personId: String
+    let choreIds: [String]
+
+    static func moving(_ chores: [ChoreDefinition], personId: String, from: IndexSet, to: Int) -> [ChoreDefinition] {
+        var assigned = chores.filter { $0.assignedPersonId == personId }
+        assigned.move(fromOffsets: from, toOffset: to)
+        var remaining = assigned.makeIterator()
+        return chores.map { $0.assignedPersonId == personId ? remaining.next()! : $0 }
+    }
+}
+
 extension ChoreDefinition {
     mutating func didReplaceGuidePhoto(_ path: String?, pendingGuide: inout Data?) {
         guidePhotoPath = path
@@ -62,6 +74,7 @@ struct ChoreManagementView: View {
     @State private var editing: ChoreDefinition?
     @State private var error = ""
     @State private var loading = false
+    @State private var reordering = false
     var body: some View {
         NavigationStack {
             List {
@@ -79,24 +92,33 @@ struct ChoreManagementView: View {
                                         Text("★ \(chore.stars) · \(chore.repeatType)").font(.caption).foregroundStyle(Plaza.muted)
                                     }
                                 }
+                                .accessibilityLabel(chore.title)
                                 .accessibilityIdentifier("manage.chore.\(chore.title)")
+                                .disabled(reordering)
                                 .swipeActions {
                                     Button("Delete", role: .destructive) { Task { await delete(chore) } }
                                 }
                             }
+                            .onMove { from, to in
+                                move(personId: person.id, from: from, to: to)
+                            }
+                            .moveDisabled(reordering || loading)
                         }
                     }
                 }
             }
             .scrollContentBackground(.hidden).background(Plaza.paper).navigationTitle("Chores")
             .toolbar {
+                EditButton().accessibilityIdentifier("manage.reorder")
+                    .disabled(reordering)
                 Button("Add chore", systemImage: "plus") {
                     editing = ChoreDefinition(id: "", title: "", assignedPersonId: house.snapshot?.people.first?.id ?? "",
                         stars: 1, requiresPhoto: false, repeatType: "daily", weekdays: [1, 2, 3, 4, 5],
                         weeklyWeekday: 1, onceDate: MealWeek.formatter().string(from: Date()),
                         description: nil, steps: [], active: true)
-                }.disabled(house.snapshot?.people.isEmpty != false).accessibilityIdentifier("manage.add")
+                }.disabled(reordering || house.snapshot?.people.isEmpty != false).accessibilityIdentifier("manage.add")
             }
+            .accessibilityIdentifier("manage.list")
             .task { await load() }.refreshable { await load() }
             .sheet(item: $editing, onDismiss: { Task { await load() } }) { chore in
                 ChoreEditor(chore: chore)
@@ -104,6 +126,7 @@ struct ChoreManagementView: View {
         }
     }
     private func load() async {
+        guard !reordering else { return }
         loading = true
         defer { loading = false }
         do {
@@ -111,6 +134,27 @@ struct ChoreManagementView: View {
             chores = response.chores.filter(\.active)
             error = ""
         } catch { self.error = error.localizedDescription }
+    }
+    private func move(personId: String, from: IndexSet, to: Int) {
+        guard !reordering else { return }
+        let previous = chores
+        chores = ChoreReorder.moving(chores, personId: personId, from: from, to: to)
+        let payload = ChoreReorder(personId: personId,
+            choreIds: chores.filter { $0.assignedPersonId == personId }.map(\.id))
+        guard payload.choreIds != previous.filter({ $0.assignedPersonId == personId }).map(\.id) else { return }
+        reordering = true
+        error = ""
+        Task {
+            defer { reordering = false }
+            do {
+                let _: ChoreListResponse = try await house.api.request("chores/reorder", method: "POST",
+                    token: house.session, payload: JSONEncoder().encode(payload))
+                await house.load()
+            } catch {
+                chores = previous
+                self.error = error.localizedDescription
+            }
+        }
     }
     private func delete(_ chore: ChoreDefinition) async {
         do {

@@ -112,8 +112,8 @@ export async function notifyParents(title: string, body: string) {
   await sendPush(tokens.map((row) => ({ to: row.token, kind: row.kind, environment: row.environment, title, body, sound: "default" })));
 }
 
-export async function notifyPerson(personId: string, title: string, body: string, kind?: PushKind) {
+export async function notifyPerson(personId: string, title: string, body: string, kind?: PushKind, data?: Record<string, string>) {
   const tokens = await tokensFor([personId]);
   await sendPush(tokens.filter((row) => !kind || row.kind === kind)
-    .map((row) => ({ to: row.token, kind: row.kind, environment: row.environment, title, body, sound: "default" })));
+    .map((row) => ({ to: row.token, kind: row.kind, environment: row.environment, title, body, sound: "default", data })));
 }

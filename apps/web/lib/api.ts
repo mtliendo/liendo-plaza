@@ -28,6 +28,7 @@ import {
   deactivateChore,
   getChore,
   listChores,
+  reorderChores,
   listPendingInstances,
   markPhotoPending,
   reviewInstance,
@@ -296,6 +297,19 @@ async function dispatchApi(req: Request): Promise<Response> {
         guidePhotoPath: null,
       }),
     }, 201);
+  }
+
+  if (path === "chores/reorder" && method === "POST") {
+    const parent = requireParent(await requireActor(req, ["person"]));
+    const parsed = z.object({ personId: z.string().uuid(), choreIds: z.array(z.string().uuid()) })
+      .safeParse(await readJson(req));
+    if (!parsed.success) throw new HttpError(400, "Send a person and an ordered list of chore IDs.");
+    const result = await reorderChores(parsed.data.personId, parsed.data.choreIds);
+    if (result.changed) {
+      await notifyPerson(parsed.data.personId, "Chore order changed",
+        `${parent.name.trim().split(/\s+/)[0]} rearranged your chores.`, undefined, { type: "chores" });
+    }
+    return json({ chores: result.chores });
   }
 
   const choreMatch = path.match(/^chores\/([^/]+)$/);

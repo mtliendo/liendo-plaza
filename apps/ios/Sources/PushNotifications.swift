@@ -1,5 +1,16 @@
 import UIKit
 import UserNotifications
+import Combine
+
+@MainActor
+final class PushNavigation: ObservableObject {
+    static let shared = PushNavigation()
+    @Published var tab = "today"
+
+    func receive(_ userInfo: [AnyHashable: Any]) {
+        if userInfo["type"] as? String == "chores" { tab = "today" }
+    }
+}
 
 struct PushRegistration: Equatable {
     let token: String
@@ -51,5 +62,13 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        Task { @MainActor in
+            PushNavigation.shared.receive(response.notification.request.content.userInfo)
+            completionHandler()
+        }
     }
 }
