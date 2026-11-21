@@ -97,6 +97,7 @@ export async function handleApi(req: Request): Promise<Response> {
   } catch (error) {
     response = errorResponse(error);
   }
+  if (req.method !== "GET" && response.ok) invalidateHousehold();
   response.headers.set("cache-control", "private, no-store");
   response.headers.append("vary", "Authorization, Cookie");
   return response;
