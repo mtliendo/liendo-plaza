@@ -356,7 +356,7 @@ final class ParentFeaturesUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, required ? "1" : "0")
         capture(app, required ? "Photo-proof-on" : "Photo-proof-off")
         app.buttons["manage.save"].tap()
-        let caption = NSPredicate(format: "identifier == %@ AND \(required ? "" : "NOT ")(label CONTAINS 'photo proof')",
+        let caption = NSPredicate(format: "identifier == %@ AND \(required ? "" : "NOT ")(value CONTAINS 'photo proof')",
             "manage.chore.\(title)")
         XCTAssertTrue(app.buttons.matching(caption).firstMatch.waitForExistence(timeout: 60))
         app.terminate()

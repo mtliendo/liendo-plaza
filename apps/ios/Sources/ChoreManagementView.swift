@@ -96,6 +96,7 @@ struct ChoreManagementView: View {
                                     }
                                 }
                                 .accessibilityLabel(chore.title)
+                                .accessibilityValue("\(chore.stars) stars, \(chore.repeatType)\(chore.requiresPhoto ? ", photo proof" : "")")
                                 .accessibilityIdentifier("manage.chore.\(chore.title)")
                                 .disabled(reordering)
                                 .swipeActions {
