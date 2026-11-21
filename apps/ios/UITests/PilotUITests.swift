@@ -52,10 +52,27 @@ final class PilotUITests: XCTestCase {
     }
 
     @MainActor
-    func testFirstParentBootstrapShowsToday() {
+    func testFirstParentBootstrapShowsToday() throws {
         let app = launch()
+        XCTAssertTrue(app.staticTexts["setup.parentRequired"].waitForExistence(timeout: 40))
+        XCTAssertEqual(app.secureTextFields.count, 0)
+        XCTAssertFalse(app.staticTexts["Jess"].exists)
+        XCTAssertFalse(app.staticTexts["Sofia"].exists)
+        capture(app, "setup-anonymous-parent-required")
+        app.terminate()
+        app.launchEnvironment["LP_TEST_SESSION_TOKEN"] = try parentToken
+        app.launch()
+        XCTAssertTrue(app.staticTexts["setup.parent"].waitForExistence(timeout: 40))
+        app.terminate()
+        app.launchArguments = []
+        app.launchEnvironment["LP_TEST_SESSION_TOKEN"] = nil
+        app.launch()
         XCTAssertTrue(app.staticTexts["Set up Liendo Plaza"].waitForExistence(timeout: 40))
-        capture(app, "setup")
+        XCTAssertTrue(app.staticTexts["setup.parent"].waitForExistence(timeout: 40))
+        XCTAssertEqual(app.staticTexts["setup.parent"].label, "Setting up as Focus")
+        XCTAssertEqual(app.pickers.count, 0)
+        XCTAssertTrue(app.secureTextFields["setup.jess"].exists)
+        capture(app, "setup-existing-parent-after-relaunch")
         app.secureTextFields["code"].tap()
         app.secureTextFields["code"].typeText("123456")
         app.secureTextFields["code.confirmation"].tap()

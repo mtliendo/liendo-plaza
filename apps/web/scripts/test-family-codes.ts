@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { handleApi } from "../lib/api";
 import { getDb, getPool, schema } from "../lib/db";
 import { errorResponse } from "../lib/http";
-import { hashPin, personFromSession } from "../lib/auth";
+import { hashPin, issuePersonSession, personFromSession, pairDisplay } from "../lib/auth";
+import { asPerson } from "../lib/person";
 
 const database = new URL(process.env.DATABASE_URL ?? "");
 assert.match(database.pathname, /^\/liendo_codes_test_\d+$/);
@@ -15,6 +16,7 @@ let parentId: string;
 let otherParentId: string;
 let kidId: string;
 let otherKidId: string;
+let parentToken: string;
 async function api(path: string, body?: unknown, token?: string, ip = randomUUID()) {
   const response = await handleApi(new Request(`http://codes.test/api/${path}`, {
     method: body === undefined ? "GET" : "POST",
@@ -25,7 +27,7 @@ async function api(path: string, body?: unknown, token?: string, ip = randomUUID
 }
 function setup(overrides = {}) {
   return api("auth/codes/setup", { code: "543210", confirmation: "543210", personId: parentId,
-    kids: [{ personId: kidId, code: "0102" }], ...overrides });
+    kids: [{ personId: kidId, code: "0102" }], ...overrides }, parentToken);
 }
 before(async () => {
   await db.execute(sql`truncate people, family_codes cascade`);
@@ -36,6 +38,7 @@ before(async () => {
     { slug: "other-kid", name: "Other kid", role: "kid", color: "yellow" },
   ]).returning();
   [parentId, otherParentId, kidId, otherKidId] = people.map((p) => p.id);
+  parentToken = (await issuePersonSession(asPerson(people[0]), { kind: "phone", label: "Existing parent" })).token;
 });
 beforeEach(async () => {
   await db.delete(schema.familyCodes);
@@ -47,13 +50,76 @@ test("fresh setup validates confirmation, lengths and kids without writing parti
   assert.equal((await api("auth/codes/status")).body.setupRequired, true);
   assert.equal((await setup({ confirmation: "543211" })).status, 400);
   assert.equal((await setup({ code: "1234", confirmation: "1234" })).status, 400);
-  assert.equal((await setup({ personId: kidId })).status, 400);
+  assert.equal((await setup({ personId: kidId })).status, 403);
   assert.equal((await setup({ parents: [{ personId: otherParentId, code: "543210" }] })).status, 400);
   assert.equal((await setup({ parents: [{ personId: kidId, code: "654321" }] })).status, 400);
   assert.equal((await setup({ parents: [{ personId: parentId, code: "654321" }] })).status, 400);
   assert.equal((await setup({ kids: [{ personId: parentId, code: "0102" }] })).status, 400);
   assert.equal((await setup({ kids: [{ personId: kidId, code: "0102" }, { personId: otherKidId, code: "0102" }] })).status, 400);
   assert.equal((await db.select().from(schema.familyCodes)).length, 0);
+});
+
+test("setup and status require a live parent, bind identity and protect the roster for every role", async () => {
+  const people = await db.select().from(schema.people);
+  const roles = await Promise.all([parentId, otherParentId, kidId].map(async (id) => {
+    const person = people.find((p) => p.id === id)!;
+    return { person, token: (await issuePersonSession(asPerson(person), { kind: "phone", label: "Existing session" })).token };
+  }));
+  const display = await pairDisplay("Setup audit display", parentId);
+  const callers: { headers: Record<string, string>; parent?: typeof people[number]; expected: number }[] = [
+    { headers: {}, parent: undefined, expected: 401 },
+    { headers: { "x-display-token": display }, parent: undefined, expected: 401 },
+    ...roles.flatMap(({ person, token }) => ["authorization", "cookie"].map((name) => ({
+      headers: { [name]: name === "cookie" ? `lp_session=${token}` : `Bearer ${token}` },
+      parent: person.role === "parent" ? person : undefined, expected: person.role === "parent" ? 200 : 403,
+    }))),
+  ];
+  for (const caller of callers) {
+    await db.delete(schema.familyCodes);
+    const send = async (path: string, body?: unknown) => {
+      const response = await handleApi(new Request(`http://codes.test/api/${path}`, {
+        method: body ? "POST" : "GET",
+        headers: { ...caller.headers, "content-type": "application/json", "x-forwarded-for": randomUUID() },
+        body: body ? JSON.stringify(body) : undefined,
+      }));
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      assert.match(response.headers.get("vary")!, /Authorization, Cookie/);
+      return { status: response.status, body: await response.json() };
+    };
+    const status = await send("auth/codes/status");
+    assert.equal(status.status, 200);
+    if (caller.parent) {
+      assert.equal(status.body.people.length, 4);
+      assert.doesNotMatch(JSON.stringify(status.body), /pinHash|failedAttempts|lockedUntil/);
+      const wrong = await send("auth/codes/setup", { personId: caller.parent.id === parentId ? otherParentId : parentId,
+        code: "543210", confirmation: "543210" });
+      assert.equal(wrong.status, 403);
+    } else assert.deepEqual(status.body, { setupRequired: true });
+    const result = await send("auth/codes/setup", { personId: caller.parent?.id ?? parentId, code: "543210", confirmation: "543210" });
+    assert.equal(result.status, caller.expected);
+    if (caller.parent) {
+      assert.equal(result.body.person.id, caller.parent.id);
+      assert.equal((await personFromSession(result.body.token))?.id, caller.parent.id);
+      assert.equal((await send("auth/codes/setup", { personId: caller.parent.id, code: "543210", confirmation: "543210" })).status, 409);
+    } else assert.equal((await db.select().from(schema.familyCodes)).length, 0);
+    if (!caller.parent) await setup();
+    const established = await send("auth/codes/status");
+    assert.deepEqual(established.body, caller.parent ? { setupRequired: false, people: [] } : { setupRequired: false });
+  }
+});
+
+test("revoked and expired parent sessions cannot obtain a setup roster or write codes", async () => {
+  const parent = (await db.select().from(schema.people)).find((p) => p.id === parentId)!;
+  for (const state of ["revoked", "expired"] as const) {
+    const session = await issuePersonSession(asPerson(parent), { kind: "phone", label: state });
+    if (state === "revoked") await api("auth/logout", {}, session.token);
+    if (state === "expired") {
+      await db.update(schema.sessions).set({ expiresAt: new Date(0) }).where(eq(schema.sessions.tokenHash, createHash("sha256").update(session.token).digest("hex")));
+    }
+    assert.deepEqual((await api("auth/codes/status", undefined, session.token)).body, { setupRequired: true });
+    assert.equal((await api("auth/codes/setup", { personId: parentId, code: "543210", confirmation: "543210" }, session.token)).status, 401);
+    assert.equal((await db.select().from(schema.familyCodes)).length, 0);
+  }
 });
 
 test("setup is atomic under a race and stores only hashes; omitted kid codes remain unset", async () => {
@@ -66,7 +132,7 @@ test("setup is atomic under a race and stores only hashes; omitted kid codes rem
   const result = results.find((r) => r.status === 200)!;
   assert.equal((await personFromSession(result.body.token))?.id, parentId);
   assert.equal((await api("auth/codes/status")).body.setupRequired, false);
-  assert.deepEqual((await api("auth/codes/status")).body.people, []);
+  assert.deepEqual((await api("auth/codes/status")).body, { setupRequired: false });
   assert.equal((await api("auth/login", { code: "1234" })).status, 401);
 });
 
@@ -184,8 +250,8 @@ test("login and setup enforce per-IP rate limits", async () => {
   for (let i = 0; i < 20; i++) assert.equal((await api("auth/login", { code: "543210" }, undefined, ip)).status, 200);
   assert.equal((await api("auth/login", { code: "543210" }, undefined, ip)).status, 429);
   const setupIp = randomUUID();
-  for (let i = 0; i < 10; i++) assert.equal((await api("auth/codes/setup", {}, undefined, setupIp)).status, 400);
-  assert.equal((await api("auth/codes/setup", {}, undefined, setupIp)).status, 429);
+  for (let i = 0; i < 10; i++) assert.equal((await api("auth/codes/setup", { personId: parentId }, parentToken, setupIp)).status, 400);
+  assert.equal((await api("auth/codes/setup", { personId: parentId }, parentToken, setupIp)).status, 429);
 });
 
 test("only parents manage codes; changes, duplicate rejection, clear and old-code rejection work", async () => {

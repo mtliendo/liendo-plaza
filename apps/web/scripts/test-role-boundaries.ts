@@ -9,6 +9,8 @@ import { addDays, FAMILY } from "@liendo/shared";
 import { getDb, getPool, schema } from "../lib/db";
 import { todayIso } from "../lib/time";
 import { deleteStoredPhoto } from "../lib/blob";
+import { issuePersonSession } from "../lib/auth";
+import { asPerson } from "../lib/person";
 
 const database = new URL(process.env.DATABASE_URL ?? "");
 assert.match(database.pathname, /^\/liendo_role_audit_test_\d+$/);
@@ -84,11 +86,13 @@ async function main() {
     parents: [{ personId: person("jess").id, code: "234567" }],
     kids: [{ personId: noah.id, code: "0102" }, { personId: sofia.id, code: "0304" }, { personId: person("xavier").id, code: "0506" }] };
   await check("auth/codes/status", "Anonymous", 200, "GET", undefined, (data) => {
-    assert.equal(data.setupRequired, true); assert.equal(data.people.length, 5); noSecrets(data);
-  }, "sanitized setup roster only");
-  await check("auth/codes/setup", "Anonymous", 400, "POST", { ...setup, personId: noah.id });
-  await check("auth/codes/setup", "Anonymous", 400, "POST", { ...setup, parents: [{ personId: noah.id, code: "345678" }] });
-  const established = await check("auth/codes/setup", "Anonymous", 200, "POST", setup, (data) => {
+    assert.deepEqual(data, { setupRequired: true });
+  }, "no public roster");
+  await check("auth/codes/setup", "Anonymous", 401, "POST", setup);
+  tokens.Focus = (await issuePersonSession(asPerson(person("focus")), { kind: "phone", label: "Existing audit parent" })).token;
+  await check("auth/codes/setup", "Focus", 403, "POST", { ...setup, personId: noah.id });
+  await check("auth/codes/setup", "Focus", 400, "POST", { ...setup, parents: [{ personId: noah.id, code: "345678" }] });
+  const established = await check("auth/codes/setup", "Focus", 200, "POST", setup, (data) => {
     assert.equal(data.person.id, person("focus").id); assert.equal(data.person.role, "parent"); assert.ok(data.token); noSecrets(data);
   }, "first setup issues chosen parent session");
   assert.ok(established.token, "Could not establish initial parent session");
@@ -125,8 +129,8 @@ async function main() {
   for (const role of ["Noah", "Focus", "Jess"] as const) {
     const kid = role === "Noah";
     const current = person(kid ? "noah" : role.toLowerCase());
-    await check("auth/codes/status", role, 200, "GET", undefined, (data) => { assert.deepEqual(data, { setupRequired: false, people: [] }); });
-    await check("auth/codes/setup", role, 409, "POST", setup);
+    await check("auth/codes/status", role, 200, "GET", undefined, (data) => { assert.deepEqual(data, kid ? { setupRequired: false } : { setupRequired: false, people: [] }); });
+    await check("auth/codes/setup", role, kid ? 403 : 409, "POST", { code: "123456", confirmation: "123456", personId: current.id });
     await check("auth/codes", role, kid ? 403 : 200, "GET", undefined, (data) => {
       noSecrets(data); if (!kid) { assert.deepEqual(Object.keys(data), ["configuredPersonIds"]); assert.equal(data.configuredPersonIds.length, 5); }
     }, "kid denied; parents get IDs only, never hashes");
@@ -176,7 +180,7 @@ async function main() {
     await check(`rewards/${rewardId}`, role, kid ? 403 : 200, "DELETE");
     await check("rewards/requests", role, 200, "GET", undefined, (data) => {
       assert.ok(data.requests.length); noSecrets(data);
-      if (kid && !data.requests.every((r: { personId: string }) => r.personId === noah.id)) throw new Error("another kid's reward-request history leaked");
+      if (kid) assert.ok(data.requests.every((r: { personId: string }) => r.personId === noah.id));
       else assert.ok(data.requests.some((r: { personId: string }) => r.personId === sofia.id));
     }, "kid sees own requests only; parents see all", undefined, false, kid ? "another kid's reward-request history leaked" : undefined);
     await check("rewards/requests", role, kid ? 201 : 400, "POST", { rewardId: reward.id, personId: sofia.id }, (data) => { noSecrets(data); if (kid) assert.equal(data.request.personId, noah.id); }, "request binds caller, not forged personId");
