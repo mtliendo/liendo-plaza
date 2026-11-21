@@ -277,4 +277,70 @@ final class ParentFeaturesUITests: XCTestCase {
         XCTAssertFalse(app.buttons["manage.add"].exists)
         capture(app, "Today-kid")
     }
+
+    @MainActor
+    private func setPhotoProof(_ required: Bool, on title: String) throws {
+        let app = launch(token: try parentToken)
+        app.tabBars.buttons["Chores"].tap()
+        let row = app.buttons["manage.chore.\(title)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 60))
+        row.tap()
+        let toggle = app.switches["manage.requiresPhoto"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 30))
+        if (toggle.value as? String == "1") != required { toggle.switches.firstMatch.tap() }
+        XCTAssertEqual(toggle.value as? String, required ? "1" : "0")
+        capture(app, required ? "Photo-proof-on" : "Photo-proof-off")
+        app.buttons["manage.save"].tap()
+        let caption = NSPredicate(format: "identifier == %@ AND \(required ? "" : "NOT ")(label CONTAINS 'photo proof')",
+            "manage.chore.\(title)")
+        XCTAssertTrue(app.buttons.matching(caption).firstMatch.waitForExistence(timeout: 60))
+        app.terminate()
+    }
+
+    private func restorePhotoProof(id: String, token: String) async throws {
+        let base = URL(string: environment["LP_API_URL"] ?? "http://localhost:3000")!
+        var request = URLRequest(url: base.appendingPathComponent("api/chores/\(id)"))
+        request.httpMethod = "PATCH"
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["requiresPhoto": false])
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+    }
+
+    @MainActor
+    private func launchNoah() async throws -> XCUIApplication {
+        let login = try await api("auth/login", body: ["code": "1234", "deviceKind": "phone"])
+        let app = launch(token: try XCTUnwrap(login["token"] as? String))
+        XCTAssertTrue(app.staticTexts["stars.balance"].waitForExistence(timeout: 60))
+        return app
+    }
+
+    @MainActor
+    func testParentRequiresPhotoProofPerChore() async throws {
+        let title = "Unload the dishwasher"
+        let response = try await api("chores", token: parentToken)
+        let chores = try XCTUnwrap(response["chores"] as? [[String: Any]])
+        let id = try XCTUnwrap(chores.first { $0["title"] as? String == title }?["id"] as? String)
+        let token = try parentToken
+        addTeardownBlock { try await self.restorePhotoProof(id: id, token: token) }
+        try setPhotoProof(true, on: title)
+        var app = try await launchNoah()
+        let open = app.buttons["chore.\(title)"]
+        XCTAssertTrue(open.waitForExistence(timeout: 60))
+        XCTAssertFalse(app.buttons["chore.toggle.\(title)"].exists)
+        open.tap()
+        XCTAssertTrue(app.buttons["chore.photo"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["chore.complete"].exists)
+        capture(app, "Kid-photo-required")
+        app.terminate()
+
+        try setPhotoProof(false, on: title)
+        app = try await launchNoah()
+        XCTAssertTrue(app.buttons["chore.toggle.\(title)"].waitForExistence(timeout: 60))
+        app.buttons["chore.\(title)"].tap()
+        XCTAssertTrue(app.buttons["chore.complete"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["chore.photo"].exists)
+        capture(app, "Kid-no-photo")
+    }
 }
