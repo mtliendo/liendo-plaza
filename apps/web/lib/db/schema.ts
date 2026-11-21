@@ -30,6 +30,12 @@ export const familyCodes = pgTable("family_codes", {
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
 });
 
+export const rateLimitBuckets = pgTable("rate_limit_buckets", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull(),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+});
+
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   personId: uuid("person_id")

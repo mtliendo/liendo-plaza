@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:rate-limit": "tsx scripts/test-rate-limit.ts",
     "test:chore-agent": "tsx scripts/test-chore-agent.ts",
     "dev": "next dev --turbopack --port 3000",
     "build": "next build",
