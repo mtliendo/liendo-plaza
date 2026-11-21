@@ -60,8 +60,8 @@ test("setup is atomic under a race and stores only hashes; omitted kid codes rem
   const results = await Promise.all([setup(), setup()]);
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
   const rows = await db.select().from(schema.familyCodes);
-  assert.equal(rows.length, 3);
-  assert.ok(rows.filter((r) => r.id !== "household").every((r) => r.hash.startsWith("$2") && !["543210", "0102"].includes(r.hash)));
+  assert.equal(rows.length, 4);
+  assert.ok(rows.filter((r) => !r.id.startsWith("household-")).every((r) => r.hash.startsWith("$2") && !["543210", "0102"].includes(r.hash)));
   assert.deepEqual(new Set((await api("auth/codes", undefined, results.find((r) => r.status === 200)!.body.token)).body.configuredPersonIds), new Set([parentId, kidId]));
   const result = results.find((r) => r.status === 200)!;
   assert.equal((await personFromSession(result.body.token))?.id, parentId);
@@ -110,34 +110,72 @@ test("a sole parent signs in directly", async () => {
   finally { await db.update(schema.people).set({ role: "parent" }).where(eq(schema.people.id, otherParentId)); }
 });
 
-test("wrong codes reset only on parent sign-in, lock for five minutes after ten failures, and honor existing locks", async () => {
+for (const kind of ["kids", "parents"] as const) {
+  test(`${kind} lock after ten failures across IPs without blocking or resetting the other type`, async () => {
+    await setup({ parents: [{ personId: otherParentId, code: "654321" }], kids: [{ personId: kidId, code: "0102" }, { personId: otherKidId, code: "0304" }] });
+    const ownId = `household-${kind}`;
+    const otherId = kind === "kids" ? "household-parents" : "household-kids";
+    const wrongCode = kind === "kids" ? "9999" : "999999";
+    const ownCode = kind === "kids" ? "0102" : "543210";
+    const ownPerson = kind === "kids" ? kidId : parentId;
+    for (let i = 0; i < 9; i++) {
+      const wrong = await api("auth/login", { code: wrongCode });
+      assert.equal(wrong.status, 401);
+      assert.equal(wrong.body.error, "That code is not recognized.");
+    }
+    const before = Date.now();
+    const locked = await api("auth/login", { code: wrongCode });
+    assert.equal(locked.status, 423);
+    assert.equal(locked.body.error, "Too many tries. Try again in 5 minutes.");
+    const [row] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, ownId));
+    assert.equal(row.failedAttempts, 10);
+    assert.ok(row.lockedUntil && row.lockedUntil.getTime() >= before + 5 * 60_000 && row.lockedUntil.getTime() <= Date.now() + 5 * 60_000);
+    for (const code of kind === "kids" ? ["543210", "654321"] : ["0102", "0304"]) {
+      assert.equal((await api("auth/login", { code })).status, 200);
+    }
+    assert.equal((await api("auth/login", { code: ownCode })).status, 423);
+    const [unchanged] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, ownId));
+    assert.equal(unchanged.failedAttempts, 10);
+    assert.equal(unchanged.lockedUntil?.getTime(), row.lockedUntil?.getTime());
+    await db.update(schema.familyCodes).set({ failedAttempts: 3 }).where(eq(schema.familyCodes.id, otherId));
+    await db.update(schema.familyCodes).set({ lockedUntil: new Date(Date.now() - 1) }).where(eq(schema.familyCodes.id, ownId));
+    assert.equal((await api("auth/login", { code: ownCode })).status, 200);
+    const [reset] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, ownId));
+    assert.equal(reset.failedAttempts, 0);
+    assert.equal(reset.lockedUntil, null);
+    const [other] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, otherId));
+    assert.equal(other.failedAttempts, 3);
+    await db.update(schema.familyCodes).set({ failedAttempts: 2 }).where(eq(schema.familyCodes.id, ownId));
+    await db.update(schema.people).set({ pinLockedUntil: new Date(Date.now() + 60_000) }).where(eq(schema.people.id, ownPerson));
+    assert.equal((await api("auth/login", { code: ownCode })).status, 423);
+    const [legacyLocked] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, ownId));
+    assert.equal(legacyLocked.failedAttempts, 2);
+  });
+}
+
+test("malformed codes are generic and do not increment either type; empty setup cannot sign in", async () => {
+  assert.equal((await api("auth/login", { code: "0102" })).status, 401);
+  assert.equal((await db.select().from(schema.familyCodes)).length, 0);
   await setup();
-  for (const code of ["", "9999", "111111", "nonsense"]) {
+  for (const code of ["", "12345", "nonsense", "1".repeat(73)]) {
     const wrong = await api("auth/login", { code });
-    assert.equal(wrong.status, 401); assert.equal(wrong.body.error, "That code is not recognized.");
+    assert.equal(wrong.status, 401);
+    assert.equal(wrong.body.error, "That code is not recognized.");
   }
-  for (let i = 0; i < 5; i++) assert.equal((await api("auth/login", { code: "9999" })).status, 401);
-  assert.equal((await api("auth/login", { code: "0102" })).status, 200);
-  const [unchanged] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household"));
-  assert.equal(unchanged.failedAttempts, 9);
-  assert.equal((await api("auth/login", { code: "543210", personId: parentId })).status, 200);
-  const [reset] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household"));
-  assert.equal(reset.failedAttempts, 0);
-  for (let i = 0; i < 9; i++) assert.equal((await api("auth/login", { code: "9999" })).status, 401);
-  const before = Date.now();
-  const locked = await api("auth/login", { code: "9999" });
-  assert.equal(locked.status, 423);
-  assert.equal(locked.body.error, "Too many tries. Try again in 5 minutes.");
-  const [row] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household"));
-  assert.equal(row.failedAttempts, 10);
-  assert.ok(row.lockedUntil && row.lockedUntil.getTime() >= before + 5 * 60_000 && row.lockedUntil.getTime() <= Date.now() + 5 * 60_000);
-  const blocked = await api("auth/login", { code: "0102" });
-  assert.equal(blocked.status, 423);
-  assert.equal(blocked.body.error, locked.body.error);
-  await db.update(schema.familyCodes).set({ lockedUntil: new Date(Date.now() - 1) });
-  assert.equal((await api("auth/login", { code: "0102" })).status, 200);
-  await db.update(schema.people).set({ pinLockedUntil: new Date(Date.now() + 60_000) }).where(eq(schema.people.id, kidId));
-  assert.equal((await api("auth/login", { code: "0102" })).status, 423);
+  const rows = await db.select().from(schema.familyCodes);
+  assert.ok(rows.every((row) => row.failedAttempts === 0 && row.lockedUntil === null));
+});
+
+test("existing installations lazily initialize separate counters and ignore the old combined lockout", async () => {
+  const parent = (await setup()).body.token;
+  for (const id of ["household-kids", "household-parents"]) await db.delete(schema.familyCodes).where(eq(schema.familyCodes.id, id));
+  await db.insert(schema.familyCodes).values({ id: "household", hash: "", failedAttempts: 10, lockedUntil: new Date(Date.now() + 60_000) });
+  assert.equal((await api("auth/login", { code: "9999" })).status, 401);
+  assert.equal((await api("auth/login", { code: "543210" })).status, 200);
+  const rows = await db.select().from(schema.familyCodes);
+  assert.equal(rows.find((r) => r.id === "household-kids")?.failedAttempts, 1);
+  assert.equal(rows.find((r) => r.id === "household-parents")?.failedAttempts, 0);
+  assert.deepEqual(new Set((await api("auth/codes", undefined, parent)).body.configuredPersonIds), new Set([parentId, kidId]));
 });
 
 test("login and setup enforce per-IP rate limits", async () => {
@@ -221,7 +259,7 @@ test("concurrent duplicate parent changes cannot both succeed or reset household
   await api("auth/login", { code: "9999" });
   const results = await Promise.all([parentId, otherParentId].map((personId) => api("auth/codes", { personId, code: "987654", confirmation: "987654" }, parent)));
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
-  const [household] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household"));
+  const [household] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household-kids"));
   assert.equal(household.failedAttempts, 1);
 });
 

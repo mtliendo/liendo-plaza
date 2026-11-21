@@ -144,6 +144,7 @@ final class PilotUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Keep at least one parent code. Enter a new code to replace this one."].exists)
         XCTAssertEqual(app.buttons["codes.save"].label, "Save code")
         XCTAssertFalse(app.buttons["codes.save"].isEnabled)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Leave a code empty to clear it.")).firstMatch.exists)
         code.tap(); code.typeText("654321")
         app.secureTextFields["codes.confirmation"].tap()
         app.secureTextFields["codes.confirmation"].typeText("654321")

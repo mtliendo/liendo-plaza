@@ -67,7 +67,7 @@ struct FamilyCodesView: View {
                 Button(!code.isEmpty || !canClear ? "Save code" : "Clear code") { Task { await save() } }
                     .disabled(busy || personId.isEmpty || (code.isEmpty && !canClear)).accessibilityIdentifier("codes.save")
             } footer: {
-                Text("Each parent has their own code of 6 or more digits. Each kid has a different four-digit birthday code (MMDD). Leave a code empty to clear it. Existing signed-in devices stay signed in.")
+                Text("Each parent has their own code of 6 or more digits. Each kid has a different four-digit birthday code (MMDD). \(canClear ? "Leave a code empty to clear it. " : "")Existing signed-in devices stay signed in.")
             }
             if !message.isEmpty { Text(message).accessibilityIdentifier("codes.success") }
             InlineError(message: error)
