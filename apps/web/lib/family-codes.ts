@@ -78,12 +78,12 @@ export async function loginWithFamilyCode(code: string, personId: string | undef
     }
     const people = await tx.select().from(schema.people);
     const eligible = people.filter((person) => match.id === "parent" ? person.role === "parent" : person.role === "kid" && person.id === match.id);
-    if (eligible.some((person) => person.pinLockedUntil && person.pinLockedUntil.getTime() > Date.now())) {
-      return new HttpError(423, "Too many tries. Try again in 15 minutes.");
-    }
     if (match.id === "parent" && eligible.length > 1 && !personId) return { parents: eligible.map(asPerson) };
     const person = personId ? eligible.find((person) => person.id === personId) : eligible[0];
     if (!person) return new HttpError(401, "That code is not recognized.");
+    if (person.pinLockedUntil && person.pinLockedUntil.getTime() > Date.now()) {
+      return new HttpError(423, "Too many tries. Try again in 15 minutes.");
+    }
     if (match.id === "parent") {
       await tx.update(schema.familyCodes).set({ failedAttempts: 0, lockedUntil: null }).where(eq(schema.familyCodes.id, "parent"));
     }

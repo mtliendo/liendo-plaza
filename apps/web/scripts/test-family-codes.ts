@@ -85,10 +85,28 @@ test("shared parent code picks only a parent; kid code directly issues the same 
   assert.equal((await api("auth/login", { code: "543210", personId: kidId })).status, 401);
 });
 
+test("a legacy-locked parent remains in the picker without blocking another parent", async () => {
+  await setup();
+  await db.update(schema.people).set({ pinLockedUntil: new Date(Date.now() + 60_000) }).where(eq(schema.people.id, otherParentId));
+  const choice = await api("auth/login", { code: "543210" });
+  assert.equal(choice.status, 200);
+  assert.deepEqual(new Set(choice.body.parents.map((person: { id: string }) => person.id)), new Set([parentId, otherParentId]));
+  assert.equal(choice.body.token, undefined);
+  assert.equal((await api("auth/login", { code: "543210", personId: otherParentId })).status, 423);
+  const parent = await api("auth/login", { code: "543210", personId: parentId });
+  assert.equal(parent.status, 200);
+  assert.equal(parent.body.person.id, parentId);
+  assert.equal((await api("auth/login", { code: "0102" })).status, 200);
+});
+
 test("a sole parent signs in directly", async () => {
   await setup();
   await db.update(schema.people).set({ role: "kid" }).where(eq(schema.people.id, otherParentId));
-  try { assert.equal((await api("auth/login", { code: "543210" })).body.person.id, parentId); }
+  try {
+    assert.equal((await api("auth/login", { code: "543210" })).body.person.id, parentId);
+    await db.update(schema.people).set({ pinLockedUntil: new Date(Date.now() + 60_000) }).where(eq(schema.people.id, parentId));
+    assert.equal((await api("auth/login", { code: "543210" })).status, 423);
+  }
   finally { await db.update(schema.people).set({ role: "parent" }).where(eq(schema.people.id, otherParentId)); }
 });
 
