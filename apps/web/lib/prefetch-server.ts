@@ -12,6 +12,7 @@ export async function dehydrateHouse(kind: "display" | "family") {
   const jar = await cookies();
   const today = todayIso();
   const week = weekDates(today);
+  let kidId: string | undefined;
   try {
     if (kind === "display") {
       const token = jar.get(DISPLAY_COOKIE)?.value;
@@ -20,13 +21,21 @@ export async function dehydrateHouse(kind: "display" | "family") {
       const token = jar.get(SESSION_COOKIE)?.value;
       const person = token ? await personFromSession(token) : null;
       if (!person) return dehydrate(client);
-      await client.prefetchQuery({ queryKey: queryKeys.chores, queryFn: listChores });
+      if (person.role === "kid") kidId = person.id;
+      await client.prefetchQuery({ queryKey: queryKeys.chores, queryFn: async () => {
+        const chores = await listChores();
+        return kidId ? chores.filter(chore => chore.assignedPersonId === kidId) : chores;
+      } });
       await client.prefetchQuery({ queryKey: queryKeys.rewards, queryFn: () => listRewards() });
       await client.prefetchQuery({ queryKey: queryKeys.requests, queryFn: () => listRewardRequests(person) });
     }
     await client.prefetchQuery({
       queryKey: queryKeys.snapshot(week[0], week[6], null),
-      queryFn: () => buildSnapshot(week[0], week[6], { cached: true }),
+      queryFn: async () => {
+        const snapshot = await buildSnapshot(week[0], week[6], { cached: true });
+        if (kidId) snapshot.chores = snapshot.chores.filter(chore => chore.personId === kidId);
+        return snapshot;
+      },
     });
   } catch {
     // First paint can fetch on the client if the cookie is stale.
