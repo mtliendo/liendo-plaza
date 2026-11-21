@@ -62,7 +62,7 @@ export async function loginWithFamilyCode(code: string, personId: string | undef
     const parent = rows.find((row) => row.id === "parent");
     if (!parent) return new HttpError(401, "That code is not recognized.");
     if (parent.lockedUntil && parent.lockedUntil.getTime() > Date.now()) {
-      return new HttpError(423, "Too many tries. Try again in 15 minutes.");
+      return new HttpError(423, "Too many tries. Try again in 5 minutes.");
     }
     let match: typeof parent | undefined;
     if (/^\d{4}$/.test(code) || /^\d{6,72}$/.test(code)) {
@@ -72,9 +72,9 @@ export async function loginWithFamilyCode(code: string, personId: string | undef
     }
     if (!match) {
       const attempts = parent.failedAttempts + 1;
-      const lockedUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60_000) : null;
+      const lockedUntil = attempts >= 10 ? new Date(Date.now() + 5 * 60_000) : null;
       await tx.update(schema.familyCodes).set({ failedAttempts: attempts, lockedUntil }).where(eq(schema.familyCodes.id, "parent"));
-      return new HttpError(lockedUntil ? 423 : 401, lockedUntil ? "Too many tries. Try again in 15 minutes." : "That code is not recognized.");
+      return new HttpError(lockedUntil ? 423 : 401, lockedUntil ? "Too many tries. Try again in 5 minutes." : "That code is not recognized.");
     }
     const people = await tx.select().from(schema.people);
     const eligible = people.filter((person) => match.id === "parent" ? person.role === "parent" : person.role === "kid" && person.id === match.id);

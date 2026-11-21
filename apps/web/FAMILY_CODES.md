@@ -35,7 +35,7 @@ verification across server instances, including duplicate kid-code checks.
   parent code, or `{personId, code}` for a kid. Empty kid code clears it.
 
 The existing in-memory per-IP helper limits sign-in to 20/minute and setup to
-10/minute per server instance. Five wrong codes also persist a 15-minute
+10/minute per server instance. Ten consecutive wrong codes also persist a 5-minute
 household-wide lockout in Postgres (an unknown code cannot identify a person).
 Existing per-person PIN lockouts are respected. A parent already signed in can
 reset the shared code to recover. Changes keep existing sessions active;

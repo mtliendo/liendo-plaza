@@ -92,15 +92,29 @@ test("a sole parent signs in directly", async () => {
   finally { await db.update(schema.people).set({ role: "parent" }).where(eq(schema.people.id, otherParentId)); }
 });
 
-test("wrong codes are generic, lock out persistently after five attempts, and honor existing locks", async () => {
+test("wrong codes are generic, reset on success, lock for five minutes after ten failures, and honor existing locks", async () => {
   await setup();
   for (const code of ["", "9999", "111111", "nonsense"]) {
     const wrong = await api("auth/login", { code });
     assert.equal(wrong.status, 401); assert.equal(wrong.body.error, "That code is not recognized.");
   }
-  assert.equal((await api("auth/login", { code: "9999" })).status, 423);
-  assert.equal((await api("auth/login", { code: "0102" })).status, 423);
-  await db.update(schema.familyCodes).set({ failedAttempts: 0, lockedUntil: null });
+  for (let i = 0; i < 5; i++) assert.equal((await api("auth/login", { code: "9999" })).status, 401);
+  assert.equal((await api("auth/login", { code: "0102" })).status, 200);
+  const [reset] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "parent"));
+  assert.equal(reset.failedAttempts, 0);
+  for (let i = 0; i < 9; i++) assert.equal((await api("auth/login", { code: "9999" })).status, 401);
+  const before = Date.now();
+  const locked = await api("auth/login", { code: "9999" });
+  assert.equal(locked.status, 423);
+  assert.equal(locked.body.error, "Too many tries. Try again in 5 minutes.");
+  const [row] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "parent"));
+  assert.equal(row.failedAttempts, 10);
+  assert.ok(row.lockedUntil && row.lockedUntil.getTime() >= before + 5 * 60_000 && row.lockedUntil.getTime() <= Date.now() + 5 * 60_000);
+  const blocked = await api("auth/login", { code: "0102" });
+  assert.equal(blocked.status, 423);
+  assert.equal(blocked.body.error, locked.body.error);
+  await db.update(schema.familyCodes).set({ lockedUntil: new Date(Date.now() - 1) });
+  assert.equal((await api("auth/login", { code: "0102" })).status, 200);
   await db.update(schema.people).set({ pinLockedUntil: new Date(Date.now() + 60_000) }).where(eq(schema.people.id, kidId));
   assert.equal((await api("auth/login", { code: "0102" })).status, 423);
 });
