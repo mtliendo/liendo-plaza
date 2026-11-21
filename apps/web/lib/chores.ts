@@ -6,6 +6,8 @@ import { getDb, schema } from "./db";
 import { HttpError } from "./http";
 import { jsWeekday, startOfDayCt, todayIso } from "./time";
 
+type ChoreDb = Pick<ReturnType<typeof getDb>, "select" | "insert" | "update" | "delete">;
+
 function asChore(row: typeof schema.chores.$inferSelect): Chore {
   return {
     id: row.id,
@@ -93,8 +95,7 @@ export async function getChore(id: string): Promise<Chore> {
   return asChore(row);
 }
 
-export async function createChore(input: Omit<Chore, "id" | "active">): Promise<Chore> {
-  const db = getDb();
+export async function createChore(input: Omit<Chore, "id" | "active">, db: ChoreDb = getDb()): Promise<Chore> {
   const [row] = await db
     .insert(schema.chores)
     .values({
@@ -114,8 +115,7 @@ export async function createChore(input: Omit<Chore, "id" | "active">): Promise<
   return asChore(row);
 }
 
-export async function updateChore(id: string, patch: Partial<Chore>): Promise<Chore> {
-  const db = getDb();
+export async function updateChore(id: string, patch: Partial<Chore>, db: ChoreDb = getDb(), removePhoto = deleteStoredPhoto): Promise<Chore> {
   const [row] = await db
     .update(schema.chores)
     .set({
@@ -137,13 +137,12 @@ export async function updateChore(id: string, patch: Partial<Chore>): Promise<Ch
     .returning();
   if (!row) throw new HttpError(404, "That chore is gone.");
   const chore = asChore(row);
-  if (patch.requiresPhoto === false) await clearUnapprovedProofs(chore.id);
-  await refreshFutureOpenInstances(chore);
+  if (patch.requiresPhoto === false) await clearUnapprovedProofs(chore.id, db, removePhoto);
+  await refreshFutureOpenInstances(chore, db);
   return chore;
 }
 
-async function clearUnapprovedProofs(choreId: string) {
-  const db = getDb();
+async function clearUnapprovedProofs(choreId: string, db: ChoreDb, removePhoto: (path: string | null | undefined) => Promise<void>) {
   const unapproved = and(
     eq(schema.choreInstances.choreId, choreId),
     inArray(schema.choreInstances.status, ["open", "rejected"]),
@@ -152,21 +151,19 @@ async function clearUnapprovedProofs(choreId: string) {
   const stale = await db.select({ photoPath: schema.choreInstances.photoPath }).from(schema.choreInstances).where(unapproved);
   if (!stale.length) return;
   await db.update(schema.choreInstances).set({ photoPath: null }).where(unapproved);
-  for (const { photoPath } of stale) await deleteStoredPhoto(photoPath);
+  for (const { photoPath } of stale) await removePhoto(photoPath);
 }
 
-export async function deactivateChore(id: string): Promise<void> {
-  const db = getDb();
+export async function deactivateChore(id: string, db: ChoreDb = getDb(), removePhoto = deleteStoredPhoto): Promise<void> {
   const [row] = await db.select().from(schema.chores).where(eq(schema.chores.id, id)).limit(1);
   if (!row) return;
   const instances = await db.select().from(schema.choreInstances).where(eq(schema.choreInstances.choreId, id));
-  await deleteStoredPhoto(row.guidePhotoPath);
-  for (const instance of instances) await deleteStoredPhoto(instance.photoPath);
-  await updateChore(id, { active: false, guidePhotoPath: null });
+  await removePhoto(row.guidePhotoPath);
+  for (const instance of instances) await removePhoto(instance.photoPath);
+  await updateChore(id, { active: false, guidePhotoPath: null }, db);
 }
 
-async function refreshFutureOpenInstances(chore: Chore) {
-  const db = getDb();
+async function refreshFutureOpenInstances(chore: Chore, db: ChoreDb = getDb()) {
   const today = todayIso();
   await db
     .delete(schema.choreInstances)

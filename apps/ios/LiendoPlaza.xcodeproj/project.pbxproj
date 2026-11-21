@@ -14,8 +14,10 @@
 		2D750ED5305C1E068D81B4C7 /* Fraunces.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 29F59B4595A5AAD16E220A3D /* Fraunces.ttf */; };
 		2F842293A997A71D336CB6EA /* GroceriesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73F984D0AB74AEF842DAA179 /* GroceriesStore.swift */; };
 		337F18626D1B80086D05F712 /* GroceriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D506FC40F000CD513A899783 /* GroceriesView.swift */; };
+		3944DE6D98906179AAB44B0C /* ChoreAgentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27787B3D3A674BB63DF352 /* ChoreAgentView.swift */; };
 		3D826A1E9D93B3EDE1271566 /* PilotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */; };
 		434D8F5BB50AE6B1AE7C4F8F /* LiendoPlazaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */; };
+		49CCC074B26CC130257D045E /* ChoreAgentUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6EDDA7849B771F048DBBFF5 /* ChoreAgentUITests.swift */; };
 		4AEF8560F2D0478DD01695C5 /* Fraunces-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB9CB601AE01BB2CAD878B5B /* Fraunces-Italic.ttf */; };
 		575C01B6C5077F92988C8557 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 28AA27811722A1365E492C64 /* Assets.xcassets */; };
 		764D8A96A0C7E068CA14CAC6 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2CC52EBFDD50263275ED86 /* PairingView.swift */; };
@@ -73,6 +75,7 @@
 		8A81B59DE00CE303DA6AE1E1 /* ParentFeaturesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentFeaturesTests.swift; sourceTree = "<group>"; };
 		977A137FFB3AB411683E83BE /* LiendoPlaza.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LiendoPlaza.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		99B1FE208660E574E612A307 /* Figtree.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Figtree.ttf; sourceTree = "<group>"; };
+		9C27787B3D3A674BB63DF352 /* ChoreAgentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoreAgentView.swift; sourceTree = "<group>"; };
 		A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PilotUITests.swift; sourceTree = "<group>"; };
 		ACBEC2D32BE3FA2D7E335996 /* PushNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotifications.swift; sourceTree = "<group>"; };
 		C0BF14D69D539DE0F0A803D7 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
@@ -82,6 +85,7 @@
 		D561F15C2FC5965A46A678C6 /* Camera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Camera.swift; sourceTree = "<group>"; };
 		DF2CC52EBFDD50263275ED86 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
 		E4D1CC71342668D5AB67E5D0 /* LiendoPlazaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiendoPlazaApp.swift; sourceTree = "<group>"; };
+		E6EDDA7849B771F048DBBFF5 /* ChoreAgentUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoreAgentUITests.swift; sourceTree = "<group>"; };
 		EEA7E573DBD46D5C377700C9 /* LiendoPlazaUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LiendoPlazaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F9AC7F66BFB45BF512FC59DF /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -100,6 +104,7 @@
 		119B102198CF04702962BB87 /* UITests */ = {
 			isa = PBXGroup;
 			children = (
+				E6EDDA7849B771F048DBBFF5 /* ChoreAgentUITests.swift */,
 				D166E01CCC7228DF7C45B5A1 /* ParentFeaturesUITests.swift */,
 				A878D1DDFF7414B8C133CF79 /* PilotUITests.swift */,
 			);
@@ -135,6 +140,7 @@
 			children = (
 				C0BF14D69D539DE0F0A803D7 /* API.swift */,
 				D561F15C2FC5965A46A678C6 /* Camera.swift */,
+				9C27787B3D3A674BB63DF352 /* ChoreAgentView.swift */,
 				3C553B4A8B8F4134AD152758 /* ChoreManagementView.swift */,
 				0952F677CCE1300C4350D948 /* ChoreReminders.swift */,
 				35753847D70857687FAE3F6A /* DinnerView.swift */,
@@ -304,6 +310,7 @@
 			files = (
 				11A6672254D23069CB3312C8 /* API.swift in Sources */,
 				E2AE39592710240E7B7D3036 /* Camera.swift in Sources */,
+				3944DE6D98906179AAB44B0C /* ChoreAgentView.swift in Sources */,
 				2CDAD91528A7D35697DC05B4 /* ChoreManagementView.swift in Sources */,
 				82D02D91AF46828E6776F6B4 /* ChoreReminders.swift in Sources */,
 				A72ADF74A2328646F47E36D1 /* DinnerView.swift in Sources */,
@@ -324,6 +331,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				49CCC074B26CC130257D045E /* ChoreAgentUITests.swift in Sources */,
 				CC5A37D821DA4E37362A3024 /* ParentFeaturesUITests.swift in Sources */,
 				3D826A1E9D93B3EDE1271566 /* PilotUITests.swift in Sources */,
 			);

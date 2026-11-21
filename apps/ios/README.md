@@ -1,3 +1,15 @@
+# Chore agent
+
+Parents can use **Chores → Ask** to review proposed chore changes before applying them.
+The backend uses Vercel AI Gateway with deployment OIDC authentication; local real-model
+requests use `AI_GATEWAY_API_KEY` from the process environment. The default model is
+`anthropic/claude-haiku-5.5`, with `google/gemini-2.5-flash-lite` as fallback.
+Override the primary model with `CHORE_AGENT_MODEL`.
+
+Start the backend with `CHORE_AGENT_FAKE=1 pnpm dev` before running
+`apps/ios/scripts/ui-tests.sh`. The script cannot change an already-running server's
+environment. Fake mode is deterministic and disabled when `VERCEL_ENV=production`.
+
 # Liendo Plaza · native iPhone pilot
 
 SwiftUI, iOS 17+, no third-party dependencies. This pilot covers family-code
