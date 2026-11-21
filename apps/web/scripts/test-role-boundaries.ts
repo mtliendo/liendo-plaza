@@ -177,7 +177,7 @@ async function main() {
     await check("rewards/requests", role, 200, "GET", undefined, (data) => {
       assert.ok(data.requests.length); noSecrets(data);
       if (kid && !data.requests.every((r: { personId: string }) => r.personId === noah.id)) throw new Error("another kid's reward-request history leaked");
-      else assert.ok(data.requests.some((r: { personId: string }) => r.personId === sofia.id));
+      else if (!kid) assert.ok(data.requests.some((r: { personId: string }) => r.personId === sofia.id));
     }, "kid sees own requests only; parents see all", undefined, false, kid ? "another kid's reward-request history leaked" : undefined);
     await check("rewards/requests", role, kid ? 201 : 400, "POST", { rewardId: reward.id, personId: sofia.id }, (data) => { noSecrets(data); if (kid) assert.equal(data.request.personId, noah.id); }, "request binds caller, not forged personId");
     const [pending] = await db.insert(schema.rewardRequests).values({ rewardId: reward.id, personId: noah.id }).returning();
