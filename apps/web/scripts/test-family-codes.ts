@@ -92,7 +92,7 @@ test("a sole parent signs in directly", async () => {
   finally { await db.update(schema.people).set({ role: "parent" }).where(eq(schema.people.id, otherParentId)); }
 });
 
-test("wrong codes are generic, reset on success, lock for five minutes after ten failures, and honor existing locks", async () => {
+test("wrong codes reset only on parent sign-in, lock for five minutes after ten failures, and honor existing locks", async () => {
   await setup();
   for (const code of ["", "9999", "111111", "nonsense"]) {
     const wrong = await api("auth/login", { code });
@@ -100,6 +100,11 @@ test("wrong codes are generic, reset on success, lock for five minutes after ten
   }
   for (let i = 0; i < 5; i++) assert.equal((await api("auth/login", { code: "9999" })).status, 401);
   assert.equal((await api("auth/login", { code: "0102" })).status, 200);
+  assert.equal((await api("auth/login", { code: "543210", personId: kidId })).status, 401);
+  assert.equal((await api("auth/login", { code: "543210" })).status, 200);
+  const [unchanged] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "parent"));
+  assert.equal(unchanged.failedAttempts, 9);
+  assert.equal((await api("auth/login", { code: "543210", personId: parentId })).status, 200);
   const [reset] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "parent"));
   assert.equal(reset.failedAttempts, 0);
   for (let i = 0; i < 9; i++) assert.equal((await api("auth/login", { code: "9999" })).status, 401);
