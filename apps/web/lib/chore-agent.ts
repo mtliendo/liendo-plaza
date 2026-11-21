@@ -4,6 +4,7 @@ import { createChore, deactivateChore, listChores, updateChore } from "./chores"
 import { peopleList } from "./snapshot";
 import { HttpError } from "./http";
 import { startOfDayCt, todayIso } from "./time";
+import type { Chore, Person } from "@liendo/shared";
 
 export const choreSchema = z.object({
   title: z.string().min(1).max(80),
@@ -28,32 +29,58 @@ export const proposalRequest = z.object({
   history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(2000) })).max(6).optional(),
 });
 
-export async function validateChanges(raw: unknown[], staleIsError = false) {
+const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function schedule(chore: Pick<Chore, "repeatType"> & Partial<Pick<Chore, "weekdays" | "weeklyWeekday" | "onceDate">>) {
+  if (chore.repeatType === "once") return chore.onceDate ?? "once";
+  if (chore.repeatType === "daily") return "daily";
+  const days = chore.weekdays?.length ? chore.weekdays : chore.weeklyWeekday == null ? [] : [chore.weeklyWeekday];
+  return days.map(day => dayNames[day]).join(", ");
+}
+
+function updateLabel(before: Chore, after: Chore, people: Person[]) {
+  const details: string[] = [];
+  const personName = (id: string) => people.find(p => p.id === id)?.name ?? id;
+  if (before.title !== after.title) details.push(`“${before.title}” → “${after.title}”`);
+  if (before.assignedPersonId !== after.assignedPersonId) details.push(`${personName(before.assignedPersonId)} → ${personName(after.assignedPersonId)}`);
+  if (before.stars !== after.stars) details.push(`★${before.stars} → ★${after.stars}`);
+  if (schedule(before) !== schedule(after)) details.push(`${schedule(before)} → ${schedule(after)}`);
+  if (before.requiresPhoto !== after.requiresPhoto) details.push(`photo proof ${before.requiresPhoto ? "on → off" : "off → on"}`);
+  if (before.description !== after.description) details.push(`description: ${before.description || "none"} → ${after.description || "none"}`);
+  if (JSON.stringify(before.steps) !== JSON.stringify(after.steps)) details.push(`steps: ${before.steps.join("; ") || "none"} → ${after.steps.join("; ") || "none"}`);
+  return `Change “${before.title}” for ${personName(before.assignedPersonId)}: ${details.join(" · ") || "no changes"}`;
+}
+
+export async function validateChanges(raw: unknown[], strict = false) {
   const [chores, people] = await Promise.all([listChores(), peopleList()]);
   const active = chores.filter(c => c.active);
   const changes = [];
   const seen = new Set<string>();
+  if (strict && raw.some(value => value && typeof value === "object" && "choreId" in value &&
+      z.string().uuid().safeParse(value.choreId).success &&
+      !active.some(c => c.id === value.choreId))) {
+    throw new HttpError(409, "A chore is no longer available. Discard this proposal and ask again.");
+  }
+  const invalid = () => {
+    if (strict) throw new HttpError(400, "The proposal contains an invalid chore change. Nothing was applied. Discard it and ask again.");
+  };
   for (const value of raw) {
-    if (staleIsError && value && typeof value === "object" && "choreId" in value &&
-        !active.some(c => c.id === value.choreId)) {
-      throw new HttpError(409, "A chore is no longer available. Discard this proposal and ask again.");
-    }
     const parsed = changeSchema.safeParse(value);
-    if (!parsed.success) continue;
+    if (!parsed.success) { invalid(); continue; }
     const change = parsed.data;
     const before = change.op === "create" ? undefined : active.find(c => c.id === change.choreId);
-    if (change.op !== "create" && (!before || seen.has(change.choreId))) continue;
+    if (change.op !== "create" && (!before || seen.has(change.choreId))) { invalid(); continue; }
     const chore = change.op === "create" ? change.chore : change.op === "update" ? { ...before!, ...change.patch } : before!;
-    if (!people.some(p => p.id === chore.assignedPersonId && p.role === "kid")) continue;
+    if (!people.some(p => p.id === chore.assignedPersonId && p.role === "kid")) { invalid(); continue; }
     if (change.op !== "delete" && (!chore.title.trim() ||
       (chore.repeatType === "weekdays" && !chore.weekdays?.length) ||
-      (chore.repeatType === "weekly" && chore.weeklyWeekday == null) ||
+      (chore.repeatType === "weekly" && !chore.weekdays?.length && chore.weeklyWeekday == null) ||
       (chore.repeatType === "once" && (!/^\d{4}-\d{2}-\d{2}$/.test(chore.onceDate ?? "") ||
         !startOfDayCt(chore.onceDate!).isValid))
-    )) continue;
+    )) { invalid(); continue; }
     if (change.op !== "create") seen.add(change.choreId);
     const person = people.find(p => p.id === chore.assignedPersonId)!;
-    const label = `${change.op === "create" ? "Add" : change.op === "update" ? "Change" : "Remove"} “${chore.title}” for ${person.name} · ★${chore.stars} · ${chore.repeatType}${chore.repeatType === "weekdays" ? ` (${chore.weekdays?.join(", ")})` : chore.repeatType === "weekly" ? ` (${chore.weeklyWeekday})` : chore.repeatType === "once" ? ` (${chore.onceDate})` : ""}`;
+    const label = change.op === "update" ? updateLabel(before!, chore as Chore, people)
+      : `${change.op === "create" ? "Add" : "Remove"} “${chore.title}” for ${person.name} · ★${chore.stars} · ${schedule(chore)}${chore.requiresPhoto ? " · photo proof" : ""}`;
     changes.push({ ...change, label, ...(before ? { before } : {}) });
   }
   return changes;

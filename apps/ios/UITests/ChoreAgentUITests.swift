@@ -23,6 +23,9 @@ final class ChoreAgentUITests: XCTestCase {
         input.typeText("add feed the fish")
         app.buttons["agentSend"].tap()
         XCTAssertTrue(app.staticTexts["agentSummary"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        XCTAssertTrue(app.buttons["agentApply"].isHittable)
+        XCTAssertTrue(app.buttons["agentDiscard"].isHittable)
         XCTAssertTrue(app.otherElements["agentChange"].exists || app.staticTexts.matching(identifier: "agentChange").firstMatch.exists)
         let preview = XCTAttachment(screenshot: app.screenshot())
         preview.name = "Chore-agent-proposal"

@@ -34,10 +34,16 @@ private struct AgentChange: Codable {
     let label: String
     let before: ChoreDefinition?
 
-    var oldValue: String? {
-        guard let before else { return nil }
-        return "\(before.title) · ★\(before.stars) · \(before.repeatType)"
-    }
+}
+
+private struct AgentTurn: Encodable {
+    let role: String
+    let text: String
+}
+
+private struct AgentRequest: Encodable {
+    let message: String
+    let history: [AgentTurn]
 }
 
 private struct AgentProposal: Decodable {
@@ -52,12 +58,15 @@ struct ChoreAgentView: View {
     @State private var proposal: AgentProposal?
     @State private var busy = false
     @State private var error = ""
+    @State private var history: [AgentTurn] = []
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Ask about chores") {
                     TextField("What would you like to change?", text: $message, axis: .vertical)
+                        .focused($inputFocused)
                         .accessibilityIdentifier("agentInput")
                         .onChange(of: message) { _, _ in proposal = nil }
                     Button("Send") { Task { await send() } }
@@ -73,10 +82,8 @@ struct ChoreAgentView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(change.op == "create" ? "Add" : change.op == "update" ? "Change" : "Remove")
                                     .font(.caption.bold()).padding(4).background(.quaternary, in: Capsule())
-                                if change.op == "update", let old = change.oldValue {
-                                    Text("\(old) →").font(.caption).foregroundStyle(.secondary)
-                                }
                                 Text(change.label)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }.accessibilityElement(children: .combine).accessibilityIdentifier("agentChange")
                         }
                         Button("Apply") { Task { await apply(proposal) } }
@@ -86,6 +93,7 @@ struct ChoreAgentView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .disabled(busy)
             .navigationTitle("Chore agent")
             .toolbar { Button("Close") { dismiss() }.disabled(busy) }
@@ -94,13 +102,19 @@ struct ChoreAgentView: View {
     }
 
     private func send() async {
+        inputFocused = false
+        let sent = message
         busy = true
         error = ""
         proposal = nil
         defer { busy = false }
         do {
-            proposal = try await house.api.request("agent/chores/propose", method: "POST",
-                body: ["message": message], token: house.session)
+            let payload = try JSONEncoder().encode(AgentRequest(message: sent, history: Array(history.suffix(6))))
+            let response: AgentProposal = try await house.api.request("agent/chores/propose", method: "POST",
+                token: house.session, payload: payload)
+            proposal = response
+            history = Array((history + [AgentTurn(role: "user", text: sent),
+                AgentTurn(role: "assistant", text: response.summary)]).suffix(6))
         } catch { self.error = error.localizedDescription }
     }
 
