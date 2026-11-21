@@ -81,14 +81,13 @@ async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<
 export async function handleApi(req: Request): Promise<Response> {
   const path = pathOf(req);
   const protectedPhoto = path === "photos" || path.startsWith("photos/") || /\/(?:guide-photo|photo)$/.test(path);
-  if (!protectedPhoto) return dispatchApi(req);
   let response: Response;
   try {
     response = await dispatchApi(req);
   } catch (error) {
     response = errorResponse(error);
   }
-  response.headers.set("cache-control", "private, no-store");
+  if (protectedPhoto || !response.headers.has("cache-control")) response.headers.set("cache-control", "private, no-store");
   response.headers.append("vary", "Authorization, Cookie");
   return response;
 }
