@@ -5,6 +5,7 @@ struct LiendoPlazaApp: App {
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var house = House()
+    @ObservedObject private var pushNavigation = PushNavigation.shared
     var body: some Scene {
         WindowGroup {
             Group {
@@ -21,6 +22,9 @@ struct LiendoPlazaApp: App {
             .onOpenURL { url in Task { await house.open(url) } }
             .task(id: house.session) { await house.checkCodeSetup() }
             .task(id: house.person?.id) { await registerPush() }
+            .task(id: pushNavigation.refreshID) {
+                if pushNavigation.refreshID != nil { await house.load() }
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await registerPush() } }
             }

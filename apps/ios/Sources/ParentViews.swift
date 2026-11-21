@@ -2,17 +2,20 @@ import SwiftUI
 
 struct RoleTabs: View {
     @EnvironmentObject private var house: House
+    @ObservedObject private var navigation = PushNavigation.shared
     var body: some View {
-        TabView {
+        TabView(selection: $navigation.tab) {
             TodayView()
                 .tabItem { Label(house.person?.isParent == true ? "Today" : "Chores", systemImage: "checkmark.circle") }
-            DinnerView().tabItem { Label("Dinner", systemImage: "fork.knife") }
+                .tag("today")
+            DinnerView().tabItem { Label("Dinner", systemImage: "fork.knife") }.tag("dinner")
             if house.person?.isParent == true {
-                GroceriesView().tabItem { Label("Groceries", systemImage: "basket") }
-                ChoreManagementView().tabItem { Label("Chores", systemImage: "list.bullet") }
-                FamilyView().tabItem { Label("Family", systemImage: "person.2") }
+                GroceriesView().tabItem { Label("Groceries", systemImage: "basket") }.tag("groceries")
+                ChoreManagementView().tabItem { Label("Chores", systemImage: "list.bullet") }.tag("manage")
+                FamilyView().tabItem { Label("Family", systemImage: "person.2") }.tag("family")
             }
         }
+        .onAppear { navigation.tab = "today" }
     }
 }
 

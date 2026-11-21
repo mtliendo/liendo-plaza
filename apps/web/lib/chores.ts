@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lte, max, sql } from "drizzle-orm";
 import type { Chore, ChoreInstance, RepeatType } from "@liendo/shared";
 import { addDays } from "@liendo/shared";
 import { deleteStoredPhoto } from "./blob";
@@ -6,11 +6,12 @@ import { getDb, schema } from "./db";
 import { HttpError } from "./http";
 import { jsWeekday, startOfDayCt, todayIso } from "./time";
 
-type ChoreDb = Pick<ReturnType<typeof getDb>, "select" | "insert" | "update" | "delete">;
+type ChoreDb = Pick<ReturnType<typeof getDb>, "select" | "insert" | "update" | "delete" | "transaction">;
 
 function asChore(row: typeof schema.chores.$inferSelect): Chore {
   return {
     id: row.id,
+    sortOrder: row.sortOrder,
     title: row.title,
     assignedPersonId: row.assignedPersonId,
     stars: row.stars,
@@ -32,6 +33,7 @@ function toInstance(
 ): ChoreInstance {
   return {
     id: instance.id,
+    sortOrder: chore.sortOrder,
     choreId: instance.choreId,
     personId: instance.personId,
     date: instance.date,
@@ -73,7 +75,8 @@ export function occursOn(chore: Chore, iso: string): boolean {
 
 export async function listChores(): Promise<Chore[]> {
   const db = getDb();
-  const rows = await db.select().from(schema.chores);
+  const rows = await db.select().from(schema.chores)
+    .orderBy(asc(schema.chores.sortOrder), asc(schema.chores.createdAt), asc(schema.chores.id));
   return rows.map(asChore);
 }
 
@@ -95,48 +98,65 @@ export async function getChore(id: string): Promise<Chore> {
   return asChore(row);
 }
 
-export async function createChore(input: Omit<Chore, "id" | "active">, db: ChoreDb = getDb()): Promise<Chore> {
-  const [row] = await db
-    .insert(schema.chores)
-    .values({
-      title: input.title.trim(),
-      assignedPersonId: input.assignedPersonId,
-      stars: input.stars,
-      requiresPhoto: input.requiresPhoto,
-      repeatType: input.repeatType,
-      weekdays: input.weekdays,
-      weeklyWeekday: input.weeklyWeekday,
-      onceDate: input.onceDate,
-      description: input.description,
-      steps: input.steps ?? [],
-      guidePhotoPath: input.guidePhotoPath,
-    })
-    .returning();
-  return asChore(row);
+export async function createChore(input: Omit<Chore, "id" | "active" | "sortOrder">, db: ChoreDb = getDb()): Promise<Chore> {
+  return db.transaction(async (db) => {
+    await db.execute(sql`select pg_advisory_xact_lock(726104)`);
+    const [last] = await db.select({ order: max(schema.chores.sortOrder) }).from(schema.chores)
+      .where(eq(schema.chores.assignedPersonId, input.assignedPersonId));
+    const [row] = await db
+      .insert(schema.chores)
+      .values({
+        title: input.title.trim(),
+        assignedPersonId: input.assignedPersonId,
+        sortOrder: (last.order ?? -1) + 1,
+        stars: input.stars,
+        requiresPhoto: input.requiresPhoto,
+        repeatType: input.repeatType,
+        weekdays: input.weekdays,
+        weeklyWeekday: input.weeklyWeekday,
+        onceDate: input.onceDate,
+        description: input.description,
+        steps: input.steps ?? [],
+        guidePhotoPath: input.guidePhotoPath,
+      })
+      .returning();
+    return asChore(row);
+  });
 }
 
 export async function updateChore(id: string, patch: Partial<Chore>, db: ChoreDb = getDb(), removePhoto = deleteStoredPhoto): Promise<Chore> {
-  const [row] = await db
-    .update(schema.chores)
-    .set({
-      ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),
-      ...(patch.assignedPersonId !== undefined ? { assignedPersonId: patch.assignedPersonId } : {}),
-      ...(patch.stars !== undefined ? { stars: patch.stars } : {}),
-      ...(patch.requiresPhoto !== undefined ? { requiresPhoto: patch.requiresPhoto } : {}),
-      ...(patch.repeatType !== undefined ? { repeatType: patch.repeatType } : {}),
-      ...(patch.weekdays !== undefined ? { weekdays: patch.weekdays } : {}),
-      ...(patch.weeklyWeekday !== undefined ? { weeklyWeekday: patch.weeklyWeekday } : {}),
-      ...(patch.onceDate !== undefined ? { onceDate: patch.onceDate } : {}),
-      ...(patch.description !== undefined ? { description: patch.description } : {}),
-      ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
-      ...(patch.guidePhotoPath !== undefined ? { guidePhotoPath: patch.guidePhotoPath } : {}),
-      ...(patch.active !== undefined ? { active: patch.active } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.chores.id, id))
-    .returning();
-  if (!row) throw new HttpError(404, "That chore is gone.");
-  const chore = asChore(row);
+  const chore = await db.transaction(async (db) => {
+    await db.execute(sql`select pg_advisory_xact_lock(726104)`);
+    const [current] = await db.select().from(schema.chores).where(eq(schema.chores.id, id));
+    if (!current) throw new HttpError(404, "That chore is gone.");
+    let sortOrder = current.sortOrder;
+    if (patch.assignedPersonId && patch.assignedPersonId !== current.assignedPersonId) {
+      const [last] = await db.select({ order: max(schema.chores.sortOrder) }).from(schema.chores)
+        .where(eq(schema.chores.assignedPersonId, patch.assignedPersonId));
+      sortOrder = (last.order ?? -1) + 1;
+    }
+    const [row] = await db
+      .update(schema.chores)
+      .set({
+        sortOrder,
+        ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),
+        ...(patch.assignedPersonId !== undefined ? { assignedPersonId: patch.assignedPersonId } : {}),
+        ...(patch.stars !== undefined ? { stars: patch.stars } : {}),
+        ...(patch.requiresPhoto !== undefined ? { requiresPhoto: patch.requiresPhoto } : {}),
+        ...(patch.repeatType !== undefined ? { repeatType: patch.repeatType } : {}),
+        ...(patch.weekdays !== undefined ? { weekdays: patch.weekdays } : {}),
+        ...(patch.weeklyWeekday !== undefined ? { weeklyWeekday: patch.weeklyWeekday } : {}),
+        ...(patch.onceDate !== undefined ? { onceDate: patch.onceDate } : {}),
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
+        ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
+        ...(patch.guidePhotoPath !== undefined ? { guidePhotoPath: patch.guidePhotoPath } : {}),
+        ...(patch.active !== undefined ? { active: patch.active } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.chores.id, id))
+      .returning();
+    return asChore(row);
+  });
   if (patch.requiresPhoto === false) await clearUnapprovedProofs(chore.id, db, removePhoto);
   await refreshFutureOpenInstances(chore, db);
   return chore;
@@ -152,6 +172,28 @@ async function clearUnapprovedProofs(choreId: string, db: ChoreDb, removePhoto: 
   if (!stale.length) return;
   await db.update(schema.choreInstances).set({ photoPath: null }).where(unapproved);
   for (const { photoPath } of stale) await removePhoto(photoPath);
+}
+
+export async function reorderChores(personId: string, choreIds: string[]) {
+  return getDb().transaction(async (db) => {
+    await db.execute(sql`select pg_advisory_xact_lock(726104)`);
+    const rows = await db.select().from(schema.chores)
+      .where(and(eq(schema.chores.assignedPersonId, personId), eq(schema.chores.active, true)))
+      .orderBy(asc(schema.chores.sortOrder), asc(schema.chores.createdAt), asc(schema.chores.id));
+    if (rows.length !== choreIds.length || new Set(choreIds).size !== choreIds.length ||
+        rows.some((row) => !choreIds.includes(row.id))) {
+      throw new HttpError(400, "Send exactly this person's active chores.");
+    }
+    const changed = rows.some((row, index) => row.id !== choreIds[index]);
+    if (!changed) return { chores: rows.map(asChore), changed };
+    const ordered = [];
+    for (const [sortOrder, id] of choreIds.entries()) {
+      const [row] = await db.update(schema.chores).set({ sortOrder, updatedAt: new Date() })
+        .where(eq(schema.chores.id, id)).returning();
+      ordered.push(asChore(row));
+    }
+    return { chores: ordered, changed };
+  });
 }
 
 export async function deactivateChore(id: string, db: ChoreDb = getDb(), removePhoto = deleteStoredPhoto): Promise<void> {
@@ -205,7 +247,8 @@ export async function ensureInstances(fromIso: string, toIso: string): Promise<C
     })
     .from(schema.choreInstances)
     .innerJoin(schema.chores, eq(schema.choreInstances.choreId, schema.chores.id))
-    .where(and(gte(schema.choreInstances.date, fromIso), lte(schema.choreInstances.date, toIso)));
+    .where(and(gte(schema.choreInstances.date, fromIso), lte(schema.choreInstances.date, toIso)))
+    .orderBy(asc(schema.chores.sortOrder), asc(schema.chores.createdAt), asc(schema.chores.id));
 
   return rows.map(({ instance, chore }) => toInstance(instance, chore));
 }

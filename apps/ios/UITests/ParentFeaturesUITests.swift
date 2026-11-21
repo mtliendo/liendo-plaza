@@ -41,6 +41,70 @@ final class ParentFeaturesUITests: XCTestCase {
     }
 
     @MainActor
+    func testParentReordersKidChoresAndRefreshPersistsOrder() async throws {
+        let response = try await api("chores", token: parentToken)
+        let definitions = try XCTUnwrap(response["chores"] as? [[String: Any]])
+        let bed = try XCTUnwrap(definitions.first { $0["title"] as? String == "Make your bed" })
+        let personID = try XCTUnwrap(bed["assignedPersonId"] as? String)
+        let own = definitions.filter { $0["assignedPersonId"] as? String == personID && $0["active"] as? Bool == true }
+        XCTAssertEqual(own.count, 2)
+        let firstTitle = try XCTUnwrap(own[0]["title"] as? String)
+        let lastTitle = try XCTUnwrap(own[1]["title"] as? String)
+        let login = try await api("auth/login", body: ["code": "123456", "deviceKind": "phone"])
+        let app = launch(token: try XCTUnwrap(login["token"] as? String))
+        app.tabBars.buttons["Chores"].tap()
+        let first = app.buttons["manage.chore.\(firstTitle)"]
+        let last = app.buttons["manage.chore.\(lastTitle)"]
+        XCTAssertTrue(last.waitForExistence(timeout: 30))
+        app.buttons["manage.reorder"].tap()
+        let handle = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Reorder \(lastTitle)")).firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 10))
+        handle.press(forDuration: 1, thenDragTo: first)
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            last.frame.minY < first.frame.minY
+        }, object: nil)
+        await fulfillment(of: [moved], timeout: 15)
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.buttons["manage.reorder"].isEnabled
+        }, object: nil)
+        await fulfillment(of: [saved], timeout: 15)
+        app.buttons["manage.reorder"].tap()
+        let list = app.collectionViews.firstMatch
+        list.swipeDown()
+        let refreshed = try await api("chores", token: parentToken)
+        let updated = try XCTUnwrap(refreshed["chores"] as? [[String: Any]])
+            .filter { $0["assignedPersonId"] as? String == personID && $0["active"] as? Bool == true }
+        XCTAssertEqual(updated.compactMap { $0["title"] as? String }, [lastTitle, firstTitle])
+        app.tabBars.buttons["Today"].tap()
+        app.tabBars.buttons["Chores"].tap()
+        XCTAssertTrue(last.waitForExistence(timeout: 30))
+        XCTAssertLessThan(last.frame.minY, first.frame.minY)
+        capture(app, "Chore-reorder-persisted")
+        let snapshot = try await api("snapshot", token: parentToken)
+        let today = String(try XCTUnwrap(snapshot["now"] as? String).prefix(10))
+        let due = try XCTUnwrap(snapshot["chores"] as? [[String: Any]])
+            .filter { $0["personId"] as? String == personID && $0["date"] as? String == today }
+        let expectedTitles: [String] = [lastTitle, firstTitle].filter { title in
+            due.contains { $0["title"] as? String == title }
+        }
+        XCTAssertFalse(expectedTitles.isEmpty)
+        app.tabBars.buttons["Family"].tap()
+        app.buttons["signOut"].tap()
+        let code = app.secureTextFields["code"]
+        XCTAssertTrue(code.waitForExistence(timeout: 20))
+        code.tap()
+        code.typeText("0101")
+        app.buttons["open"].tap()
+        let kidRows = expectedTitles.map { app.buttons["chore.\($0)"] }
+        for row in kidRows { XCTAssertTrue(row.waitForExistence(timeout: 30)) }
+        for (first, last) in zip(kidRows, kidRows.dropFirst()) {
+            XCTAssertLessThan(first.frame.minY, last.frame.minY)
+        }
+        XCTAssertTrue(app.staticTexts["Sofia"].exists)
+        capture(app, "Sofia-reordered-chores")
+    }
+
+    @MainActor
     func testParentGuideEditorShowsReplacesRemovesAndAddsPhoto() async throws {
         try XCTSkipUnless(environment["LP_GUIDE_EDITOR_PROBE"] == "1", "Requires scripts/guide-fixture.ts")
         let response = try await api("chores", token: parentToken)
@@ -275,6 +339,7 @@ final class ParentFeaturesUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Dinner"].exists)
         XCTAssertFalse(app.tabBars.buttons["Groceries"].exists)
         XCTAssertFalse(app.buttons["manage.add"].exists)
+        XCTAssertFalse(app.buttons["manage.reorder"].exists)
         capture(app, "Today-kid")
     }
 
