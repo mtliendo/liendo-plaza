@@ -8,6 +8,7 @@ import { getPool } from "../lib/db";
 import { listChores } from "../lib/chores";
 import { NoObjectGeneratedError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
+import { auditChoreAgentRoles } from "./chore-agent-role-audit";
 
 async function main() {
   process.env.CHORE_AGENT_FAKE = "1";
@@ -193,5 +194,6 @@ async function main() {
   const empty = await proposeChores({ message: "hello" });
   assert.deepEqual(empty.changes, []);
   console.log("PASS unclear request returns no changes");
+  if (process.env.CHORE_AGENT_AUDIT_URL) await auditChoreAgentRoles(process.env.CHORE_AGENT_AUDIT_URL);
 }
 main().finally(() => getPool().end()).catch(error => { console.error(error); process.exitCode = 1; });
