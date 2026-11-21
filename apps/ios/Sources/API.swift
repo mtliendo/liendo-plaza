@@ -66,10 +66,6 @@ struct Claim: Decodable { let id, displayCode, pollSecret, qrDataUrl, expiresAt:
 struct PollResponse: Decodable { let status: String; let familyToken: String? }
 struct FamilyResponse: Decodable { let familyToken: String }
 struct InstanceResponse: Decodable { let instance: ChoreInstance }
-struct PendingResponse: Decodable {
-    struct Item: Decodable, Identifiable { let id, displayCode, label, deviceKind: String }
-    let requests: [Item]
-}
 struct OKResponse: Decodable { let ok: Bool }
 struct APIError: LocalizedError {
     let status: Int

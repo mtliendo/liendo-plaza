@@ -108,8 +108,8 @@ export function DisplayApp({ view }: { view: View }) {
           <div>
             <h2>Pair this frame</h2>
             <p className="lead" style={{ marginTop: "var(--space-md)" }}>
-              A parent who is already signed in scans the code, or types the short code under Add a device. This board
-              then remembers the house.
+              A parent scans the code with their phone camera, or signs in on the Liendo Plaza website and types the
+              short code under Family, then Add a device. This board then remembers the house.
             </p>
             {claim.error ? <p style={{ color: "var(--color-error)", marginTop: "var(--space-md)" }}>{claim.error}</p> : null}
           </div>

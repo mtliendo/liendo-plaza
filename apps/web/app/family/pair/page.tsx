@@ -5,23 +5,27 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import type { Person } from "@liendo/shared";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { FamilyCodeGate } from "@/components/family/FamilyCodes";
 import { formatPairCode } from "@/lib/pair-format";
 
 function PairApprove() {
   const params = useSearchParams();
   const code = params.get("code") ?? "";
   const [me, setMe] = useState<Person | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
+  async function loadMe() {
+    const res = await fetch("/api/me", { cache: "no-store" });
+    const body = res.ok ? ((await res.json()) as { actor?: { kind: string; person?: Person } }) : null;
+    setMe(body?.actor?.kind === "person" ? body.actor.person ?? null : null);
+    setLoaded(true);
+  }
+
   useEffect(() => {
-    void (async () => {
-      const res = await fetch("/api/me", { cache: "no-store" });
-      if (!res.ok) return;
-      const body = (await res.json()) as { actor?: { kind: string; person?: Person } };
-      if (body.actor?.kind === "person") setMe(body.actor.person ?? null);
-    })();
+    void loadMe().catch(() => setLoaded(true));
   }, []);
 
   async function approve() {
@@ -40,17 +44,8 @@ function PairApprove() {
     setMessage(`${body.label ?? "That device"} is approved. It should open on its own.`);
   }
 
-  if (!me) {
-    return (
-      <main className="phone">
-        <h1>Sign in first</h1>
-        <p>A parent who is already paired opens this link to approve the other screen.</p>
-        <Link className="btn" href="/family">
-          Open on this phone
-        </Link>
-      </main>
-    );
-  }
+  if (!loaded) return <main className="phone"><p>Getting ready.</p></main>;
+  if (!me) return <FamilyCodeGate person={me} onReady={loadMe} />;
 
   if (me.role !== "parent") {
     return (
