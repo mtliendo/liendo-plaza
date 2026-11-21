@@ -241,11 +241,14 @@ async function main() {
   assert(photoChoreDelete.res.ok, "chore delete should clean up its photo");
 
   let locked = false;
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 10; i += 1) {
     const attempt = await json("auth/login", "POST", { code: "0000" });
+    assert(attempt.res.status === (i === 9 ? 423 : 401), "Code lockout threshold should be ten failures");
     if (attempt.res.status === 423) locked = true;
   }
   assert(locked, "Code lockout did not trigger");
+  const parentAfterKidLock = await json("auth/login", "POST", { code: "123456" });
+  assert(parentAfterKidLock.res.ok, "kid-code lockout must not block parent sign-in");
 
   const devices = await req("devices", { headers: auth });
   assert(Array.isArray(devices.data.devices), "devices list missing");

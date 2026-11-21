@@ -247,6 +247,10 @@ function cookieFromRequest(req: Request, name: string): string | null {
   return null;
 }
 
+export function sessionTokenFromRequest(req: Request): string | null {
+  return bearer(req) ?? cookieFromRequest(req, SESSION_COOKIE);
+}
+
 export async function requireActor(
   req: Request,
   allow: Actor["kind"][] = ["person", "display"],
@@ -258,7 +262,7 @@ export async function requireActor(
     if (cron && header === `Bearer ${cron}`) return { kind: "cron" };
   }
 
-  const token = bearer(req) ?? cookieFromRequest(req, SESSION_COOKIE);
+  const token = sessionTokenFromRequest(req);
   if (token && allow.includes("person")) {
     const person = await personFromSession(token, options.touchDevice !== false);
     if (person) return { kind: "person", person };

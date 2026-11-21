@@ -14,11 +14,11 @@ async function request(path: string, body?: unknown) {
 
 export function FamilyCodeGate({ onReady }: { onReady: () => Promise<void> }) {
   const [status, setStatus] = useState<{ setupRequired: boolean; people: Person[] } | null>(null);
-  const [parents, setParents] = useState<Person[]>([]);
   const [personId, setPersonId] = useState("");
   const [code, setCode] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [kids, setKids] = useState<Record<string, string>>({});
+  const [parentCodes, setParentCodes] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -29,16 +29,16 @@ export function FamilyCodeGate({ onReady }: { onReady: () => Promise<void> }) {
     }).catch((error: Error) => { if (!cancelled) setError(error.message); });
     return () => { cancelled = true; };
   }, [retry]);
-  async function submit(picked?: string) {
+  async function submit() {
     setBusy(true); setError("");
     try {
-      const result = await request(status?.setupRequired ? "auth/codes/setup" : "auth/login", {
-        code, confirmation, personId: picked ?? (status?.setupRequired ? personId : undefined),
+      await request(status?.setupRequired ? "auth/codes/setup" : "auth/login", {
+        code, confirmation, personId: status?.setupRequired ? personId : undefined,
+        parents: Object.entries(parentCodes).filter(([id, code]) => id !== personId && code).map(([personId, code]) => ({ personId, code })),
         kids: Object.entries(kids).filter(([, code]) => code).map(([personId, code]) => ({ personId, code })),
         cookie: true, deviceKind: "browser",
       });
-      if (result.parents) setParents(result.parents);
-      else { setCode(""); setConfirmation(""); await onReady(); }
+      setCode(""); setConfirmation(""); await onReady();
     } catch (error) {
       setError((error as Error).message);
       if (status?.setupRequired) {
@@ -50,16 +50,15 @@ export function FamilyCodeGate({ onReady }: { onReady: () => Promise<void> }) {
   }
   return <main className="phone">
     <p className="small">Liendo Plaza</p>
-    <h1>{status?.setupRequired ? "Set up Liendo Plaza" : parents.length ? "Who are you?" : "Enter your code"}</h1>
+    <h1>{status?.setupRequired ? "Set up Liendo Plaza" : "Enter your code"}</h1>
     {!status ? <><p>Getting ready.</p>{error ? <button className="btn" onClick={() => { setError(""); setRetry(retry + 1); }}>Try again</button> : null}</> :
-      parents.length ? <div className="list">{parents.map((person) => <button className="btn" key={person.id} disabled={busy} onClick={() => void submit(person.id)}>{person.name}</button>)}
-        <button className="btn-secondary btn" disabled={busy} onClick={() => { setParents([]); setCode(""); }}>Use another code</button></div> :
       <form className="list" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+        {status.setupRequired ? <label className="field"><span>Sign in as</span><select className="select" value={personId} onChange={(event) => { setPersonId(event.target.value); setCode(""); setConfirmation(""); setParentCodes({}); }}>{status.people.filter((p) => p.role === "parent").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label> : null}
         <label className="field"><span>{status.setupRequired ? "Parent code (6+ digits)" : "Enter your code"}</span>
           <input className="input" type="password" inputMode="numeric" autoComplete={status.setupRequired ? "new-password" : "current-password"} value={code} onChange={(event) => setCode(event.target.value)} required maxLength={72} /></label>
         {status.setupRequired ? <>
           <label className="field"><span>Enter parent code again</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required maxLength={72} /></label>
-          <label className="field"><span>Sign in as</span><select className="select" value={personId} onChange={(event) => setPersonId(event.target.value)}>{status.people.filter((p) => p.role === "parent").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+          {status.people.filter((p) => p.role === "parent" && p.id !== personId).map((p) => <label key={p.id} className="field"><span>{p.name} code (optional, 6+ digits)</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" maxLength={72} value={parentCodes[p.id] ?? ""} onChange={(event) => setParentCodes({ ...parentCodes, [p.id]: event.target.value })} /></label>)}
           <p>Optional: each kid’s birthday as four digits (MMDD). You can set these later under Family codes.</p>
           {status.people.filter((p) => p.role === "kid").map((p) => <label key={p.id} className="field"><span>{p.name} code (optional)</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={kids[p.id] ?? ""} onChange={(event) => setKids({ ...kids, [p.id]: event.target.value })} /></label>)}
         </> : null}
@@ -70,20 +69,27 @@ export function FamilyCodeGate({ onReady }: { onReady: () => Promise<void> }) {
 }
 
 export function FamilyCodeSettings({ people }: { people: Person[] }) {
-  const [personId, setPersonId] = useState("");
+  const [personId, setPersonId] = useState(people.find((p) => p.role === "parent")?.id ?? "");
+  const [configured, setConfigured] = useState<string[] | null>(null);
   const [code, setCode] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  return <><h1>Family codes</h1><p>One shared parent code. A different four-digit birthday code (MMDD) for each kid. Existing signed-in devices stay signed in.</p>
+  const isParent = people.find((p) => p.id === personId)?.role === "parent";
+  const canClear = !isParent || people.some((p) => p.role === "parent" && p.id !== personId && configured?.includes(p.id));
+  useEffect(() => { if (!personId) setPersonId(people.find((p) => p.role === "parent")?.id ?? ""); }, [people, personId]);
+  useEffect(() => { void request("auth/codes").then((result) => setConfigured(result.configuredPersonIds)).catch((error: Error) => setMessage(error.message)); }, []);
+  return <><h1>Family codes</h1><p>Each parent has their own code of 6 or more digits. Each kid has a different four-digit birthday code (MMDD). {canClear ? "Leave a code empty to clear it. " : ""}Existing signed-in devices stay signed in.</p>
+    {configured ? <ul>{people.map((p) => <li key={p.id}>{p.name}: {configured.includes(p.id) ? "Set" : "Not set"}</li>)}</ul> : null}
     <form className="list" onSubmit={async (event) => {
       event.preventDefault(); setBusy(true); setMessage("");
-      try { await request("auth/codes", { personId: personId || undefined, code, confirmation }); setCode(""); setConfirmation(""); setMessage(code ? "Code saved." : "Kid code cleared."); }
+      try { await request("auth/codes", { personId, code, confirmation }); setConfigured((current) => code ? [...(current ?? []).filter((id) => id !== personId), personId] : (current ?? []).filter((id) => id !== personId)); setCode(""); setConfirmation(""); setMessage(code ? "Code saved." : "Code cleared."); }
       catch (error) { setMessage((error as Error).message); } finally { setBusy(false); }
     }}>
-      <label className="field"><span>Who</span><select className="select" value={personId} onChange={(event) => { setPersonId(event.target.value); setCode(""); setConfirmation(""); setMessage(""); }}><option value="">Shared parent code</option>{people.filter((p) => p.role === "kid").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-      <label className="field"><span>{personId ? "New kid code (4 digits; leave empty to clear)" : "New parent code (6+ digits)"}</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" maxLength={personId ? 4 : 72} required={!personId} value={code} onChange={(event) => setCode(event.target.value)} /></label>
-      {!personId ? <label className="field"><span>Enter parent code again</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" required value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label> : null}
-      <button className="btn" disabled={busy} type="submit">{personId && !code ? "Clear kid code" : "Save code"}</button>
+      <label className="field"><span>Who</span><select className="select" value={personId} onChange={(event) => { setPersonId(event.target.value); setCode(""); setConfirmation(""); setMessage(""); }}>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+      <label className="field"><span>{isParent ? "New parent code (6+ digits)" : "New kid code (4 digits; leave empty to clear)"}</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" maxLength={isParent ? 72 : 4} value={code} onChange={(event) => setCode(event.target.value)} /></label>
+      {isParent && code ? <label className="field"><span>Enter parent code again</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" required value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label> : null}
+      {isParent && !canClear ? <p>Keep at least one parent code. Enter a new code to replace this one.</p> : null}
+      <button className="btn" disabled={busy || (!code && !canClear)} type="submit">{!code && canClear ? "Clear code" : "Save code"}</button>
     </form>{message ? <p role="status">{message}</p> : null}</>;
 }
