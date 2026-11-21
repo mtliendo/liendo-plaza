@@ -147,6 +147,7 @@ final class PilotUITests: XCTestCase {
         XCTAssertTrue(code.waitForExistence(timeout: 20))
         XCTAssertFalse(app.buttons["codes.clear"].exists)
         XCTAssertFalse(app.buttons["codes.save"].isEnabled)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Leave a code empty to clear it.")).firstMatch.exists)
         code.tap(); code.typeText("654321")
         app.secureTextFields["codes.confirmation"].tap()
         app.secureTextFields["codes.confirmation"].typeText("654321")

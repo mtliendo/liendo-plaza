@@ -32,7 +32,7 @@ async function main() {
     await page.getByTestId("chore-Make your bed").waitFor();
     await page.locator(".phone-who").filter({ hasText: "Focus" }).waitFor();
     assert.ok((await context.cookies()).some((cookie) => cookie.name === "lp_session" && cookie.httpOnly));
-    assert.equal((await getDb().select().from(schema.familyCodes)).length, 4);
+    assert.equal((await getDb().select().from(schema.familyCodes)).length, 5);
     console.log("PASS browser setup -> API -> hashed codes and HTTP-only session -> parent home");
     console.log("PASS setup replaces legacy kid identity and cached chores with the parent snapshot without reload");
 

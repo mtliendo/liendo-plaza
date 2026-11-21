@@ -17,6 +17,7 @@ const setupSchema = z.object({
 });
 const changeSchema = z.object({ personId: z.string().uuid(), code: z.string(), confirmation: z.string().optional() });
 const lock = sql`select pg_advisory_xact_lock(18432, 5)`;
+const lockoutIds = { kid: "household-kids", parent: "household-parents" };
 
 function parse<T extends z.ZodTypeAny>(definition: T, input: unknown): z.infer<T> {
   const result = definition.safeParse(input);
@@ -58,7 +59,7 @@ export async function setupFamilyCodes(input: unknown, device: DeviceAttach) {
         if (row && await bcrypt.compare(kid.code, row.hash)) throw new HttpError(409, "Each person needs a different code.");
       }
     }
-    await tx.insert(schema.familyCodes).values({ id: "household", hash: "" }).onConflictDoNothing();
+    await tx.insert(schema.familyCodes).values(Object.values(lockoutIds).map((id) => ({ id, hash: "" }))).onConflictDoNothing();
     for (const entry of codes) {
       const hash = await hashPin(entry.code);
       await tx.insert(schema.familyCodes).values({ id: entry.personId, hash }).onConflictDoUpdate({ target: schema.familyCodes.id, set: { hash } });
@@ -69,34 +70,34 @@ export async function setupFamilyCodes(input: unknown, device: DeviceAttach) {
 }
 
 export async function loginWithFamilyCode(code: string, device: DeviceAttach) {
+  const role = /^\d{4}$/.test(code) ? "kid" : /^\d{6,72}$/.test(code) ? "parent" : null;
+  if (!role) throw new HttpError(401, "That code is not recognized.");
   const result = await getDb().transaction(async (tx) => {
     await tx.execute(lock);
     const rows = await tx.select().from(schema.familyCodes);
-    const household = rows.find((row) => row.id === "household");
-    if (!household) return new HttpError(401, "That code is not recognized.");
-    if (household.lockedUntil && household.lockedUntil.getTime() > Date.now()) {
+    const people = await tx.select().from(schema.people);
+    if (!people.some((p) => p.role === "parent" && rows.some((row) => row.id === p.id))) return new HttpError(401, "That code is not recognized.");
+    const counterId = lockoutIds[role];
+    let counter = rows.find((row) => row.id === counterId);
+    if (!counter) [counter] = await tx.insert(schema.familyCodes).values({ id: counterId, hash: "" }).returning();
+    if (counter.lockedUntil && counter.lockedUntil.getTime() > Date.now()) {
       return new HttpError(423, "Too many tries. Try again in 5 minutes.");
     }
-    const people = await tx.select().from(schema.people);
     let person: typeof people[number] | undefined;
-    if (/^\d{4}$/.test(code) || /^\d{6,72}$/.test(code)) {
-      for (const candidate of people.filter((p) => code.length === 4 ? p.role === "kid" : p.role === "parent")) {
-        const row = rows.find((row) => row.id === candidate.id);
-        if (row && await bcrypt.compare(code, row.hash)) { person = candidate; break; }
-      }
+    for (const candidate of people.filter((p) => p.role === role)) {
+      const row = rows.find((row) => row.id === candidate.id);
+      if (row && await bcrypt.compare(code, row.hash)) { person = candidate; break; }
     }
     if (!person) {
-      const attempts = household.failedAttempts + 1;
+      const attempts = counter.failedAttempts + 1;
       const lockedUntil = attempts >= 10 ? new Date(Date.now() + 5 * 60_000) : null;
-      await tx.update(schema.familyCodes).set({ failedAttempts: attempts, lockedUntil }).where(eq(schema.familyCodes.id, "household"));
+      await tx.update(schema.familyCodes).set({ failedAttempts: attempts, lockedUntil }).where(eq(schema.familyCodes.id, counterId));
       return new HttpError(lockedUntil ? 423 : 401, lockedUntil ? "Too many tries. Try again in 5 minutes." : "That code is not recognized.");
     }
     if (person.pinLockedUntil && person.pinLockedUntil.getTime() > Date.now()) {
       return new HttpError(423, "Too many tries. Try again in 15 minutes.");
     }
-    if (person.role === "parent") {
-      await tx.update(schema.familyCodes).set({ failedAttempts: 0, lockedUntil: null }).where(eq(schema.familyCodes.id, "household"));
-    }
+    await tx.update(schema.familyCodes).set({ failedAttempts: 0, lockedUntil: null }).where(eq(schema.familyCodes.id, counterId));
     return { person: asPerson(person) };
   });
   if (result instanceof HttpError) throw result;
@@ -105,7 +106,7 @@ export async function loginWithFamilyCode(code: string, device: DeviceAttach) {
 
 export async function codeSettings() {
   const rows = await getDb().select({ id: schema.familyCodes.id }).from(schema.familyCodes);
-  return { configuredPersonIds: rows.filter((row) => row.id !== "household").map((row) => row.id) };
+  return { configuredPersonIds: rows.filter((row) => row.id !== "household" && !Object.values(lockoutIds).includes(row.id)).map((row) => row.id) };
 }
 
 export async function changeFamilyCode(input: unknown) {

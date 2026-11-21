@@ -21,8 +21,10 @@ Migration `0005_family_codes.sql` adds only `family_codes`; it does not alter
 existing tables/indexes or invalidate deployed main's PIN/session writes.
 Code rows use each parent's or kid's person UUID as their primary key. Codes
 are stored only as bcrypt hashes (same hashing as PINs), never plaintext.
-A dedicated `household` row stores failed-attempt/lockout metadata; its unused
-hash is the empty string and is never compared during sign-in. No schema change
+Dedicated `household-kids` and `household-parents` rows store independent
+failed-attempt/lockout metadata; their unused hashes are empty strings and are
+never compared during sign-in. Missing counter rows initialize lazily on login,
+and the old combined `household` counter is ignored. No schema change
 or migration 0006 is needed: 0005 remains unchanged and works with the existing
 empty production table. A shared lock serializes setup, code edits and sign-in
 verification across server instances, including duplicate parent/kid checks.
@@ -43,12 +45,15 @@ verification across server instances, including duplicate parent/kid checks.
   when no parent code exists yet.
 
 The existing in-memory per-IP helper limits sign-in to 20/minute and setup to
-10/minute per server instance. Ten consecutive wrong codes also persist a 5-minute
-household-wide lockout in Postgres (an unknown code cannot identify a person).
-Only a completed parent-code sign-in resets the failure count; kid sign-ins and
-code edits do not reset it.
+10/minute per server instance. Ten consecutive wrong four-digit codes persist a
+5-minute kid-code lockout; ten wrong 6–72 digit codes independently lock parent
+code sign-in for 5 minutes. These Postgres counters apply across IP addresses,
+but a lockout of one code type never blocks the other. Successful kid sign-in
+resets only the kid counter; successful parent sign-in resets only the parent
+counter. Code edits reset neither. Malformed codes return the generic error
+without incrementing either counter, but still count toward the IP rate limit.
 Existing per-person PIN lockouts are respected. A parent already signed in can
-reset a person's code, but doing so does not bypass the household lockout.
+reset a person's code, but doing so does not bypass that code type's lockout.
 Changes keep existing sessions active;
 revoke an individual device separately if needed. Parent actions still require
 a live parent session. Legacy PIN login/bootstrap and phone pairing cannot

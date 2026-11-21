@@ -247,6 +247,8 @@ async function main() {
     if (attempt.res.status === 423) locked = true;
   }
   assert(locked, "Code lockout did not trigger");
+  const parentAfterKidLock = await json("auth/login", "POST", { code: "123456" });
+  assert(parentAfterKidLock.res.ok, "kid-code lockout must not block parent sign-in");
 
   const devices = await req("devices", { headers: auth });
   assert(Array.isArray(devices.data.devices), "devices list missing");
