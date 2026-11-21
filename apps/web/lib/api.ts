@@ -48,20 +48,8 @@ import { listRewardRequests, listRewards, requestReward, reviewReward, starSumma
 import { mealSuggestions, mealsInRange, peopleList } from "./snapshot";
 import { calendarWindow, todayIso } from "./time";
 import { getWeather } from "./weather";
+import { applyChores, choreSchema, proposalRequest, proposeChores } from "./chore-agent";
 import { changeFamilyCode, codeSettings, familyCodeStatus, loginWithFamilyCode, setupFamilyCodes } from "./family-codes";
-
-const choreSchema = z.object({
-  title: z.string().min(1).max(80),
-  assignedPersonId: z.string().uuid(),
-  stars: z.number().int().min(1).max(50),
-  requiresPhoto: z.boolean(),
-  repeatType: z.enum(["daily", "weekdays", "weekly", "once"]),
-  weekdays: z.array(z.number().int().min(0).max(6)).nullable().optional(),
-  weeklyWeekday: z.number().int().min(0).max(6).nullable().optional(),
-  onceDate: z.string().nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-  steps: z.array(z.string().min(1).max(140)).max(12).optional(),
-});
 
 function pathOf(req: Request) {
   return new URL(req.url).pathname.replace(/^\/api\/?/, "");
@@ -96,6 +84,16 @@ async function dispatchApi(req: Request): Promise<Response> {
   const path = pathOf(req);
   const method = req.method;
   const url = new URL(req.url);
+  if ((path === "agent/chores/propose" || path === "agent/chores/apply") && method === "POST") {
+    const actor = await requireActor(req, ["person"]);
+    const parent = requireParent(actor);
+    if (path.endsWith("/propose")) {
+      rateLimit(`chore-agent:${parent.id}`, 20, 600_000);
+      return json(await proposeChores(proposalRequest.parse(await readJson(req))));
+    }
+    const body = z.object({ changes: z.array(z.unknown()).max(50) }).parse(await readJson(req));
+    return json(await applyChores(body.changes));
+  }
 
   if (path === "health" && method === "GET") {
     return json({ ok: true });

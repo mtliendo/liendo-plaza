@@ -75,6 +75,8 @@ struct ChoreManagementView: View {
     @State private var error = ""
     @State private var loading = false
     @State private var reordering = false
+    @State private var askingAgent = false
+    @State private var agentHistory: [ChoreAgentTurn] = []
     var body: some View {
         NavigationStack {
             List {
@@ -111,6 +113,9 @@ struct ChoreManagementView: View {
             .toolbar {
                 EditButton().accessibilityIdentifier("manage.reorder")
                     .disabled(reordering)
+                Button("Ask", systemImage: "sparkles") { askingAgent = true }
+                    .accessibilityIdentifier("askAgent")
+                    .disabled(reordering)
                 Button("Add chore", systemImage: "plus") {
                     editing = ChoreDefinition(id: "", title: "", assignedPersonId: house.snapshot?.people.first?.id ?? "",
                         stars: 1, requiresPhoto: false, repeatType: "daily", weekdays: [1, 2, 3, 4, 5],
@@ -120,6 +125,9 @@ struct ChoreManagementView: View {
             }
             .accessibilityIdentifier("manage.list")
             .task { await load() }.refreshable { await load() }
+            .sheet(isPresented: $askingAgent, onDismiss: { Task { await load() } }) {
+                ChoreAgentView(history: $agentHistory)
+            }
             .sheet(item: $editing, onDismiss: { Task { await load() } }) { chore in
                 ChoreEditor(chore: chore)
             }

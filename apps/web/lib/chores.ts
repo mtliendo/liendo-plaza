@@ -6,6 +6,8 @@ import { getDb, schema } from "./db";
 import { HttpError } from "./http";
 import { jsWeekday, startOfDayCt, todayIso } from "./time";
 
+type ChoreDb = Pick<ReturnType<typeof getDb>, "select" | "insert" | "update" | "delete" | "transaction">;
+
 function asChore(row: typeof schema.chores.$inferSelect): Chore {
   return {
     id: row.id,
@@ -96,8 +98,8 @@ export async function getChore(id: string): Promise<Chore> {
   return asChore(row);
 }
 
-export async function createChore(input: Omit<Chore, "id" | "active" | "sortOrder">): Promise<Chore> {
-  return getDb().transaction(async (db) => {
+export async function createChore(input: Omit<Chore, "id" | "active" | "sortOrder">, db: ChoreDb = getDb()): Promise<Chore> {
+  return db.transaction(async (db) => {
     await db.execute(sql`select pg_advisory_xact_lock(726104)`);
     const [last] = await db.select({ order: max(schema.chores.sortOrder) }).from(schema.chores)
       .where(eq(schema.chores.assignedPersonId, input.assignedPersonId));
@@ -122,8 +124,8 @@ export async function createChore(input: Omit<Chore, "id" | "active" | "sortOrde
   });
 }
 
-export async function updateChore(id: string, patch: Partial<Chore>): Promise<Chore> {
-  const chore = await getDb().transaction(async (db) => {
+export async function updateChore(id: string, patch: Partial<Chore>, db: ChoreDb = getDb()): Promise<Chore> {
+  const chore = await db.transaction(async (db) => {
     await db.execute(sql`select pg_advisory_xact_lock(726104)`);
     const [current] = await db.select().from(schema.chores).where(eq(schema.chores.id, id));
     if (!current) throw new HttpError(404, "That chore is gone.");
@@ -155,7 +157,7 @@ export async function updateChore(id: string, patch: Partial<Chore>): Promise<Ch
       .returning();
     return asChore(row);
   });
-  await refreshFutureOpenInstances(chore);
+  await refreshFutureOpenInstances(chore, db);
   return chore;
 }
 
@@ -181,18 +183,16 @@ export async function reorderChores(personId: string, choreIds: string[]) {
   });
 }
 
-export async function deactivateChore(id: string): Promise<void> {
-  const db = getDb();
+export async function deactivateChore(id: string, db: ChoreDb = getDb(), removePhoto = deleteStoredPhoto): Promise<void> {
   const [row] = await db.select().from(schema.chores).where(eq(schema.chores.id, id)).limit(1);
   if (!row) return;
   const instances = await db.select().from(schema.choreInstances).where(eq(schema.choreInstances.choreId, id));
-  await deleteStoredPhoto(row.guidePhotoPath);
-  for (const instance of instances) await deleteStoredPhoto(instance.photoPath);
-  await updateChore(id, { active: false, guidePhotoPath: null });
+  await removePhoto(row.guidePhotoPath);
+  for (const instance of instances) await removePhoto(instance.photoPath);
+  await updateChore(id, { active: false, guidePhotoPath: null }, db);
 }
 
-async function refreshFutureOpenInstances(chore: Chore) {
-  const db = getDb();
+async function refreshFutureOpenInstances(chore: Chore, db: ChoreDb = getDb()) {
   const today = todayIso();
   await db
     .delete(schema.choreInstances)

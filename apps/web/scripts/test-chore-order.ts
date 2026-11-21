@@ -87,6 +87,18 @@ test("create appends and reassignment appends to new person's list", async () =>
     [other.id, created.id]);
 });
 
+test("transaction-scoped writes append and roll back with their caller", async () => {
+  const before = await listChores();
+  await assert.rejects(() => db.transaction(async (tx) => {
+    const reassigned = await updateChore(ids[0], { assignedPersonId: otherId }, tx);
+    assert.equal(reassigned.sortOrder, 0);
+    const created = await createChore({ ...before[0], title: "Transaction chore", assignedPersonId: otherId }, tx);
+    assert.equal(created.sortOrder, 1);
+    throw new Error("Roll back caller");
+  }), /Roll back caller/);
+  assert.deepEqual(await listChores(), before);
+});
+
 test("reorder persists order in definitions and joined instances without deleting open instances", async () => {
   const before = await ensureInstances("2026-07-01", "2026-07-01");
   const reversed = [...ids].reverse();
