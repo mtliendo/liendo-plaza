@@ -113,6 +113,26 @@ async function main() {
   } }]);
   assert.ok(creates[0].label.includes("Mon, Wed, Fri"));
   console.log("PASS weekly arrays and single days accepted; labels show names and old → new values");
+  const parent = people.find(p => p.role === "parent")!;
+  const parentCreate = await validateChanges([{ op: "create", chore: {
+    ...valid, title: "Agent parent regression", assignedPersonId: parent.id,
+  } }]);
+  assert.equal(parentCreate.length, 1);
+  assert.ok(parentCreate[0].label.includes(parent.name));
+  const parentChore = (await applyChores(parentCreate)).chores.find(c => c.active && c.title === "Agent parent regression")!;
+  assert.equal(parentChore.assignedPersonId, parent.id);
+  const parentUpdate = await validateChanges([{ op: "update", choreId: parentChore.id, patch: { stars: 5 } }]);
+  assert.equal(parentUpdate.length, 1);
+  assert.ok(parentUpdate[0].label.includes(parent.name));
+  assert.equal((await applyChores(parentUpdate)).chores.find(c => c.id === parentChore.id)?.stars, 5);
+  const reassign = await validateChanges([{ op: "update", choreId: created.id, patch: { assignedPersonId: parent.id } }]);
+  assert.equal(reassign.length, 1);
+  assert.equal((await applyChores(reassign)).chores.find(c => c.id === created.id)?.assignedPersonId, parent.id);
+  const parentDelete = await proposeChores({ message: "remove Agent parent regression" });
+  assert.equal(parentDelete.changes.length, 1);
+  assert.equal(parentDelete.changes[0].op, "delete");
+  assert.equal((await applyChores(parentDelete.changes)).chores.find(c => c.id === parentChore.id)?.active, false);
+  console.log("PASS parent-assigned chores support create, update, reassignment and fake-mode deletion");
   await applyChores([{ op: "delete", choreId: created.id }]);
   console.log("PASS apply creates, updates, deletes");
   await assert.rejects(() => applyChores([
