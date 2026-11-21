@@ -2,6 +2,103 @@ import XCTest
 
 final class ChoreAgentUITests: XCTestCase {
     @MainActor
+    func testKidCannotReachAgentAfterParentSignsOut() async throws {
+        continueAfterFailure = false
+        let environment = ProcessInfo.processInfo.environment
+        let approver = try XCTUnwrap(environment["LP_PARENT_TOKEN"])
+        let base = URL(string: environment["LP_API_URL"] ?? "http://localhost:3000")!
+        func api(_ path: String, body: [String: String]? = nil, token: String? = nil) async throws -> [String: Any] {
+            var request = URLRequest(url: base.appendingPathComponent("api/" + path))
+            if let body {
+                request.httpMethod = "POST"
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            }
+            if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization") }
+            let (data, response) = try await URLSession.shared.data(for: request)
+            XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        }
+        let claim = try await api("pair/claim", body: ["deviceKind": "phone"])
+        _ = try await api("pair/approve", body: ["code": try XCTUnwrap(claim["displayCode"] as? String)], token: approver)
+        let poll = try await api("pair/poll", body: [
+            "id": try XCTUnwrap(claim["id"] as? String), "pollSecret": try XCTUnwrap(claim["pollSecret"] as? String)
+        ])
+        let snapshot = try await api("snapshot", token: approver)
+        let people = try XCTUnwrap(snapshot["people"] as? [[String: Any]])
+        let parent = try XCTUnwrap(people.first { $0["slug"] as? String == "focus" })
+        let login = try await api("auth/login", body: [
+            "familyToken": try XCTUnwrap(poll["familyToken"] as? String),
+            "personId": try XCTUnwrap(parent["id"] as? String), "pin": "123456", "deviceKind": "phone"
+        ])
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestReset", "-uiTestGroceries"]
+        app.launchEnvironment["LP_API_URL"] = base.absoluteString
+        app.launchEnvironment["LP_TEST_SESSION_TOKEN"] = try XCTUnwrap(login["token"] as? String)
+        app.launchEnvironment["LP_TEST_FAMILY_TOKEN"] = try XCTUnwrap(poll["familyToken"] as? String)
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
+        app.tabBars.buttons["Chores"].tap()
+        XCTAssertTrue(app.buttons["askAgent"].waitForExistence(timeout: 20))
+        app.buttons["askAgent"].tap()
+        let input = app.textFields["agentInput"].exists ? app.textFields["agentInput"] : app.textViews["agentInput"]
+        input.tap()
+        input.typeText("add Parent private history")
+        app.buttons["agentSend"].tap()
+        XCTAssertTrue(app.staticTexts["agentSummary"].waitForExistence(timeout: 30))
+        app.buttons["Close"].tap()
+        app.tabBars.buttons["Family"].tap()
+        app.buttons["signOut"].tap()
+        XCTAssertTrue(app.buttons["person.noah"].waitForExistence(timeout: 30))
+        app.buttons["person.noah"].tap()
+        app.secureTextFields["pin"].tap()
+        app.secureTextFields["pin"].typeText("1234")
+        app.buttons["open"].tap()
+        XCTAssertTrue(app.staticTexts["stars.balance"].waitForExistence(timeout: 60))
+        XCTAssertEqual(app.tabBars.buttons.count, 2)
+        func assertNoAgent(_ name: String) {
+            XCTAssertFalse(app.buttons["askAgent"].exists)
+            XCTAssertFalse(app.buttons["agentHistory"].exists)
+            XCTAssertFalse(app.buttons["agentNew"].exists)
+            XCTAssertFalse(app.textFields["agentInput"].exists)
+            XCTAssertFalse(app.textViews["agentInput"].exists)
+            XCTAssertFalse(app.staticTexts["Parent private history"].exists)
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = name
+            shot.lifetime = .keepAlways
+            add(shot)
+        }
+        assertNoAgent("Agent-unreachable-kid-chores-today")
+        let row = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND NOT identifier BEGINSWITH %@", "chore.", "chore.toggle."
+        )).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        XCTAssertTrue(app.staticTexts["chore.detail.title"].waitForExistence(timeout: 10))
+        assertNoAgent("Agent-unreachable-kid-chore-detail")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.tabBars.buttons["Dinner"].tap()
+        XCTAssertTrue(app.buttons["Previous week"].waitForExistence(timeout: 10))
+        assertNoAgent("Agent-unreachable-kid-dinner")
+        app.buttons["Previous week"].tap()
+        assertNoAgent("Agent-unreachable-kid-dinner-other-week")
+        app.tabBars.buttons["Chores"].tap()
+        app.buttons["More"].tap()
+        app.buttons["signOut"].tap()
+        XCTAssertTrue(app.buttons["Someone else"].waitForExistence(timeout: 30))
+        app.buttons["Someone else"].tap()
+        app.buttons["person.focus"].tap()
+        app.secureTextFields["pin"].tap()
+        app.secureTextFields["pin"].typeText("123456")
+        app.buttons["open"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
+        app.tabBars.buttons["Chores"].tap()
+        app.buttons["askAgent"].tap()
+        XCTAssertTrue(app.buttons["agentNew"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["agentHistory"].exists, "Parent conversation must be destroyed on sign-out")
+    }
+
+    @MainActor
     func testParentAddsChoreWithAgent() async throws {
         continueAfterFailure = false
         let environment = ProcessInfo.processInfo.environment
