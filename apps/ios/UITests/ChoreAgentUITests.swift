@@ -37,6 +37,29 @@ final class ChoreAgentUITests: XCTestCase {
         applied.name = "Chore-agent-applied"
         applied.lifetime = .keepAlways
         add(applied)
+        ask.tap()
+        XCTAssertTrue(app.buttons["agentHistory"].waitForExistence(timeout: 10))
+        app.buttons["agentHistory"].tap()
+        XCTAssertTrue(app.staticTexts["add feed the fish"].exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "Applied:"))
+            .firstMatch.exists)
+        let retained = XCTAttachment(screenshot: app.screenshot())
+        retained.name = "Chore-agent-retained-conversation"
+        retained.lifetime = .keepAlways
+        add(retained)
+        input.tap()
+        input.typeText("Actually make it 3 stars")
+        app.buttons["agentSend"].tap()
+        XCTAssertTrue(app.staticTexts["agentSummary"].waitForExistence(timeout: 30))
+        app.buttons["agentNew"].tap()
+        XCTAssertFalse(app.buttons["agentHistory"].exists)
+        XCTAssertFalse(app.staticTexts["agentSummary"].exists)
+        XCTAssertEqual(input.value as? String, "What would you like to change?")
+        app.buttons["Close"].tap()
+        ask.tap()
+        XCTAssertTrue(app.buttons["agentNew"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["agentHistory"].exists)
+        app.buttons["Close"].tap()
         let base = URL(string: environment["LP_API_URL"] ?? "http://localhost:3000")!
         var list = URLRequest(url: base.appendingPathComponent("api/chores"))
         list.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")

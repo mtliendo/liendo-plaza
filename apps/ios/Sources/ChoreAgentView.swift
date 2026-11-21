@@ -36,14 +36,14 @@ private struct AgentChange: Codable {
 
 }
 
-private struct AgentTurn: Encodable {
+struct ChoreAgentTurn: Encodable {
     let role: String
     let text: String
 }
 
 private struct AgentRequest: Encodable {
     let message: String
-    let history: [AgentTurn]
+    let history: [ChoreAgentTurn]
 }
 
 private struct AgentProposal: Decodable {
@@ -58,7 +58,7 @@ struct ChoreAgentView: View {
     @State private var proposal: AgentProposal?
     @State private var busy = false
     @State private var error = ""
-    @State private var history: [AgentTurn] = []
+    @Binding var history: [ChoreAgentTurn]
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -92,11 +92,34 @@ struct ChoreAgentView: View {
                             .accessibilityIdentifier("agentDiscard")
                     }
                 }
+                if !history.isEmpty {
+                    Section {
+                        DisclosureGroup("Conversation") {
+                            ForEach(Array(history.enumerated()), id: \.offset) { _, turn in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(turn.role == "user" ? "You" : "Agent").font(.caption.bold())
+                                    Text(turn.text).fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }.accessibilityIdentifier("agentHistory")
+                    }
+                }
             }
             .scrollDismissesKeyboard(.interactively)
             .disabled(busy)
             .navigationTitle("Chore agent")
-            .toolbar { Button("Close") { dismiss() }.disabled(busy) }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.disabled(busy) }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("New") {
+                        history = []
+                        message = ""
+                        proposal = nil
+                        error = ""
+                        inputFocused = false
+                    }.disabled(busy).accessibilityIdentifier("agentNew")
+                }
+            }
             .interactiveDismissDisabled(busy)
         }
     }
@@ -113,8 +136,8 @@ struct ChoreAgentView: View {
             let response: AgentProposal = try await house.api.request("agent/chores/propose", method: "POST",
                 token: house.session, payload: payload)
             proposal = response
-            history = Array((history + [AgentTurn(role: "user", text: sent),
-                AgentTurn(role: "assistant", text: response.summary)]).suffix(6))
+            history = Array((history + [ChoreAgentTurn(role: "user", text: sent),
+                ChoreAgentTurn(role: "assistant", text: response.summary)]).suffix(6))
         } catch { self.error = error.localizedDescription }
     }
 
@@ -126,6 +149,8 @@ struct ChoreAgentView: View {
             let payload = try JSONEncoder().encode(["changes": proposal.changes])
             let _: ChoreListResponse = try await house.api.request("agent/chores/apply", method: "POST",
                 token: house.session, payload: payload)
+            let applied = "Applied: \(proposal.summary)\n" + proposal.changes.map(\.label).joined(separator: "\n")
+            history = Array((history + [ChoreAgentTurn(role: "assistant", text: String(applied.prefix(2000)))]).suffix(6))
             await house.load()
             dismiss()
         } catch { self.error = error.localizedDescription }

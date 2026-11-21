@@ -63,6 +63,7 @@ struct ChoreManagementView: View {
     @State private var error = ""
     @State private var loading = false
     @State private var askingAgent = false
+    @State private var agentHistory: [ChoreAgentTurn] = []
     var body: some View {
         NavigationStack {
             List {
@@ -102,7 +103,7 @@ struct ChoreManagementView: View {
             }
             .task { await load() }.refreshable { await load() }
             .sheet(isPresented: $askingAgent, onDismiss: { Task { await load() } }) {
-                ChoreAgentView()
+                ChoreAgentView(history: $agentHistory)
             }
             .sheet(item: $editing, onDismiss: { Task { await load() } }) { chore in
                 ChoreEditor(chore: chore)
