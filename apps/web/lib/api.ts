@@ -74,7 +74,9 @@ async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<
 export async function handleApi(req: Request): Promise<Response> {
   const path = pathOf(req);
   const protectedPhoto = path === "photos" || path.startsWith("photos/") || /\/(?:guide-photo|photo)$/.test(path);
-  if (!protectedPhoto) {
+  const protectedChore = path === "snapshot" || path === "chores" || path.startsWith("chores/") ||
+    path === "agent/chores/propose" || path === "agent/chores/apply";
+  if (!protectedPhoto && !protectedChore) {
     const response = await dispatchApi(req);
     if (req.method !== "GET" && response.ok) invalidateHousehold();
     return response;

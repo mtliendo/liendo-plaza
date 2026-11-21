@@ -14,10 +14,16 @@ async function main() {
   const people = await peopleList();
   const kid = people.find(p => p.role === "kid")!;
   const { token } = await loginWithPin(kid.id, "1234");
-  await assert.rejects(() => handleApi(new Request("http://localhost/api/agent/chores/propose", {
+  const deniedRequest = new Request("http://localhost/api/agent/chores/propose", {
     method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({ message: "add fish" }),
-  })), (e: unknown) => e instanceof HttpError && e.status === 403);
+  });
+  deniedRequest.json = async () => { throw new Error("Kid body must not be parsed"); };
+  const denied = await handleApi(deniedRequest);
+  assert.equal(denied.status, 403);
+  assert.deepEqual(await denied.json(), { error: "Only a parent can do that." });
+  assert.equal(denied.headers.get("cache-control"), "private, no-store");
+  assert.match(denied.headers.get("vary") ?? "", /Authorization, Cookie/i);
   console.log("PASS kid gets 403");
   const valid = { title: "Validation fixture", assignedPersonId: kid.id, stars: 1, requiresPhoto: false, repeatType: "daily" };
   assert.deepEqual(await validateChanges([
