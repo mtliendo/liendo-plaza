@@ -48,6 +48,9 @@ test("fresh setup validates confirmation, lengths and kids without writing parti
   assert.equal((await setup({ confirmation: "543211" })).status, 400);
   assert.equal((await setup({ code: "1234", confirmation: "1234" })).status, 400);
   assert.equal((await setup({ personId: kidId })).status, 400);
+  assert.equal((await setup({ parents: [{ personId: otherParentId, code: "543210" }] })).status, 400);
+  assert.equal((await setup({ parents: [{ personId: kidId, code: "654321" }] })).status, 400);
+  assert.equal((await setup({ parents: [{ personId: parentId, code: "654321" }] })).status, 400);
   assert.equal((await setup({ kids: [{ personId: parentId, code: "0102" }] })).status, 400);
   assert.equal((await setup({ kids: [{ personId: kidId, code: "0102" }, { personId: otherKidId, code: "0102" }] })).status, 400);
   assert.equal((await db.select().from(schema.familyCodes)).length, 0);
@@ -57,8 +60,9 @@ test("setup is atomic under a race and stores only hashes; omitted kid codes rem
   const results = await Promise.all([setup(), setup()]);
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
   const rows = await db.select().from(schema.familyCodes);
-  assert.equal(rows.length, 2);
-  assert.ok(rows.every((r) => r.hash.startsWith("$2") && !["543210", "0102"].includes(r.hash)));
+  assert.equal(rows.length, 3);
+  assert.ok(rows.filter((r) => r.id !== "household").every((r) => r.hash.startsWith("$2") && !["543210", "0102"].includes(r.hash)));
+  assert.deepEqual(new Set((await api("auth/codes", undefined, results.find((r) => r.status === 200)!.body.token)).body.configuredPersonIds), new Set([parentId, kidId]));
   const result = results.find((r) => r.status === 200)!;
   assert.equal((await personFromSession(result.body.token))?.id, parentId);
   assert.equal((await api("auth/codes/status")).body.setupRequired, false);
@@ -66,13 +70,13 @@ test("setup is atomic under a race and stores only hashes; omitted kid codes rem
   assert.equal((await api("auth/login", { code: "1234" })).status, 401);
 });
 
-test("shared parent code picks only a parent; kid code directly issues the same device-backed session", async () => {
-  await setup();
-  const choice = await api("auth/login", { code: "543210" });
-  assert.equal(choice.status, 200);
-  assert.deepEqual(new Set(choice.body.parents.map((p: { id: string }) => p.id)), new Set([parentId, otherParentId]));
-  assert.equal(choice.body.token, undefined);
-  const parent = await api("auth/login", { code: "543210", personId: otherParentId, deviceKind: "phone" });
+test("each parent and kid code directly issues only its owner's device-backed session", async () => {
+  await setup({ parents: [{ personId: otherParentId, code: "654321" }] });
+  const first = await api("auth/login", { code: "543210" });
+  assert.equal(first.status, 200);
+  assert.equal(first.body.person.id, parentId);
+  assert.ok(first.body.token);
+  const parent = await api("auth/login", { code: "654321", deviceKind: "phone" });
   assert.equal(parent.body.person.id, otherParentId);
   const kid = await api("auth/login", { code: "0102", deviceKind: "phone" });
   assert.equal(kid.body.person.id, kidId);
@@ -81,19 +85,15 @@ test("shared parent code picks only a parent; kid code directly issues the same 
   const [device] = await db.select().from(schema.devices).where(eq(schema.devices.id, session.deviceId!));
   assert.equal(device.kind, "phone");
   assert.equal(device.sessionId, session.id);
-  assert.equal((await api("auth/login", { code: "0102", personId: parentId })).status, 401);
-  assert.equal((await api("auth/login", { code: "543210", personId: kidId })).status, 401);
+  assert.equal((await api("auth/login", { code: "0102", personId: parentId })).body.person.id, kidId);
+  assert.equal((await api("auth/login", { code: "543210", personId: otherParentId })).body.person.id, parentId);
 });
 
-test("a legacy-locked parent remains in the picker without blocking another parent", async () => {
-  await setup();
+test("a legacy-locked parent cannot sign in but does not block another parent or kid", async () => {
+  await setup({ parents: [{ personId: otherParentId, code: "654321" }] });
   await db.update(schema.people).set({ pinLockedUntil: new Date(Date.now() + 60_000) }).where(eq(schema.people.id, otherParentId));
-  const choice = await api("auth/login", { code: "543210" });
-  assert.equal(choice.status, 200);
-  assert.deepEqual(new Set(choice.body.parents.map((person: { id: string }) => person.id)), new Set([parentId, otherParentId]));
-  assert.equal(choice.body.token, undefined);
-  assert.equal((await api("auth/login", { code: "543210", personId: otherParentId })).status, 423);
-  const parent = await api("auth/login", { code: "543210", personId: parentId });
+  assert.equal((await api("auth/login", { code: "654321" })).status, 423);
+  const parent = await api("auth/login", { code: "543210" });
   assert.equal(parent.status, 200);
   assert.equal(parent.body.person.id, parentId);
   assert.equal((await api("auth/login", { code: "0102" })).status, 200);
@@ -118,19 +118,17 @@ test("wrong codes reset only on parent sign-in, lock for five minutes after ten 
   }
   for (let i = 0; i < 5; i++) assert.equal((await api("auth/login", { code: "9999" })).status, 401);
   assert.equal((await api("auth/login", { code: "0102" })).status, 200);
-  assert.equal((await api("auth/login", { code: "543210", personId: kidId })).status, 401);
-  assert.equal((await api("auth/login", { code: "543210" })).status, 200);
-  const [unchanged] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "parent"));
+  const [unchanged] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household"));
   assert.equal(unchanged.failedAttempts, 9);
   assert.equal((await api("auth/login", { code: "543210", personId: parentId })).status, 200);
-  const [reset] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "parent"));
+  const [reset] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household"));
   assert.equal(reset.failedAttempts, 0);
   for (let i = 0; i < 9; i++) assert.equal((await api("auth/login", { code: "9999" })).status, 401);
   const before = Date.now();
   const locked = await api("auth/login", { code: "9999" });
   assert.equal(locked.status, 423);
   assert.equal(locked.body.error, "Too many tries. Try again in 5 minutes.");
-  const [row] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "parent"));
+  const [row] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household"));
   assert.equal(row.failedAttempts, 10);
   assert.ok(row.lockedUntil && row.lockedUntil.getTime() >= before + 5 * 60_000 && row.lockedUntil.getTime() <= Date.now() + 5 * 60_000);
   const blocked = await api("auth/login", { code: "0102" });
@@ -162,7 +160,7 @@ test("only parents manage codes; changes, duplicate rejection, clear and old-cod
   assert.equal((await api("auth/codes", { personId: otherKidId, code: "0102" }, parent)).status, 409);
   assert.equal((await api("auth/codes", { personId: kidId, code: "111111" }, parent)).status, 400);
   assert.equal((await api("auth/codes", { personId: parentId, code: "1234" }, parent)).status, 400);
-  assert.equal((await api("auth/codes", { code: "654321", confirmation: "654321" }, parent)).status, 200);
+  assert.equal((await api("auth/codes", { personId: parentId, code: "654321", confirmation: "654321" }, parent)).status, 200);
   assert.equal((await api("auth/login", { code: "543210" })).status, 401);
   assert.equal((await api("auth/login", { code: "654321", personId: parentId })).body.person.id, parentId);
   assert.equal((await api("auth/codes", { personId: kidId, code: "1203" }, parent)).status, 200);
@@ -177,6 +175,30 @@ test("concurrent duplicate kid changes cannot both succeed", async () => {
   const parent = (await setup()).body.token;
   const results = await Promise.all([kidId, otherKidId].map((personId) => api("auth/codes", { personId, code: "0304" }, parent)));
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+});
+
+test("parents manage each other's codes, reject duplicates, and clearing the final parent reopens setup", async () => {
+  const parent = (await setup()).body.token;
+  assert.equal((await api("auth/codes", { personId: otherParentId, code: "543210", confirmation: "543210" }, parent)).status, 409);
+  assert.equal((await api("auth/codes", { personId: otherParentId, code: "654321", confirmation: "bad" }, parent)).status, 400);
+  assert.equal((await api("auth/codes", { personId: otherParentId, code: "654321", confirmation: "654321" }, parent)).status, 200);
+  const other = (await api("auth/login", { code: "654321" })).body.token;
+  assert.equal((await api("auth/codes", { personId: parentId, code: "987654", confirmation: "987654" }, other)).status, 200);
+  assert.equal((await api("auth/codes", { personId: parentId, code: "" }, other)).status, 200);
+  assert.equal((await api("auth/login", { code: "987654" })).status, 401);
+  assert.equal((await api("auth/codes/status")).body.setupRequired, false);
+  assert.equal((await api("auth/codes", { personId: otherParentId, code: "" }, other)).status, 200);
+  assert.equal((await api("auth/codes/status")).body.setupRequired, true);
+  assert.equal((await setup()).status, 200);
+});
+
+test("concurrent duplicate parent changes cannot both succeed or reset household failures", async () => {
+  const parent = (await setup()).body.token;
+  await api("auth/login", { code: "9999" });
+  const results = await Promise.all([parentId, otherParentId].map((personId) => api("auth/codes", { personId, code: "987654", confirmation: "987654" }, parent)));
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+  const [household] = await db.select().from(schema.familyCodes).where(eq(schema.familyCodes.id, "household"));
+  assert.equal(household.failedAttempts, 1);
 });
 
 test("legacy PIN/bootstrap and phone pairing cannot grant sessions; display claims still approve", async () => {

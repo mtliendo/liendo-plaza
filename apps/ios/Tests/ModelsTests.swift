@@ -552,9 +552,12 @@ final class ModelsTests: XCTestCase {
         let setup = try decoder.decode(CodeStatus.self, from: Data("{\"setupRequired\":true,\"people\":[]}".utf8))
         XCTAssertTrue(setup.setupRequired)
         XCTAssertTrue(setup.people.isEmpty)
-        let choice = try decoder.decode(CodeLogin.self, from: Data("{\"parents\":[]}".utf8))
-        XCTAssertNil(choice.token)
-        XCTAssertNotNil(choice.parents)
+        let login = try decoder.decode(CodeLogin.self, from: Data(#"{"token":"session","person":{"id":"parent","slug":"focus","name":"Focus","role":"parent","color":"red"}}"#.utf8))
+        XCTAssertEqual(login.token, "session")
+        XCTAssertTrue(login.person.isParent)
+        XCTAssertThrowsError(try decoder.decode(CodeLogin.self, from: Data("{}".utf8)))
+        let settings = try decoder.decode(CodeSettings.self, from: Data("{\"configuredPersonIds\":[\"parent\"]}".utf8))
+        XCTAssertEqual(settings.configuredPersonIds, ["parent"])
         XCTAssertThrowsError(try decoder.decode(CodeStatus.self, from: Data("{}".utf8)))
     }
 }

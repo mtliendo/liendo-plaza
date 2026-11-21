@@ -1,46 +1,53 @@
 # Family codes
 
 Phones and browsers open `/family` (native: the sign-in screen) and enter one
-code. The shared parent code is 6–72 digits; kids have distinct four-digit
-codes, suggested as birthdays (MMDD). Parent codes reveal only the parent name
-picker when multiple parents exist; selecting a name requires resubmitting the
-parent code. Kid codes sign in directly. No family token, QR or PIN prerequisite.
+code. Each parent has their own unique 6–72 digit code; kids have distinct
+four-digit codes, suggested as birthdays (MMDD). Every code signs its owner in
+directly. No parent name picker, family token, QR or PIN prerequisite.
 
 First use after migration shows **Set up Liendo Plaza**, including on an already
 signed-in phone/browser. Anyone can perform this initial setup, as requested:
-choose the shared parent code twice, optionally set kid codes and choose a
-parent. Coordinate the first setup after deployment. A transaction-level
-advisory lock and the singleton parent row atomically prevent a second setup.
+choose which parent you are, enter your code twice, and optionally set the other
+parents' and kids' codes. Coordinate the first setup after deployment. Setup is
+required only when no parent has a code. A transaction-level advisory lock and
+the parent person-ID rows atomically prevent a second setup (HTTP 409).
 No default or old PIN is accepted as a new code. Optional unset kids cannot
-sign in until a parent sets their code.
+sign in until a parent sets their code. Unset parents likewise show as Not set
+in Family codes and cannot sign in until their code is configured.
 
 ## Storage and endpoints
 
 Migration `0005_family_codes.sql` adds only `family_codes`; it does not alter
 existing tables/indexes or invalidate deployed main's PIN/session writes.
-Rows use `parent` or a kid's person UUID as their primary key. Only bcrypt
-hashes (same hashing as PINs) and persistent failed-attempt/lockout metadata
-are stored, never codes. A shared lock serializes setup, code edits and sign-in
-verification across server instances, including duplicate kid-code checks.
+Code rows use each parent's or kid's person UUID as their primary key. Codes
+are stored only as bcrypt hashes (same hashing as PINs), never plaintext.
+A dedicated `household` row stores failed-attempt/lockout metadata; its unused
+hash is the empty string and is never compared during sign-in. No schema change
+or migration 0006 is needed: 0005 remains unchanged and works with the existing
+empty production table. A shared lock serializes setup, code edits and sign-in
+verification across server instances, including duplicate parent/kid checks.
 
 - `GET /api/auth/codes/status`: setup flag; people only before initial setup.
-- `POST /api/auth/codes/setup`: `{code, confirmation, personId, kids?:
-  [{personId, code}], deviceKind?, cookie?}`. Returns the normal session.
-- `POST /api/auth/login`: `{code, personId?, deviceKind?, cookie?}`. Returns
-  `{parents}` after a valid shared code if a choice is needed, otherwise the
-  normal `{token, person}` device-backed session. No session is issued merely
-  for choosing a name.
-- `GET /api/auth/codes`: parent-only configured kid IDs / parent-code flag.
-- `POST /api/auth/codes`: parent-only `{code, confirmation}` for the shared
-  parent code, or `{personId, code}` for a kid. Empty kid code clears it.
+- `POST /api/auth/codes/setup`: `{code, confirmation, personId, parents?:
+  [{personId, code}], kids?: [{personId, code}], deviceKind?, cookie?}`.
+  Returns the chosen parent's normal session; optional entries are role-checked.
+- `POST /api/auth/login`: `{code, deviceKind?, cookie?}`. Always returns the
+  normal `{token, person}` device-backed session. A supplied personId cannot
+  select a different identity.
+- `GET /api/auth/codes`: parent-only configured person IDs (parents and kids).
+- `POST /api/auth/codes`: parent-only `{personId, code, confirmation?}`.
+  Any signed-in parent can set/reset/clear any person's code. Nonempty parent
+  codes require confirmation. Empty code clears it; clearing the final parent
+  code deliberately reopens first-run setup, so coordinate this with the family.
 
 The existing in-memory per-IP helper limits sign-in to 20/minute and setup to
 10/minute per server instance. Ten consecutive wrong codes also persist a 5-minute
 household-wide lockout in Postgres (an unknown code cannot identify a person).
 Only a completed parent-code sign-in resets the failure count; kid sign-ins and
-the parent name picker do not reset it.
+code edits do not reset it.
 Existing per-person PIN lockouts are respected. A parent already signed in can
-reset the shared code to recover. Changes keep existing sessions active;
+reset a person's code, but doing so does not bypass the household lockout.
+Changes keep existing sessions active;
 revoke an individual device separately if needed. Parent actions still require
 a live parent session. Legacy PIN login/bootstrap and phone pairing cannot
 issue new sessions through the API. Kitchen display claim/poll/approve and

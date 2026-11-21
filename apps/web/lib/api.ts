@@ -151,18 +151,17 @@ async function dispatchApi(req: Request): Promise<Response> {
   if (path === "auth/login" && method === "POST") {
     rateLimit(`login:${clientIp(req)}`, 20, 60_000);
     const body = await readJson<{
-      personId?: string;
       code?: string;
       cookie?: boolean;
       deviceKind?: "phone" | "browser";
       deviceLabel?: string;
     }>(req);
     const kind = body.deviceKind === "phone" ? "phone" : "browser";
-    const result = await loginWithFamilyCode(typeof body.code === "string" ? body.code : "", body.personId, {
+    const result = await loginWithFamilyCode(typeof body.code === "string" ? body.code : "", {
       kind,
       label: body.deviceLabel?.trim() || defaultDeviceLabel(kind, req.headers.get("user-agent") ?? ""),
     });
-    if (body.cookie && "token" in result) await setSessionCookie(result.token);
+    if (body.cookie) await setSessionCookie(result.token);
     return json(result, 200, { "cache-control": "no-store" });
   }
 

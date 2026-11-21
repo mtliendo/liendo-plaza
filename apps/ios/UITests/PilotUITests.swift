@@ -27,15 +27,11 @@ final class PilotUITests: XCTestCase {
         add(attachment)
     }
 
-    private func open(_ app: XCUIApplication, person: String, pin: String) {
+    private func open(_ app: XCUIApplication, pin: String) {
         XCTAssertTrue(app.secureTextFields["code"].waitForExistence(timeout: 40))
         app.secureTextFields["code"].tap()
         app.secureTextFields["code"].typeText(pin)
         app.buttons["open"].tap()
-        if pin.count >= 6 {
-            XCTAssertTrue(app.buttons["person.\(person)"].waitForExistence(timeout: 40))
-            app.buttons["person.\(person)"].tap()
-        }
     }
 
     private func api(_ path: String, body: [String: String]? = nil, token: String? = nil) async throws -> [String: Any] {
@@ -77,7 +73,7 @@ final class PilotUITests: XCTestCase {
         app.buttons["signOut"].tap()
         XCTAssertTrue(app.secureTextFields["code"].waitForExistence(timeout: 40))
         capture(app, "bootstrap-signed-out")
-        open(app, person: "focus", pin: "123456")
+        open(app, pin: "123456")
         XCTAssertTrue(app.buttons["chore.Unload the dishwasher"].waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Focus"].exists)
         capture(app, "bootstrap-signed-back-in")
@@ -86,7 +82,7 @@ final class PilotUITests: XCTestCase {
     @MainActor
     func testCodeSignInThenKidCompletesChore() async throws {
         let app = launch()
-        open(app, person: "noah", pin: "0000")
+        open(app, pin: "0000")
         XCTAssertTrue(app.staticTexts["That code is not recognized."].waitForExistence(timeout: 20))
         capture(app, "wrong-pin")
         let pin = app.secureTextFields["code"]
@@ -117,11 +113,27 @@ final class PilotUITests: XCTestCase {
     }
 
     @MainActor
+    func testIndividualParentCodeSignsInDirectly() async throws {
+        let response = try await api("people", token: parentToken)
+        let people = try XCTUnwrap(response["people"] as? [[String: Any]])
+        let jess = try XCTUnwrap(people.first { $0["slug"] as? String == "jess" })
+        _ = try await api("auth/codes", body: ["personId": try XCTUnwrap(jess["id"] as? String), "code": "234567", "confirmation": "234567"], token: parentToken)
+        let app = launch()
+        open(app, pin: "234567")
+        XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.staticTexts["Jess"].exists)
+        app.tabBars.buttons["Family"].tap()
+        app.buttons["familyCodes"].tap()
+        XCTAssertTrue(app.secureTextFields["codes.new"].waitForExistence(timeout: 20))
+        capture(app, "individual-parent-code")
+    }
+
+    @MainActor
     func testParentChangesFamilyCode() async throws {
         let response = try await api("people", token: parentToken)
         let people = try XCTUnwrap(response["people"] as? [[String: Any]])
         let focus = try XCTUnwrap(people.first { $0["slug"] as? String == "focus" })
-        let login = try await api("auth/login", body: ["code": "123456", "personId": try XCTUnwrap(focus["id"] as? String), "deviceKind": "phone"])
+        let login = try await api("auth/login", body: ["code": "123456", "deviceKind": "phone"])
         let app = launch(session: try XCTUnwrap(login["token"] as? String))
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
         app.tabBars.buttons["Family"].tap()
@@ -136,9 +148,9 @@ final class PilotUITests: XCTestCase {
         capture(app, "family-code-saved")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.buttons["signOut"].tap()
-        open(app, person: "focus", pin: "654321")
+        open(app, pin: "654321")
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
-        _ = try await api("auth/codes", body: ["code": "123456", "confirmation": "123456"], token: parentToken)
+        _ = try await api("auth/codes", body: ["personId": try XCTUnwrap(focus["id"] as? String), "code": "123456", "confirmation": "123456"], token: parentToken)
     }
 
     @MainActor

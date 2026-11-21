@@ -25,13 +25,14 @@ async function main() {
     await page.screenshot({ path: `${artifacts}/web-setup.png`, fullPage: true });
     await page.getByLabel("Parent code (6+ digits)", { exact: true }).fill("123456");
     await page.getByLabel("Enter parent code again").fill("123456");
+    await page.getByLabel("Jess code (optional, 6+ digits)").fill("234567");
     await page.getByLabel("Noah code (optional)").fill("1234");
     await page.getByRole("button", { name: "Set up and sign in" }).click();
     await page.getByRole("link", { name: "Manage", exact: true }).waitFor();
     await page.getByTestId("chore-Make your bed").waitFor();
     await page.locator(".phone-who").filter({ hasText: "Focus" }).waitFor();
     assert.ok((await context.cookies()).some((cookie) => cookie.name === "lp_session" && cookie.httpOnly));
-    assert.equal((await getDb().select().from(schema.familyCodes)).length, 2);
+    assert.equal((await getDb().select().from(schema.familyCodes)).length, 4);
     console.log("PASS browser setup -> API -> hashed codes and HTTP-only session -> parent home");
     console.log("PASS setup replaces legacy kid identity and cached chores with the parent snapshot without reload");
 
@@ -42,7 +43,7 @@ async function main() {
     await page.getByRole("button", { name: "Save code", exact: true }).click();
     await page.getByRole("status").filter({ hasText: "Code saved." }).waitFor();
     await page.screenshot({ path: `${artifacts}/web-code-settings.png`, fullPage: true });
-    console.log("PASS parent changes the shared code through Family settings");
+    console.log("PASS parent changes their own code through Family settings");
 
     const parentContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const parentPage = await parentContext.newPage();
@@ -50,14 +51,19 @@ async function main() {
     await parentPage.getByLabel("Enter your code", { exact: true }).fill("9999");
     await parentPage.getByRole("button", { name: "Open", exact: true }).click();
     await parentPage.getByRole("alert").filter({ hasText: "That code is not recognized." }).waitFor();
-    await parentPage.getByLabel("Enter your code", { exact: true }).fill("654321");
+    await parentPage.getByLabel("Enter your code", { exact: true }).fill("234567");
     await parentPage.getByRole("button", { name: "Open", exact: true }).click();
-    await parentPage.getByRole("heading", { name: "Who are you?" }).waitFor();
-    assert.equal((await parentContext.cookies()).some((cookie) => cookie.name === "lp_session"), false);
-    await parentPage.screenshot({ path: `${artifacts}/web-parent-picker.png`, fullPage: true });
-    await parentPage.getByRole("button", { name: "Jess", exact: true }).click();
     await parentPage.getByRole("link", { name: "Manage", exact: true }).waitFor();
-    console.log("PASS wrong code error and shared parent code -> parent-only name picker -> session");
+    await parentPage.locator(".phone-who").filter({ hasText: "Jess" }).waitFor();
+    assert.ok((await parentContext.cookies()).some((cookie) => cookie.name === "lp_session"));
+    console.log("PASS wrong code error and individual parent code -> direct parent session");
+    await parentPage.goto(`${base}/family/pins`);
+    await parentPage.getByLabel("Who", { exact: true }).selectOption({ label: "Focus" });
+    await parentPage.getByLabel("New parent code (6+ digits)", { exact: true }).fill("765432");
+    await parentPage.getByLabel("Enter parent code again").fill("765432");
+    await parentPage.getByRole("button", { name: "Save code", exact: true }).click();
+    await parentPage.getByRole("status").filter({ hasText: "Code saved." }).waitFor();
+    console.log("PASS a signed-in parent resets the other parent's code");
 
     const kidContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const kidPage = await kidContext.newPage();
