@@ -32,8 +32,8 @@ xcodebuild -project apps/ios/LiendoPlaza.xcodeproj -scheme LiendoPlaza \
 After migration, choose your parent name and set your own code (6+ digits,
 entered twice), optionally setting the other parent's code and unique kid
 birthday codes (4 digits). Phones no longer pair or need an invite. Each code
-signs its owner in directly. Parents manage all family codes under Family;
-parents without a code show as Not set. See
+signs its owner in directly. The Family tab lists your code, the other
+parent's and each kid's as Set or Not set; tap one to reset it. See
 [family-code API/storage notes](../web/FAMILY_CODES.md).
 Sessions stay in the same Keychain service/account. `-uiTestReset` clears stored
 test credentials at launch (uninstall alone does not reliably clear Keychain).
