@@ -8,8 +8,8 @@ import { storePhoto } from "../lib/blob";
 export async function auditChoreAgentRoles(base: string) {
   const records: unknown[] = [];
   const people = await peopleList();
-  const parent = people.find(p => p.role === "parent")!;
-  const kid = people.find(p => p.role === "kid")!;
+  const parent = people.find(p => p.slug === "focus" && p.role === "parent")!;
+  const kid = people.find(p => p.slug === "noah" && p.role === "kid")!;
   const other = people.find(p => p.role === "kid" && p.id !== kid.id)!;
   const approver = (await loginWithPin(parent.id, "123456")).token;
   async function call(path: string, token?: string, body?: unknown, method = "POST", headers: HeadersInit = {}) {
@@ -46,6 +46,8 @@ export async function auditChoreAgentRoles(base: string) {
   });
   assert.equal(kidLogin.person.role, "kid");
   assert.equal(parentLogin.person.role, "parent");
+  assert.equal(kidLogin.person.id, kid.id);
+  assert.equal(parentLogin.person.id, parent.id);
   console.log("PASS HTTP family-code auth/login: real kid and parent credentials");
   const pt = parentLogin.token as string;
   const kt = kidLogin.token as string;
@@ -77,6 +79,10 @@ export async function auditChoreAgentRoles(base: string) {
       fixtures.push(result.chore.id);
     }
     const own = fixtures[0], foreign = fixtures[1];
+    const parentQuota = async () => (await getPool().query(
+      "SELECT count FROM rate_limit_buckets WHERE key = $1 AND reset_at >= statement_timestamp()", [`chore-agent:${parent.id}`],
+    )).rows[0]?.count ?? 0;
+    assert.equal(await parentQuota(), 0, "Live audit needs a fresh parent quota");
     const dbState = async () => (await getPool().query(
       "SELECT (SELECT jsonb_agg(to_jsonb(c) ORDER BY id) FROM chores c) AS chores, (SELECT jsonb_agg(to_jsonb(i) ORDER BY id) FROM chore_instances i) AS instances",
     )).rows;
@@ -99,6 +105,7 @@ export async function auditChoreAgentRoles(base: string) {
         await call("agent/chores/apply", kt, { changes: [change] }), 403);
     }
     assert.deepEqual(await dbState(), before, "Kid requests changed chore/instance data");
+    assert.equal(await parentQuota(), 0, "Kid requests consumed durable parent quota");
     console.log("PASS HTTP kid create/update/delete rejected; complete chores and instances DB state unchanged");
     for (const [role, headers] of [
       ["anonymous", {}], ["display", { "x-display-token": display.token }],
@@ -181,8 +188,10 @@ export async function auditChoreAgentRoles(base: string) {
       assert.equal(response.status, 200, "Kid attempts burned parent quota");
       await response.arrayBuffer();
     }
-    await record("POST agent/chores/propose parent quota boundary", "parent",
+    const limited = await record("POST agent/chores/propose parent quota boundary", "parent",
       await call("agent/chores/propose", pt, { message: "hello" }), 429);
+    assert.deepEqual(limited, { error: "Too many tries. Wait a minute and try again." });
+    assert.equal(await parentQuota(), 20);
     console.log("PASS 20 parent proposals succeed after 24 rejected kid attempts; only parent attempt 21 is rate-limited");
   } finally {
     for (const id of fixtures) await json(`chores/${id}`, pt, undefined, "DELETE");
