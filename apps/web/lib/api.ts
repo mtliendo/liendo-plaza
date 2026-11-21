@@ -1,24 +1,20 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { FAMILY, fixturesAllowed, parseEventFixture, buildEventFixture } from "@liendo/shared";
+import { fixturesAllowed, parseEventFixture, buildEventFixture } from "@liendo/shared";
 import { addDays, weekDates } from "@liendo/shared";
 import {
   clearAuthCookies,
-  loginWithPin,
   requireActor,
   requireParent,
   requirePerson,
   revokeSession,
-  setPersonPin,
   setSessionCookie,
-  verifyFamilyToken,
+  sessionTokenFromRequest,
 } from "./auth";
 import {
   approveClaim,
-  bootstrapParent,
   bootstrapStatus,
   createClaim,
-  createInvite,
   defaultDeviceLabel,
   listDevices,
   listPendingClaims,
@@ -52,15 +48,10 @@ import { mealSuggestions, mealsInRange, peopleList } from "./snapshot";
 import { calendarWindow, todayIso } from "./time";
 import { getWeather } from "./weather";
 import { applyChores, choreSchema, proposalRequest, proposeChores } from "./chore-agent";
+import { changeFamilyCode, codeSettings, familyCodeStatus, loginWithFamilyCode, setupFamilyCodes } from "./family-codes";
 
 function pathOf(req: Request) {
   return new URL(req.url).pathname.replace(/^\/api\/?/, "");
-}
-
-function sessionToken(req: Request) {
-  const header = req.headers.get("authorization");
-  if (header?.startsWith("Bearer ")) return header.slice(7);
-  return null;
 }
 
 async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<boolean> {
@@ -72,15 +63,6 @@ async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<
 }
 
 export async function handleApi(req: Request): Promise<Response> {
-  const path = pathOf(req);
-  const protectedPhoto = path === "photos" || path.startsWith("photos/") || /\/(?:guide-photo|photo)$/.test(path);
-  const protectedChore = path === "snapshot" || path === "chores" || path.startsWith("chores/") ||
-    path === "agent/chores/propose" || path === "agent/chores/apply";
-  if (!protectedPhoto && !protectedChore) {
-    const response = await dispatchApi(req);
-    if (req.method !== "GET" && response.ok) invalidateHousehold();
-    return response;
-  }
   let response: Response;
   try {
     response = await dispatchApi(req);
@@ -89,7 +71,7 @@ export async function handleApi(req: Request): Promise<Response> {
   }
   if (req.method !== "GET" && response.ok) invalidateHousehold();
   response.headers.set("cache-control", "private, no-store");
-  response.headers.append("vary", "Authorization, Cookie");
+  response.headers.append("vary", "Authorization, Cookie, X-Display-Token, X-Family-Token");
   return response;
 }
 
@@ -138,38 +120,58 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "auth/family" && method === "POST") {
-    throw new HttpError(410, "Family codes are retired. Pair with a QR, a short code, or a parent PIN.");
+    throw new HttpError(410, "Enter your family code to sign in.");
   }
 
   if (path === "auth/display" && method === "POST") {
-    throw new HttpError(410, "Family codes are retired. Pair this frame with the QR on the board.");
+    throw new HttpError(410, "Pair this kitchen board using its QR or short code.");
+  }
+
+  if (path === "auth/codes/status" && method === "GET") {
+    const actor = await requireActor(req, ["person"]).catch((error: unknown) => {
+      if (error instanceof HttpError && error.status === 401) return null;
+      throw error;
+    });
+    return json(await familyCodeStatus(actor?.kind === "person" ? actor.person : undefined), 200, { "cache-control": "no-store" });
+  }
+
+  if (path === "auth/codes/setup" && method === "POST") {
+    const parent = requireParent(await requireActor(req, ["person"]));
+    rateLimit(`setup:${clientIp(req)}`, 10, 60_000);
+    const body = await readJson<Record<string, unknown>>(req);
+    if (body.personId !== parent.id) throw new HttpError(403, "Set up using your own parent profile.");
+    const kind = body.deviceKind === "phone" ? "phone" : "browser";
+    const result = await setupFamilyCodes(body, { kind, label: defaultDeviceLabel(kind, req.headers.get("user-agent") ?? "") });
+    if (body.cookie === true) await setSessionCookie(result.token);
+    return json(result, 200, { "cache-control": "no-store" });
+  }
+
+  if (path === "auth/codes" && (method === "GET" || method === "POST")) {
+    requireParent(await requireActor(req, ["person"]));
+    if (method === "GET") return json(await codeSettings(), 200, { "cache-control": "no-store" });
+    await changeFamilyCode(await readJson(req));
+    return json({ ok: true });
   }
 
   if (path === "auth/login" && method === "POST") {
     rateLimit(`login:${clientIp(req)}`, 20, 60_000);
     const body = await readJson<{
-      familyToken?: string;
-      personId?: string;
-      pin?: string;
+      code?: string;
       cookie?: boolean;
       deviceKind?: "phone" | "browser";
       deviceLabel?: string;
     }>(req);
-    if (!body.familyToken) throw new HttpError(401, "This device is not paired yet.");
-    verifyFamilyToken(body.familyToken);
-    if (!body.personId || !body.pin) throw new HttpError(400, "Pick a name and enter a PIN.");
     const kind = body.deviceKind === "phone" ? "phone" : "browser";
-    const result = await loginWithPin(body.personId, body.pin, {
+    const result = await loginWithFamilyCode(typeof body.code === "string" ? body.code : "", {
       kind,
       label: body.deviceLabel?.trim() || defaultDeviceLabel(kind, req.headers.get("user-agent") ?? ""),
-      cookie: body.cookie,
     });
     if (body.cookie) await setSessionCookie(result.token);
-    return json(result);
+    return json(result, 200, { "cache-control": "no-store" });
   }
 
   if (path === "auth/logout" && method === "POST") {
-    const token = sessionToken(req);
+    const token = sessionTokenFromRequest(req);
     if (token) await revokeSession(token);
     await clearAuthCookies();
     return json({ ok: true });
@@ -180,30 +182,14 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "pair/bootstrap" && method === "POST") {
-    rateLimit(`bootstrap:${clientIp(req)}`, 10, 60_000);
-    const body = await readJson<{
-      personId?: string;
-      pin?: string;
-      deviceKind?: "phone" | "browser";
-      deviceLabel?: string;
-      cookie?: boolean;
-    }>(req);
-    if (!body.personId || !body.pin) throw new HttpError(400, "Pick a parent and enter their PIN.");
-    const result = await bootstrapParent({
-      personId: body.personId,
-      pin: body.pin,
-      deviceKind: body.deviceKind,
-      deviceLabel: body.deviceLabel,
-      userAgent: req.headers.get("user-agent") ?? "",
-      cookie: body.cookie,
-    });
-    return json(result);
+    throw new HttpError(410, "Enter your family code to sign in.");
   }
 
   if (path === "pair/claim" && method === "POST") {
     rateLimit(`claim:${clientIp(req)}`, 20, 60_000);
     const body = await readJson<{ deviceKind?: "display" | "phone" | "browser"; label?: string }>(req);
-    const deviceKind = body.deviceKind === "phone" || body.deviceKind === "browser" ? body.deviceKind : "display";
+    if (body.deviceKind && body.deviceKind !== "display") throw new HttpError(410, "Phones and browsers sign in with a family code.");
+    const deviceKind = "display";
     return json(
       await createClaim({
         deviceKind,
@@ -234,10 +220,7 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "pair/invite" && method === "POST") {
-    const actor = await requireActor(req, ["person"]);
-    const parent = requireParent(actor);
-    const body = await readJson<{ deviceKind?: "phone" | "browser" }>(req);
-    return json(await createInvite(parent, body.deviceKind === "browser" ? "browser" : "phone"));
+    throw new HttpError(410, "Phones and browsers sign in with a family code.");
   }
 
   if (path === "pair/redeem" && method === "POST") {
@@ -465,8 +448,8 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "rewards/requests" && method === "GET") {
-    await requireActor(req, ["person"]);
-    return json({ requests: await listRewardRequests() });
+    const person = requirePerson(await requireActor(req, ["person"]));
+    return json({ requests: await listRewardRequests(person) });
   }
 
   if (path === "rewards/requests" && method === "POST") {
@@ -573,14 +556,7 @@ async function dispatchApi(req: Request): Promise<Response> {
   if (path === "pins" && method === "POST") {
     const actor = await requireActor(req, ["person"]);
     requireParent(actor);
-    const body = await readJson<{ personId?: string; pin?: string }>(req);
-    if (!body.personId || !body.pin) throw new HttpError(400, "Pick a person and a PIN.");
-    const people = await peopleList();
-    const target = people.find((person) => person.id === body.personId);
-    if (!target) throw new HttpError(404, "No one by that name.");
-    const length = FAMILY.find((row) => row.slug === target.slug)?.pinLength ?? (target.role === "parent" ? 6 : 4);
-    await setPersonPin(target.id, body.pin, length);
-    return json({ ok: true });
+    throw new HttpError(410, "Manage family codes under Family.");
   }
 
   if (path === "settings" && method === "GET") {

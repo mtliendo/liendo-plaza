@@ -1,9 +1,8 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import type { Person } from "@liendo/shared";
+import { Suspense, useEffect, useState } from "react";
 import { parseEventFixture, queryKeys, weekDates } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
 import { SoftLink } from "@/components/SoftLink";
@@ -12,7 +11,7 @@ import { ChoreDetail } from "@/components/family/ChoreDetail";
 import { ChoreManage } from "@/components/family/ChoreManage";
 import { DinnerList } from "@/components/family/DinnerList";
 import { AddDevicePanel, DevicesPanel } from "@/components/family/DevicePanels";
-import { UnpairedFamily } from "@/components/family/UnpairedFamily";
+import { FamilyCodeGate, FamilyCodeSettings } from "@/components/family/FamilyCodes";
 import { WeekGlance } from "@/components/family/WeekGlance";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import {
@@ -73,20 +72,22 @@ const FAMILY_HREFS = {
 
 function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" | "pin"> }) {
   const params = useSearchParams();
-  const invite = params.get("invite");
   const fixture = parseEventFixture(params.get("fixture"));
   const [board, go] = useSoftView(screen, FAMILY_HREFS);
-  const [familyToken, setFamilyToken] = useState<string | null>(null);
-  const [people, setPeople] = useState<Person[]>([]);
   const [phase, setPhase] = useState<Screen | "loading">("loading");
-  const [pin, setPin] = useState("");
-  const [picked, setPicked] = useState<Person | null>(null);
-  const [error, setError] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [openChoreId, setOpenChoreId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const meQuery = useMe();
   const signedIn = meQuery.data?.actor?.kind === "person";
+  const codeStatus = useQuery({
+    queryKey: ["family-code-status"], enabled: signedIn,
+    queryFn: async () => {
+      const response = await fetch("/api/auth/codes/status", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not check family codes.");
+      return response.json() as Promise<{ setupRequired: boolean }>;
+    },
+  });
   const snapshotQuery = useSnapshot(Boolean(signedIn));
   const lists = useHouseLists(Boolean(signedIn));
   const prefetch = usePrefetchHouse();
@@ -106,61 +107,18 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   const week = weekDates(today);
   const openChore = snapshot?.chores.find((item) => item.id === openChoreId) ?? null;
 
-  const headers = useMemo(() => {
-    const next: Record<string, string> = { "content-type": "application/json" };
-    if (familyToken) next["x-family-token"] = familyToken;
-    return next;
-  }, [familyToken]);
-
   useEffect(() => {
     if (signedIn) prefetch();
   }, [prefetch, signedIn]);
 
   useEffect(() => {
     if (meQuery.isPending && !meQuery.data) return;
-    if (signedIn) {
+    if (signedIn && !codeStatus.data?.setupRequired) {
       setPhase(board);
       return;
     }
-    if (!familyToken) {
-      setPhase("gate");
-      return;
-    }
-    void (async () => {
-      const peopleRes = await fetch("/api/people", { headers: { "x-family-token": familyToken } });
-      if (peopleRes.ok) {
-        const body = (await peopleRes.json()) as { people: Person[] };
-        setPeople(body.people);
-        setPhase("people");
-      }
-    })();
-  }, [board, familyToken, meQuery.data, meQuery.isPending, signedIn]);
-
-  const onPaired = useCallback((token: string | null) => {
-    if (token) {
-      setFamilyToken(token);
-      return;
-    }
-    void queryClient.invalidateQueries({ queryKey: queryKeys.me });
-  }, [queryClient]);
-
-  async function submitPin(event: React.FormEvent) {
-    event.preventDefault();
-    if (!picked) return;
-    setError("");
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ familyToken, personId: picked.id, pin, cookie: true, deviceKind: "browser" }),
-    });
-    const body = (await res.json()) as { error?: string };
-    if (!res.ok) {
-      setError(body.error ?? "That PIN is wrong.");
-      return;
-    }
-    await queryClient.invalidateQueries({ queryKey: queryKeys.me });
-    setPhase(screen);
-  }
+    setPhase("gate");
+  }, [board, codeStatus.data?.setupRequired, meQuery.data, meQuery.isPending, signedIn]);
 
   const isParent = me?.role === "parent";
   const visibleChores =
@@ -180,56 +138,13 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
   }
 
   if (phase === "gate") {
-    return <UnpairedFamily invite={invite} onReady={onPaired} />;
-  }
-
-  if (phase === "people") {
-    return (
-      <main className="phone" data-testid="name-picker">
-        <h1>Who are you?</h1>
-        <div className="list">
-          {people.map((person) => (
-            <button
-              key={person.id}
-              type="button"
-              className="btn person-pick"
-              style={{ ["--person" as string]: person.color }}
-              onClick={() => {
-                setPicked(person);
-                setPhase("pin");
-              }}
-            >
-              <PersonAvatar person={person} size={112} />
-              {person.name}
-            </button>
-          ))}
-        </div>
-      </main>
-    );
-  }
-
-  if (phase === "pin" && picked) {
-    return (
-      <main className="phone">
-        <h1>{picked.name}</h1>
-        <form onSubmit={submitPin} className="list">
-          <label className="field">
-            <span>{picked.role === "parent" ? "6-digit PIN" : "4-digit PIN"}</span>
-            <input
-              className="input"
-              inputMode="numeric"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              autoComplete="off"
-            />
-          </label>
-          {error ? <p style={{ color: "var(--color-error)" }}>{error}</p> : null}
-          <button className="btn" type="submit">
-            Open
-          </button>
-        </form>
-      </main>
-    );
+    return <FamilyCodeGate person={me} onReady={async () => {
+      setPhase("loading");
+      setOpenChoreId(null);
+      setSuggestions([]);
+      await queryClient.cancelQueries();
+      await queryClient.resetQueries();
+    }} />;
   }
 
   const tabs = (
@@ -327,7 +242,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
               Devices
             </SoftLink>
             <SoftLink href="/family/pins" onGo={() => go("pins")} onPrefetch={prefetch}>
-              PINs
+              Family codes
             </SoftLink>
             <button
               type="button"
@@ -543,26 +458,7 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
       {board === "devices" && isParent ? <DevicesPanel /> : null}
 
       {board === "pins" && isParent ? (
-        <>
-          <h1>Reset a PIN</h1>
-          <PinForm
-            people={snapshot?.people ?? []}
-            onSave={async (personId, nextPin) => {
-              const res = await fetch("/api/pins", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ personId, pin: nextPin }),
-              });
-              if (!res.ok) {
-                const body = (await res.json()) as { error?: string };
-                setError(body.error ?? "Could not save that PIN.");
-                return;
-              }
-              setError("");
-            }}
-          />
-          {error ? <p style={{ color: "var(--color-error)" }}>{error}</p> : null}
-        </>
+        <FamilyCodeSettings people={snapshot?.people ?? []} />
       ) : null}
       {tabs}
       {openChore && snapshot ? (
@@ -614,45 +510,6 @@ function RewardForm({ onCreate }: { onCreate: (payload: { name: string; starCost
       </label>
       <button className="btn" type="submit">
         Add reward
-      </button>
-    </form>
-  );
-}
-
-function PinForm({
-  people,
-  onSave,
-}: {
-  people: Person[];
-  onSave: (personId: string, pin: string) => Promise<void>;
-}) {
-  const [personId, setPersonId] = useState(people[0]?.id ?? "");
-  const [pin, setPin] = useState("");
-  return (
-    <form
-      className="list"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        await onSave(personId, pin);
-        setPin("");
-      }}
-    >
-      <label className="field">
-        <span>Who</span>
-        <select className="select" value={personId} onChange={(e) => setPersonId(e.target.value)}>
-          {people.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>New PIN</span>
-        <input className="input" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} />
-      </label>
-      <button className="btn" type="submit">
-        Save PIN
       </button>
     </form>
   );

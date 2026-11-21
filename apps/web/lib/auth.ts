@@ -122,6 +122,11 @@ export async function loginWithPin(
     .set({ pinFailedAttempts: 0, pinLockedUntil: null })
     .where(eq(schema.people.id, person.id));
 
+  return issuePersonSession(asPerson(person), device);
+}
+
+export async function issuePersonSession(person: Person, device?: DeviceAttach): Promise<{ token: string; person: Person }> {
+  const db = getDb();
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   const [session] = await db
@@ -152,7 +157,7 @@ export async function loginWithPin(
     await setSessionCookie(token);
   }
 
-  return { token, person: asPerson(person) };
+  return { token, person };
 }
 
 export async function personFromSession(token: string, touchDevice = true): Promise<Person | null> {
@@ -246,6 +251,10 @@ function cookieFromRequest(req: Request, name: string): string | null {
   return null;
 }
 
+export function sessionTokenFromRequest(req: Request): string | null {
+  return bearer(req) ?? cookieFromRequest(req, SESSION_COOKIE);
+}
+
 export async function requireActor(
   req: Request,
   allow: Actor["kind"][] = ["person", "display"],
@@ -257,7 +266,7 @@ export async function requireActor(
     if (cron && header === `Bearer ${cron}`) return { kind: "cron" };
   }
 
-  const token = bearer(req) ?? cookieFromRequest(req, SESSION_COOKIE);
+  const token = sessionTokenFromRequest(req);
   if (token && allow.includes("person")) {
     const person = await personFromSession(token, options.touchDevice !== false);
     if (person) return { kind: "person", person };

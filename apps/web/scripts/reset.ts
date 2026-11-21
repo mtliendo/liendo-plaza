@@ -4,6 +4,7 @@ async function main() {
   const pool = getPool();
   await pool.query(`
     TRUNCATE
+      family_codes,
       push_tokens,
       reward_requests,
       rewards,

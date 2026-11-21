@@ -27,7 +27,7 @@ export async function dehydrateHouse(kind: "display" | "family") {
         return kidId ? chores.filter(chore => chore.assignedPersonId === kidId) : chores;
       } });
       await client.prefetchQuery({ queryKey: queryKeys.rewards, queryFn: () => listRewards() });
-      await client.prefetchQuery({ queryKey: queryKeys.requests, queryFn: listRewardRequests });
+      await client.prefetchQuery({ queryKey: queryKeys.requests, queryFn: () => listRewardRequests(person) });
     }
     await client.prefetchQuery({
       queryKey: queryKeys.snapshot(week[0], week[6], null),

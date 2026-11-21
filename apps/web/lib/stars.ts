@@ -1,5 +1,5 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
-import type { Reward, RewardRequest, StarSummary } from "@liendo/shared";
+import type { Person, Reward, RewardRequest, StarSummary } from "@liendo/shared";
 import { startOfWeekSunday, addDays } from "@liendo/shared";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
@@ -67,7 +67,7 @@ export async function listRewards(activeOnly = false): Promise<Reward[]> {
     }));
 }
 
-export async function listRewardRequests(): Promise<RewardRequest[]> {
+export async function listRewardRequests(person: Person): Promise<RewardRequest[]> {
   const db = getDb();
   const rows = await db
     .select({
@@ -77,7 +77,8 @@ export async function listRewardRequests(): Promise<RewardRequest[]> {
     })
     .from(schema.rewardRequests)
     .innerJoin(schema.rewards, eq(schema.rewardRequests.rewardId, schema.rewards.id))
-    .innerJoin(schema.people, eq(schema.rewardRequests.personId, schema.people.id));
+    .innerJoin(schema.people, eq(schema.rewardRequests.personId, schema.people.id))
+    .where(person.role === "parent" ? undefined : eq(schema.rewardRequests.personId, person.id));
   return rows
     .map(({ request, reward, person }) => ({
       id: request.id,

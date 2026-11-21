@@ -12,9 +12,10 @@ environment. Fake mode is deterministic and disabled when `VERCEL_ENV=production
 
 # Liendo Plaza · native iPhone pilot
 
-SwiftUI, iOS 17+, no third-party dependencies. This pilot covers first-parent
-bootstrap, QR/short-code pairing, invite links, role-based tabs, dinner,
-chore completion/undo and photo proof, and parent short-code device approval.
+SwiftUI, iOS 17+, no third-party dependencies. This pilot covers family-code
+setup/sign-in, role-based tabs, dinner,
+chore completion/undo and photo proof. Kitchen boards are approved from the
+web app, not the phone.
 
 ## Open and run
 
@@ -40,14 +41,15 @@ xcodebuild -project apps/ios/LiendoPlaza.xcodeproj -scheme LiendoPlaza \
   build CODE_SIGNING_ALLOWED=NO
 ```
 
-Seed PINs: Focus/Jess `123456`, Sofia/Noah/Xavier `1234`.
-Session and short-lived family tokens live in Keychain. `-uiTestReset` clears
-both and the remembered person at launch (uninstall alone does not reliably clear Keychain). Sign out
-keeps a family token, but it expires after 15 minutes; the app re-pairs when
-that token is rejected. A first-parent bootstrap returns only a session.
-
-Invite links: `liendoplaza://?invite=…`, or the configured associated domains'
-`/family?invite=…` and `/join?invite=…`. Redeeming is one-time.
+After migration, choose your parent name and set your own code (6+ digits,
+entered twice), optionally setting the other parent's code and unique kid
+birthday codes (4 digits). Phones no longer pair or need an invite. Each code
+signs its owner in directly. The Family tab lists your code, the other
+parent's and each kid's as Set or Not set; tap one to reset it. See
+[family-code API/storage notes](../web/FAMILY_CODES.md).
+Sessions stay in the same Keychain service/account. `-uiTestReset` clears stored
+test credentials at launch (uninstall alone does not reliably clear Keychain).
+Sign out returns to the code field. Only kitchen boards use pairing codes.
 
 ## Tests
 
@@ -71,11 +73,13 @@ Run the complete, destructive local integration suite from any directory:
 apps/ios/scripts/ui-tests.sh --record "$HOME/friction/ios-uitests.mp4"
 ```
 
-The backend must already be running, and must use the database configured in
-the root `.env.local`. **The script resets and seeds that database twice.**
+The backend must already be running with a migrated, dedicated local test
+database. Set `DATABASE_URL` explicitly, or use the root `.env.local`.
+**The script resets and seeds that database twice**, refusing remote/non-test URLs.
 It checks `/api/health` before doing anything destructive, builds for testing
-once, runs bootstrap alone, resets again, bootstraps a curl parent, and runs
-the kid complete/undo and parent device-approval tests plus model tests.
+once, runs setup using an existing live parent fixture, resets again, sets up
+through an authenticated parent session, and runs
+the kid complete/undo and parent Family tab tests plus model tests.
 Every UI test starts with `-uiTestReset`. Parent authorization is passed through
 `TEST_RUNNER_LP_PARENT_TOKEN`; never enable shell tracing or commit this token.
 `LP_API_URL` defaults to localhost:3000; `DESTINATION` overrides the default
@@ -97,8 +101,7 @@ If the root `.env.local` is absent, the script also accepts an exported
 `DATABASE_URL`, so no backend configuration file needs to be created.
 
 Accessibility IDs include `person.noah`, `pin`, `open`, `pairing.code`, `chore.<title>`,
-`status.<title>`, `chore.status`, `chore.complete`, `chore.undo`, `signOut`,
-`addDevice`, `addDevice.code`, and `addDevice.approve`.
+`status.<title>`, `chore.status`, `chore.complete`, `chore.undo`, and `signOut`.
 
 ## Out of scope
 

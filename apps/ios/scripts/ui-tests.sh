@@ -56,27 +56,32 @@ fi
 reset_database() (
   cd "$ROOT"
   set -a
-  if [[ -f .env.local ]]; then source .env.local; fi
+  if [[ -z "${DATABASE_URL:-}" && -f .env.local ]]; then source .env.local; fi
   set +a
+  node -e 'const u = new URL(process.env.DATABASE_URL); if (!["localhost", "127.0.0.1"].includes(u.hostname) || !/^\/liendo_.*test_\d+$/.test(u.pathname)) throw Error("UI tests require a dedicated local test database")'
   npx --yes pnpm@10.15.0 db:reset
   npx --yes pnpm@10.15.0 db:seed
 )
 export TEST_RUNNER_LP_API_URL="$API"
+legacy_parent_session() (
+  cd "$ROOT"
+  set -a
+  if [[ -z "${DATABASE_URL:-}" && -f .env.local ]]; then source .env.local; fi
+  set +a
+  LP_API_URL="$API" pnpm --filter @liendo/web exec tsx scripts/legacy-parent-fixture.ts "$@"
+)
 unset TEST_RUNNER_LP_PARENT_TOKEN
 xcodebuild "${OPTIONS[@]}" build-for-testing >"$RUN/build.log" 2>&1 ||
   { tail -60 "$RUN/build.log"; exit 1; }
 reset_database
+TEST_RUNNER_LP_PARENT_TOKEN="$(legacy_parent_session)"
+export TEST_RUNNER_LP_PARENT_TOKEN
 xcodebuild "${OPTIONS[@]}" test-without-building \
   -only-testing:LiendoPlazaUITests/PilotUITests/testFirstParentBootstrapShowsToday \
   -resultBundlePath "$RUN/bootstrap.xcresult" | tee "$RUN/bootstrap.log"
 reset_database
-PARENTS="$(curl --fail --silent --show-error "$API/api/pair/status")"
-PERSON="$(printf '%s' "$PARENTS" | python3 -c 'import json,sys; print(next(p["id"] for p in json.load(sys.stdin)["parents"] if p["slug"]=="focus"))')"
-RESPONSE="$(curl --fail --silent --show-error -H 'Content-Type: application/json' \
-  -d "{\"personId\":\"$PERSON\",\"pin\":\"123456\",\"deviceKind\":\"phone\"}" "$API/api/pair/bootstrap")"
-TEST_RUNNER_LP_PARENT_TOKEN="$(printf '%s' "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
+TEST_RUNNER_LP_PARENT_TOKEN="$(legacy_parent_session --setup)"
 export TEST_RUNNER_LP_PARENT_TOKEN
-unset RESPONSE
 xcodebuild "${OPTIONS[@]}" test-without-building \
   -skip-testing:LiendoPlazaUITests/PilotUITests/testFirstParentBootstrapShowsToday \
   -resultBundlePath "$RUN/paired.xcresult" | tee "$RUN/paired.log"

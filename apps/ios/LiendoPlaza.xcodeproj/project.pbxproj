@@ -24,7 +24,6 @@
 		82D02D91AF46828E6776F6B4 /* ChoreReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0952F677CCE1300C4350D948 /* ChoreReminders.swift */; };
 		836C4C59AAB1FB9EA4C2BC7A /* KidViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0409C0F05F99F06D19BC6B07 /* KidViews.swift */; };
 		845C8A5F2DA26FA586DF8BA5 /* noah.png in Resources */ = {isa = PBXBuildFile; fileRef = 3C691C97574DD5263DE2716A /* noah.png */; };
-		8909736F8F411A011FBA591A /* AddDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056C197EDB5F3A0182A6EDF4 /* AddDeviceView.swift */; };
 		925D2D77B650F44C9B66EE85 /* xavier.png in Resources */ = {isa = PBXBuildFile; fileRef = 07B216ACF5CAB8A77FCE4CA2 /* xavier.png */; };
 		A72ADF74A2328646F47E36D1 /* DinnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35753847D70857687FAE3F6A /* DinnerView.swift */; };
 		A7FEA706116D4A4F805BFB2A /* ParentFeaturesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A81B59DE00CE303DA6AE1E1 /* ParentFeaturesTests.swift */; };
@@ -58,7 +57,6 @@
 
 /* Begin PBXFileReference section */
 		0409C0F05F99F06D19BC6B07 /* KidViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KidViews.swift; sourceTree = "<group>"; };
-		056C197EDB5F3A0182A6EDF4 /* AddDeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddDeviceView.swift; sourceTree = "<group>"; };
 		07B216ACF5CAB8A77FCE4CA2 /* xavier.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = xavier.png; sourceTree = "<group>"; };
 		0952F677CCE1300C4350D948 /* ChoreReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoreReminders.swift; sourceTree = "<group>"; };
 		0FBE04C78A7650B0DD69B499 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -140,7 +138,6 @@
 		93DCA1D5D02BE09F71AF4787 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				056C197EDB5F3A0182A6EDF4 /* AddDeviceView.swift */,
 				C0BF14D69D539DE0F0A803D7 /* API.swift */,
 				D561F15C2FC5965A46A678C6 /* Camera.swift */,
 				9C27787B3D3A674BB63DF352 /* ChoreAgentView.swift */,
@@ -312,7 +309,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				11A6672254D23069CB3312C8 /* API.swift in Sources */,
-				8909736F8F411A011FBA591A /* AddDeviceView.swift in Sources */,
 				E2AE39592710240E7B7D3036 /* Camera.swift in Sources */,
 				3944DE6D98906179AAB44B0C /* ChoreAgentView.swift in Sources */,
 				2CDAD91528A7D35697DC05B4 /* ChoreManagementView.swift in Sources */,

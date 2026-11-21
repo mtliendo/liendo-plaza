@@ -29,16 +29,24 @@ export async function auditChoreAgentRoles(base: string) {
     await json("pair/approve", token, { code: claim.displayCode });
     return json("pair/poll", undefined, { id: claim.id, pollSecret: claim.pollSecret });
   }
-  const phone = await pair("phone", approver);
+  const status = await json("auth/codes/status", approver, undefined, "GET");
+  if (status.setupRequired) {
+    await json("auth/codes/setup", approver, {
+      personId: parent.id, code: "123456", confirmation: "123456",
+      kids: people.filter(p => p.role === "kid").map(p => ({
+        personId: p.id, code: ({ noah: "1234", sofia: "0101", xavier: "0303" } as Record<string, string>)[p.slug],
+      })),
+    });
+  }
   const parentLogin = await json("auth/login", undefined, {
-    familyToken: phone.familyToken, personId: parent.id, pin: "123456", deviceKind: "phone",
+    code: "123456", deviceKind: "phone",
   });
   const kidLogin = await json("auth/login", undefined, {
-    familyToken: phone.familyToken, personId: kid.id, pin: "1234", deviceKind: "phone",
+    code: "1234", deviceKind: "phone",
   });
   assert.equal(kidLogin.person.role, "kid");
   assert.equal(parentLogin.person.role, "parent");
-  console.log("PASS HTTP phone claim → parent approval → poll → auth/login: real kid and parent credentials");
+  console.log("PASS HTTP family-code auth/login: real kid and parent credentials");
   const pt = parentLogin.token as string;
   const kt = kidLogin.token as string;
   const display = await pair("display", pt);
@@ -94,7 +102,7 @@ export async function auditChoreAgentRoles(base: string) {
     console.log("PASS HTTP kid create/update/delete rejected; complete chores and instances DB state unchanged");
     for (const [role, headers] of [
       ["anonymous", {}], ["display", { "x-display-token": display.token }],
-      ["family", { "x-family-token": phone.familyToken }],
+      ["family", { "x-family-token": "obsolete-family-token" }],
     ] as const) {
       for (const path of ["propose", "apply"]) {
         await record(`POST agent/chores/${path}`, role, await call(`agent/chores/${path}`, undefined,

@@ -296,6 +296,16 @@ test("protected photo reads prohibit caching for every actor and for authorizati
   assertPrivatePhoto(cookie);
 });
 
+test("proof metadata in JSON responses prohibits caching for every actor", async () => {
+  const paths = [`snapshot?from=${yesterday}&to=${yesterday}`, "chores", `chores/${ownChoreId}`, `chores/${otherChoreId}`];
+  for (const actor of ["kid", "parent", "display"] as const) {
+    for (const path of paths) assertPrivatePhoto(await request(path, actor));
+  }
+  for (const actor of ["kid", "parent"] as const) {
+    assertPrivatePhoto(await request("chores/instances/pending", actor));
+  }
+});
+
 test("guide upload and clear responses, including failed mutations, prohibit caching", async () => {
   const [chore] = await db.insert(schema.chores).values({
     title: "Cache fixture", assignedPersonId: kidId, stars: 1, requiresPhoto: false, repeatType: "daily",

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { chromium, type BrowserContext, type Page } from "playwright";
-import { issueFamilyToken } from "../lib/auth";
+import { changeFamilyCode, familyCodeStatus, setupFamilyCodes } from "../lib/family-codes";
 import { getDb, schema } from "../lib/db";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3001";
@@ -30,11 +30,12 @@ async function mintParentSession() {
   const db = getDb();
   const [focus] = await db.select().from(schema.people).where(eq(schema.people.slug, "focus")).limit(1);
   assert(focus, "focus person missing");
-  const familyToken = issueFamilyToken();
+  if ((await familyCodeStatus()).setupRequired) {
+    await setupFamilyCodes({ code: "123456", confirmation: "123456", personId: focus.id }, { kind: "browser", label: "Refresh test setup" });
+  }
   const login = await json("auth/login", "POST", {
-    familyToken,
     personId: focus.id,
-    pin: "123456",
+    code: "123456",
     deviceKind: "browser",
     deviceLabel: "refresh e2e parent",
   });
@@ -60,22 +61,14 @@ async function signInParent(page: Page) {
 }
 
 async function mintKidToken(auth: HeadersInit) {
-  const invite = await json("pair/invite", "POST", { deviceKind: "phone" }, auth);
-  assert(invite.res.ok, `invite failed: ${JSON.stringify(invite.data)}`);
-  const inviteUrl = String(invite.data.webUrl);
-  const inviteToken = new URL(inviteUrl).searchParams.get("invite");
-  assert(inviteToken, "invite URL missing token");
-  const redeemed = await json("pair/redeem", "POST", { invite: inviteToken });
-  assert(redeemed.res.ok, `invite redeem failed: ${JSON.stringify(redeemed.data)}`);
-  const familyToken = String(redeemed.data.familyToken);
-  const peopleRes = await req("people", { headers: { "x-family-token": familyToken } });
+  const peopleRes = await req("people", { headers: auth });
   const people = (peopleRes.data.people as { id: string; slug: string }[]) ?? [];
   const sofia = people.find((p) => p.slug === "sofia");
   assert(sofia, "sofia missing");
+  await changeFamilyCode({ personId: sofia.id, code: "0101" });
   const kidLogin = await json("auth/login", "POST", {
-    familyToken,
     personId: sofia.id,
-    pin: "1234",
+    code: "0101",
     deviceKind: "phone",
   });
   assert(kidLogin.res.ok, `kid login failed: ${JSON.stringify(kidLogin.data)}`);
@@ -91,6 +84,7 @@ async function main() {
   const browser = await chromium.launch();
   const frame = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
   const framePage = await frame.newPage();
+  await framePage.clock.install({ time: new Date("2026-11-20T18:00:00Z") });
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const parentToken = await mintParentSession();
   await openWithSession(phone, parentToken);

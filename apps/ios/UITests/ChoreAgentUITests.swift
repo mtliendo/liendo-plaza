@@ -5,7 +5,6 @@ final class ChoreAgentUITests: XCTestCase {
     func testKidCannotReachAgentAfterParentSignsOut() async throws {
         continueAfterFailure = false
         let environment = ProcessInfo.processInfo.environment
-        let approver = try XCTUnwrap(environment["LP_PARENT_TOKEN"])
         let base = URL(string: environment["LP_API_URL"] ?? "http://localhost:3000")!
         func api(_ path: String, body: [String: String]? = nil, token: String? = nil) async throws -> [String: Any] {
             var request = URLRequest(url: base.appendingPathComponent("api/" + path))
@@ -19,23 +18,13 @@ final class ChoreAgentUITests: XCTestCase {
             XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
             return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         }
-        let claim = try await api("pair/claim", body: ["deviceKind": "phone"])
-        _ = try await api("pair/approve", body: ["code": try XCTUnwrap(claim["displayCode"] as? String)], token: approver)
-        let poll = try await api("pair/poll", body: [
-            "id": try XCTUnwrap(claim["id"] as? String), "pollSecret": try XCTUnwrap(claim["pollSecret"] as? String)
-        ])
-        let snapshot = try await api("snapshot", token: approver)
-        let people = try XCTUnwrap(snapshot["people"] as? [[String: Any]])
-        let parent = try XCTUnwrap(people.first { $0["slug"] as? String == "focus" })
         let login = try await api("auth/login", body: [
-            "familyToken": try XCTUnwrap(poll["familyToken"] as? String),
-            "personId": try XCTUnwrap(parent["id"] as? String), "pin": "123456", "deviceKind": "phone"
+            "code": "123456", "deviceKind": "phone"
         ])
         let app = XCUIApplication()
         app.launchArguments = ["-uiTestReset", "-uiTestGroceries"]
         app.launchEnvironment["LP_API_URL"] = base.absoluteString
         app.launchEnvironment["LP_TEST_SESSION_TOKEN"] = try XCTUnwrap(login["token"] as? String)
-        app.launchEnvironment["LP_TEST_FAMILY_TOKEN"] = try XCTUnwrap(poll["familyToken"] as? String)
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
         app.tabBars.buttons["Chores"].tap()
@@ -49,10 +38,9 @@ final class ChoreAgentUITests: XCTestCase {
         app.buttons["Close"].tap()
         app.tabBars.buttons["Family"].tap()
         app.buttons["signOut"].tap()
-        XCTAssertTrue(app.buttons["person.noah"].waitForExistence(timeout: 30))
-        app.buttons["person.noah"].tap()
-        app.secureTextFields["pin"].tap()
-        app.secureTextFields["pin"].typeText("1234")
+        XCTAssertTrue(app.secureTextFields["code"].waitForExistence(timeout: 30))
+        app.secureTextFields["code"].tap()
+        app.secureTextFields["code"].typeText("1234")
         app.buttons["open"].tap()
         XCTAssertTrue(app.staticTexts["stars.balance"].waitForExistence(timeout: 60))
         XCTAssertEqual(app.tabBars.buttons.count, 2)
@@ -85,11 +73,9 @@ final class ChoreAgentUITests: XCTestCase {
         app.tabBars.buttons["Chores"].tap()
         app.buttons["More"].tap()
         app.buttons["signOut"].tap()
-        XCTAssertTrue(app.buttons["Someone else"].waitForExistence(timeout: 30))
-        app.buttons["Someone else"].tap()
-        app.buttons["person.focus"].tap()
-        app.secureTextFields["pin"].tap()
-        app.secureTextFields["pin"].typeText("123456")
+        XCTAssertTrue(app.secureTextFields["code"].waitForExistence(timeout: 30))
+        app.secureTextFields["code"].tap()
+        app.secureTextFields["code"].typeText("123456")
         app.buttons["open"].tap()
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
         app.tabBars.buttons["Chores"].tap()
