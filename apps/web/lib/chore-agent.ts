@@ -5,6 +5,8 @@ import { peopleList } from "./snapshot";
 import { HttpError } from "./http";
 import { startOfDayCt, todayIso } from "./time";
 import type { Chore, Person } from "@liendo/shared";
+import { getDb } from "./db";
+import { deleteStoredPhoto } from "./blob";
 
 export const choreSchema = z.object({
   title: z.string().min(1).max(80),
@@ -67,6 +69,11 @@ export async function validateChanges(raw: unknown[], strict = false) {
     const parsed = changeSchema.safeParse(value);
     if (!parsed.success) { invalid(); continue; }
     const change = parsed.data;
+    if (change.op !== "delete") {
+      const fields = change.op === "create" ? change.chore : change.patch;
+      if (fields.onceDate != null && (!/^\d{4}-\d{2}-\d{2}$/.test(fields.onceDate) ||
+          !startOfDayCt(fields.onceDate).isValid)) { invalid(); continue; }
+    }
     const before = change.op === "create" ? undefined : active.find(c => c.id === change.choreId);
     if (change.op !== "create" && (!before || seen.has(change.choreId))) { invalid(); continue; }
     const chore = change.op === "create" ? change.chore : change.op === "update" ? { ...before!, ...change.patch } : before!;
@@ -77,6 +84,12 @@ export async function validateChanges(raw: unknown[], strict = false) {
       (chore.repeatType === "once" && (!/^\d{4}-\d{2}-\d{2}$/.test(chore.onceDate ?? "") ||
         !startOfDayCt(chore.onceDate!).isValid))
     )) { invalid(); continue; }
+    if (change.op !== "delete") {
+      const fields = change.op === "create" ? change.chore : change.patch;
+      fields.onceDate = chore.repeatType === "once" ? chore.onceDate : null;
+      fields.weekdays = chore.repeatType === "weekdays" || chore.repeatType === "weekly" ? chore.weekdays : null;
+      fields.weeklyWeekday = chore.repeatType === "weekly" ? chore.weeklyWeekday : null;
+    }
     if (change.op !== "create") seen.add(change.choreId);
     const person = people.find(p => p.id === chore.assignedPersonId)!;
     const label = change.op === "update" ? updateLabel(before!, chore as Chore, people)
@@ -119,12 +132,16 @@ export async function proposeChores(body: z.infer<typeof proposalRequest>) {
 
 export async function applyChores(raw: unknown[]) {
   const changes = await validateChanges(raw, true);
-  for (const change of changes) {
-    if (change.op === "delete") await deactivateChore(change.choreId);
-    else if (change.op === "update") await updateChore(change.choreId, change.patch);
-    else await createChore({ ...change.chore, weekdays: change.chore.weekdays ?? null,
-      weeklyWeekday: change.chore.weeklyWeekday ?? null, onceDate: change.chore.onceDate ?? null,
-      description: change.chore.description ?? null, steps: change.chore.steps ?? [], guidePhotoPath: null });
-  }
+  const photos = new Set<string>();
+  await getDb().transaction(async tx => {
+    for (const change of changes) {
+      if (change.op === "delete") await deactivateChore(change.choreId, tx, async path => { if (path) photos.add(path); });
+      else if (change.op === "update") await updateChore(change.choreId, change.patch, tx);
+      else await createChore({ ...change.chore, weekdays: change.chore.weekdays ?? null,
+        weeklyWeekday: change.chore.weeklyWeekday ?? null, onceDate: change.chore.onceDate ?? null,
+        description: change.chore.description ?? null, steps: change.chore.steps ?? [], guidePhotoPath: null }, tx);
+    }
+  });
+  await Promise.all([...photos].map(deleteStoredPhoto));
   return { chores: await listChores() };
 }

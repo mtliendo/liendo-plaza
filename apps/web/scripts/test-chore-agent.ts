@@ -35,6 +35,8 @@ async function main() {
   const updated = await applyChores(preview);
   assert.equal(updated.chores.find(c => c.id === created.id)?.stars, 3);
   const invalidChanges = [
+    { op: "create", chore: { ...valid, onceDate: "" } },
+    { op: "update", choreId: created.id, patch: { onceDate: "2026-02-30" } },
     { op: "create", chore: { ...valid, stars: 51 } },
     { op: "delete", choreId: "bad" },
     { op: "update", choreId: created.id, patch: { assignedPersonId: "00000000-0000-0000-0000-000000000000" } },
@@ -50,6 +52,28 @@ async function main() {
     assert.deepEqual(await validateChanges([invalid]), []);
   }
   console.log("PASS invalid apply batches return 400 without creating or updating; propose drops invalid changes");
+  const normalized = await validateChanges([{ op: "create", chore: {
+    ...valid, onceDate: "2026-01-01", weekdays: [1], weeklyWeekday: 2,
+  } }]);
+  assert.equal(normalized[0].op === "create" && normalized[0].chore.onceDate, null);
+  assert.equal(normalized[0].op === "create" && normalized[0].chore.weekdays, null);
+  assert.equal(normalized[0].op === "create" && normalized[0].chore.weeklyWeekday, null);
+  const connection = await getPool().connect();
+  try {
+    await connection.query("ALTER TABLE chores ADD CONSTRAINT agent_rollback_test CHECK (title <> 'Agent rollback fixture') NOT VALID");
+    const count = (await listChores()).length;
+    await assert.rejects(() => applyChores([
+      { op: "update", choreId: created.id, patch: { stars: 7 } },
+      { op: "create", chore: valid },
+      { op: "create", chore: { ...valid, title: "Agent rollback fixture" } },
+    ]));
+    assert.equal((await listChores()).length, count);
+    assert.equal((await listChores()).find(c => c.id === created.id)?.stars, 3);
+  } finally {
+    await connection.query("ALTER TABLE chores DROP CONSTRAINT IF EXISTS agent_rollback_test");
+    connection.release();
+  }
+  console.log("PASS all date fields validated, irrelevant repeat fields normalized, database failures roll back batch");
   const weekends = await validateChanges([{ op: "update", choreId: created.id,
     patch: { repeatType: "weekly", weekdays: [6, 0], weeklyWeekday: null } }]);
   assert.ok(weekends[0].label.includes("daily → Sat, Sun"));
