@@ -9,6 +9,7 @@ import {
   requirePerson,
   revokeSession,
   setSessionCookie,
+  sessionTokenFromRequest,
 } from "./auth";
 import {
   approveClaim,
@@ -64,12 +65,6 @@ function pathOf(req: Request) {
   return new URL(req.url).pathname.replace(/^\/api\/?/, "");
 }
 
-function sessionToken(req: Request) {
-  const header = req.headers.get("authorization");
-  if (header?.startsWith("Bearer ")) return header.slice(7);
-  return null;
-}
-
 async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<boolean> {
   if (!choreIds.length) return false;
   const [instance] = await getDb().select({ id: schema.choreInstances.id }).from(schema.choreInstances)
@@ -79,17 +74,13 @@ async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<
 }
 
 export async function handleApi(req: Request): Promise<Response> {
-  const path = pathOf(req);
-  const protectedPhoto = path === "photos" || path.startsWith("photos/") || /\/(?:guide-photo|photo)$/.test(path);
   let response: Response;
   try {
     response = await dispatchApi(req);
   } catch (error) {
     response = errorResponse(error);
   }
-  if (protectedPhoto || !response.headers.has("cache-control")) {
-    response.headers.set("cache-control", "private, no-store");
-  }
+  response.headers.set("cache-control", "private, no-store");
   response.headers.append("vary", "Authorization, Cookie, X-Display-Token, X-Family-Token");
   return response;
 }
@@ -167,7 +158,7 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "auth/logout" && method === "POST") {
-    const token = sessionToken(req);
+    const token = sessionTokenFromRequest(req);
     if (token) await revokeSession(token);
     await clearAuthCookies();
     return json({ ok: true });

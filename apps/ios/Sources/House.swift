@@ -101,6 +101,10 @@ final class House: ObservableObject {
     func accept(_ result: SessionResponse) throws {
         try Keychain.write(result.token, key: "session")
         api.session.configuration.urlCache?.removeAllCachedResponses()
+        snapshot = nil
+        pendingInstances = []
+        deviceApproval = nil
+        ChoreReminders.remove()
         person = result.person
         UserDefaults.standard.set(result.person.id, forKey: "phonePersonId")
         session = result.token

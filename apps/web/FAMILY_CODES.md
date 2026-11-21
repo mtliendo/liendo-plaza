@@ -60,7 +60,20 @@ a live parent session. Legacy PIN login/bootstrap and phone pairing cannot
 issue new sessions through the API. Kitchen display claim/poll/approve and
 existing live display authorization remain unchanged.
 
+API responses, including errors and code settings, use `private, no-store` and
+vary on Authorization, Cookie, X-Display-Token and X-Family-Token. The iPhone
+clears its URL cache on sign-in/sign-out and drops previous identity state on
+sign-in. Sign-out revokes the authenticated session for both cookie and bearer
+clients.
+
 ## Local checks
+
+`scripts/test-role-boundaries.ts` audits real HTTP responses with code-issued
+Noah, Focus and Jess sessions on a fresh `liendo_role_audit_test_<timestamp>`
+database. Set `ROLE_AUDIT_BASE_URL` to its local Next server and optionally
+`ROLE_AUDIT_REPORT` to a Markdown output path. Its known reward-request scoping
+finding is reported separately pending the stacked follow-up; it is not counted
+as a passing boundary.
 
 Use dedicated local Postgres databases, migrate them with `pnpm db:migrate`,
 then run `pnpm --filter @liendo/web exec tsx scripts/test-family-codes.ts` with

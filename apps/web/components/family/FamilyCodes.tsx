@@ -79,7 +79,7 @@ export function FamilyCodeSettings({ people }: { people: Person[] }) {
   const canClear = !isParent || people.some((p) => p.role === "parent" && p.id !== personId && configured?.includes(p.id));
   useEffect(() => { if (!personId) setPersonId(people.find((p) => p.role === "parent")?.id ?? ""); }, [people, personId]);
   useEffect(() => { void request("auth/codes").then((result) => setConfigured(result.configuredPersonIds)).catch((error: Error) => setMessage(error.message)); }, []);
-  return <><h1>Family codes</h1><p>Each parent has their own code of 6 or more digits. Each kid has a different four-digit birthday code (MMDD). Leave a code empty to clear it. Existing signed-in devices stay signed in.</p>
+  return <><h1>Family codes</h1><p>Each parent has their own code of 6 or more digits. Each kid has a different four-digit birthday code (MMDD). {canClear ? "Leave a code empty to clear it. " : ""}Existing signed-in devices stay signed in.</p>
     {configured ? <ul>{people.map((p) => <li key={p.id}>{p.name}: {configured.includes(p.id) ? "Set" : "Not set"}</li>)}</ul> : null}
     <form className="list" onSubmit={async (event) => {
       event.preventDefault(); setBusy(true); setMessage("");
