@@ -62,6 +62,7 @@ struct ChoreManagementView: View {
     @State private var editing: ChoreDefinition?
     @State private var error = ""
     @State private var loading = false
+    @State private var askingAgent = false
     var body: some View {
         NavigationStack {
             List {
@@ -90,6 +91,8 @@ struct ChoreManagementView: View {
             }
             .scrollContentBackground(.hidden).background(Plaza.paper).navigationTitle("Chores")
             .toolbar {
+                Button("Ask", systemImage: "sparkles") { askingAgent = true }
+                    .accessibilityIdentifier("askAgent")
                 Button("Add chore", systemImage: "plus") {
                     editing = ChoreDefinition(id: "", title: "", assignedPersonId: house.snapshot?.people.first?.id ?? "",
                         stars: 1, requiresPhoto: false, repeatType: "daily", weekdays: [1, 2, 3, 4, 5],
@@ -98,6 +101,9 @@ struct ChoreManagementView: View {
                 }.disabled(house.snapshot?.people.isEmpty != false).accessibilityIdentifier("manage.add")
             }
             .task { await load() }.refreshable { await load() }
+            .sheet(isPresented: $askingAgent, onDismiss: { Task { await load() } }) {
+                ChoreAgentView()
+            }
             .sheet(item: $editing, onDismiss: { Task { await load() } }) { chore in
                 ChoreEditor(chore: chore)
             }
