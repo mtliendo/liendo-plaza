@@ -22,7 +22,7 @@ export async function dehydrateHouse(kind: "display" | "family") {
       if (!person) return dehydrate(client);
       await client.prefetchQuery({ queryKey: queryKeys.chores, queryFn: listChores });
       await client.prefetchQuery({ queryKey: queryKeys.rewards, queryFn: () => listRewards() });
-      await client.prefetchQuery({ queryKey: queryKeys.requests, queryFn: listRewardRequests });
+      await client.prefetchQuery({ queryKey: queryKeys.requests, queryFn: () => listRewardRequests(person) });
     }
     await client.prefetchQuery({
       queryKey: queryKeys.snapshot(week[0], week[6], null),

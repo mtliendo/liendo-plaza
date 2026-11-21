@@ -444,8 +444,8 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "rewards/requests" && method === "GET") {
-    await requireActor(req, ["person"]);
-    return json({ requests: await listRewardRequests() });
+    const person = requirePerson(await requireActor(req, ["person"]));
+    return json({ requests: await listRewardRequests(person) });
   }
 
   if (path === "rewards/requests" && method === "POST") {
