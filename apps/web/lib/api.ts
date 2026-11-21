@@ -46,6 +46,7 @@ import { notifyParents, notifyPerson, parsePushRegistration, registerPushToken, 
 import { clientIp, rateLimit } from "./rate-limit";
 import { getDisplayRefreshRequestedAt, getSettings, requestDisplayRefresh, updateSettings } from "./settings";
 import { buildSnapshot } from "./snapshot";
+import { householdCached, invalidateHousehold } from "./household-cache";
 import { listRewardRequests, listRewards, requestReward, reviewReward, starSummaries } from "./stars";
 import { mealSuggestions, mealsInRange, peopleList } from "./snapshot";
 import { calendarWindow, todayIso } from "./time";
@@ -85,7 +86,11 @@ async function ownsChoreInstance(personId: string, choreIds: string[]): Promise<
 export async function handleApi(req: Request): Promise<Response> {
   const path = pathOf(req);
   const protectedPhoto = path === "photos" || path.startsWith("photos/") || /\/(?:guide-photo|photo)$/.test(path);
-  if (!protectedPhoto) return dispatchApi(req);
+  if (!protectedPhoto) {
+    const response = await dispatchApi(req);
+    if (req.method !== "GET" && response.ok) invalidateHousehold();
+    return response;
+  }
   let response: Response;
   try {
     response = await dispatchApi(req);
@@ -96,6 +101,8 @@ export async function handleApi(req: Request): Promise<Response> {
   response.headers.append("vary", "Authorization, Cookie");
   return response;
 }
+
+const cachedDisplayRefreshRequestedAt = householdCached(getDisplayRefreshRequestedAt, "display-refresh");
 
 async function dispatchApi(req: Request): Promise<Response> {
   const path = pathOf(req);
@@ -110,7 +117,7 @@ async function dispatchApi(req: Request): Promise<Response> {
     const buildId = process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || "dev";
     let refreshRequestedAt: string | null = null;
     try {
-      refreshRequestedAt = await getDisplayRefreshRequestedAt();
+      refreshRequestedAt = await cachedDisplayRefreshRequestedAt();
     } catch {
       refreshRequestedAt = null;
     }
@@ -260,7 +267,7 @@ async function dispatchApi(req: Request): Promise<Response> {
     const actor = await requireActor(req, ["person", "display"]);
     const from = url.searchParams.get("from") ?? undefined;
     const to = url.searchParams.get("to") ?? undefined;
-    const snapshot = await buildSnapshot(from, to);
+    const snapshot = await buildSnapshot(from, to, { cached: actor.kind === "display" });
     if (actor.kind === "person" && actor.person.role === "kid") {
       snapshot.chores = snapshot.chores.filter((instance) => instance.personId === actor.person.id);
     }
