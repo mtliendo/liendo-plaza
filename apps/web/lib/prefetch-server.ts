@@ -1,7 +1,7 @@
 import { dehydrate, QueryClient } from "@tanstack/react-query";
 import { cookies } from "next/headers";
 import { queryKeys, weekDates } from "@liendo/shared";
-import { DISPLAY_COOKIE, SESSION_COOKIE, displayFromToken, personFromSession } from "./auth";
+import { DISPLAY_COOKIE, SESSION_COOKIE, cachedDisplayFromToken, personFromSession } from "./auth";
 import { listChores } from "./chores";
 import { buildSnapshot } from "./snapshot";
 import { listRewardRequests, listRewards } from "./stars";
@@ -15,7 +15,7 @@ export async function dehydrateHouse(kind: "display" | "family") {
   try {
     if (kind === "display") {
       const token = jar.get(DISPLAY_COOKIE)?.value;
-      if (!token || !(await displayFromToken(token))) return dehydrate(client);
+      if (!token || !(await cachedDisplayFromToken(token))) return dehydrate(client);
     } else {
       const token = jar.get(SESSION_COOKIE)?.value;
       const person = token ? await personFromSession(token) : null;
@@ -26,7 +26,7 @@ export async function dehydrateHouse(kind: "display" | "family") {
     }
     await client.prefetchQuery({
       queryKey: queryKeys.snapshot(week[0], week[6], null),
-      queryFn: () => buildSnapshot(week[0], week[6]),
+      queryFn: () => buildSnapshot(week[0], week[6], { cached: true }),
     });
   } catch {
     // First paint can fetch on the client if the cookie is stale.
