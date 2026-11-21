@@ -1142,6 +1142,9 @@ html:has(.pair-kitchen) body {
   max-width: 36em;
   line-height: 1.45;
 }
+.approval-row { align-items: flex-start; }
+.approval-proof { display: grid; gap: var(--space-sm); }
+.approval-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
 .chore-guide-photo {
   width: min(100%, 28rem);
   height: auto;

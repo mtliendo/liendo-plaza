@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { parseEventFixture, queryKeys, weekDates } from "@liendo/shared";
+import { mealPhotoSrc, parseEventFixture, queryKeys, weekDates } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
 import { SoftLink } from "@/components/SoftLink";
 import { ChoreCard } from "@/components/family/ChoreCard";
@@ -394,22 +394,41 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
           <h1>Waiting on you</h1>
           {snapshot.chores
             .filter((item) => item.status === "pending")
-            .map((item) => (
-              <div key={item.id} className="row">
-                <span>{item.title}</span>
-                <span>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={async () => {
-                      choreReview.mutate({ id: item.id, action: "approve" });
-                    }}
-                  >
-                    Approve
-                  </button>
-                </span>
-              </div>
-            ))}
+            .map((item) => {
+              const proof = mealPhotoSrc(item.photoPath);
+              const person = snapshot.people.find((candidate) => candidate.id === item.personId);
+              return (
+                <div key={item.id} className="row approval-row" data-testid={`approval-${item.id}`}>
+                  <span className="approval-proof">
+                    <span className="name-line">
+                      {person ? <PersonAvatar person={person} size={48} /> : null}
+                      {person ? `${person.name}: ` : ""}{item.title}
+                    </span>
+                    {proof ? <img src={proof} alt={`Proof photo for ${item.title}`} className="chore-guide-photo" /> : null}
+                  </span>
+                  <span className="approval-actions">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={async () => {
+                        choreReview.mutate({ id: item.id, action: "approve" });
+                      }}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={async () => {
+                        choreReview.mutate({ id: item.id, action: "reject" });
+                      }}
+                    >
+                      Send back
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
           {requests
             .filter((item) => item.status === "pending")
             .map((item) => (

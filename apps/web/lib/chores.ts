@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lte } from "drizzle-orm";
 import type { Chore, ChoreInstance, RepeatType } from "@liendo/shared";
 import { addDays } from "@liendo/shared";
 import { deleteStoredPhoto } from "./blob";
@@ -137,8 +137,22 @@ export async function updateChore(id: string, patch: Partial<Chore>): Promise<Ch
     .returning();
   if (!row) throw new HttpError(404, "That chore is gone.");
   const chore = asChore(row);
+  if (patch.requiresPhoto === false) await clearUnapprovedProofs(chore.id);
   await refreshFutureOpenInstances(chore);
   return chore;
+}
+
+async function clearUnapprovedProofs(choreId: string) {
+  const db = getDb();
+  const unapproved = and(
+    eq(schema.choreInstances.choreId, choreId),
+    inArray(schema.choreInstances.status, ["open", "rejected"]),
+    isNotNull(schema.choreInstances.photoPath),
+  );
+  const stale = await db.select({ photoPath: schema.choreInstances.photoPath }).from(schema.choreInstances).where(unapproved);
+  if (!stale.length) return;
+  await db.update(schema.choreInstances).set({ photoPath: null }).where(unapproved);
+  for (const { photoPath } of stale) await deleteStoredPhoto(photoPath);
 }
 
 export async function deactivateChore(id: string): Promise<void> {
