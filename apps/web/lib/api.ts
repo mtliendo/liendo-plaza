@@ -104,6 +104,8 @@ export async function handleApi(req: Request): Promise<Response> {
 }
 
 const cachedDisplayRefreshRequestedAt = householdCached(getDisplayRefreshRequestedAt, "display-refresh");
+// Changes whenever the household tag is invalidated, so the display can poll it without touching Neon.
+const cachedHouseholdRevision = householdCached(async () => new Date().toISOString(), "household-revision");
 
 async function dispatchApi(req: Request): Promise<Response> {
   const path = pathOf(req);
@@ -122,7 +124,8 @@ async function dispatchApi(req: Request): Promise<Response> {
     } catch {
       refreshRequestedAt = null;
     }
-    return json({ buildId, refreshRequestedAt }, 200, { "cache-control": "no-store, must-revalidate" });
+    const revision = await cachedHouseholdRevision().catch(() => null);
+    return json({ buildId, refreshRequestedAt, revision }, 200, { "cache-control": "no-store, must-revalidate" });
   }
 
   if (path === "display/refresh" && method === "POST") {
