@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { mock } from "node:test";
+import { Pool } from "pg";
 import { getPool } from "../lib/db";
 import { errorResponse, HttpError } from "../lib/http";
 import { rateLimit } from "../lib/rate-limit";
@@ -60,6 +62,40 @@ async function main() {
     assert.equal(reset.count, 1);
     assert.equal(reset.renewed, true);
     console.log("PASS expired windows renew and independent keys do not share quota");
+    const missingTablePool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      options: "-c search_path=pg_catalog",
+    });
+    const warning = mock.method(console, "warn", () => {});
+    const query = mock.method(getPool(), "query", missingTablePool.query.bind(missingTablePool));
+    try {
+      for (let i = 0; i < 20; i++) await rateLimit(keys[0], 20, 600_000);
+      await assert.rejects(() => rateLimit(keys[0], 20, 600_000), error =>
+        error instanceof HttpError && error.status === 429 &&
+        error.message === "Too many tries. Wait a minute and try again.");
+      assert.equal(warning.mock.callCount(), 1);
+      await rateLimit(keys[2], 20, 600_000);
+      const later = Date.now() + 600_001;
+      const clock = mock.method(Date, "now", () => later);
+      try { await rateLimit(keys[0], 20, 600_000); } finally { clock.mock.restore(); }
+      assert.equal(warning.mock.callCount(), 1);
+      console.log("PASS real undefined_table falls back, limits request 21, isolates keys, renews expiry, and warns once");
+      for (const code of ["42501", "08006"]) {
+        const failure = Object.assign(new Error("Database unavailable"), { code });
+        query.mock.mockImplementation(async () => { throw failure; });
+        await assert.rejects(() => rateLimit(keys[0], 20, 600_000), error => error === failure);
+      }
+      assert.equal(warning.mock.callCount(), 1);
+      console.log("PASS permission and connection errors still fail closed without fallback");
+    } finally {
+      query.mock.restore();
+      warning.mock.restore();
+      await missingTablePool.end();
+    }
+    await rateLimit(keys[0], 20, 600_000);
+    const { rows: [recovered] } = await getPool().query("SELECT count FROM rate_limit_buckets WHERE key = $1", [keys[0]]);
+    assert.equal(recovered.count, 2);
+    console.log("PASS limiter automatically returns to durable counters when the table is available");
   } finally {
     await getPool().query("DELETE FROM rate_limit_buckets WHERE key = ANY($1::text[])", [keys]);
   }
