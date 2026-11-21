@@ -570,6 +570,9 @@ final class ModelsTests: XCTestCase {
         let setup = try decoder.decode(CodeStatus.self, from: Data("{\"setupRequired\":true,\"people\":[]}".utf8))
         XCTAssertTrue(setup.setupRequired)
         XCTAssertTrue(setup.people.isEmpty)
+        let anonymous = try decoder.decode(CodeStatus.self, from: Data("{\"setupRequired\":true}".utf8))
+        XCTAssertTrue(anonymous.setupRequired)
+        XCTAssertTrue(anonymous.people.isEmpty)
         let login = try decoder.decode(CodeLogin.self, from: Data(#"{"token":"session","person":{"id":"parent","slug":"focus","name":"Focus","role":"parent","color":"red"}}"#.utf8))
         XCTAssertEqual(login.token, "session")
         XCTAssertTrue(login.person.isParent)
@@ -577,5 +580,30 @@ final class ModelsTests: XCTestCase {
         let settings = try decoder.decode(CodeSettings.self, from: Data("{\"configuredPersonIds\":[\"parent\"]}".utf8))
         XCTAssertEqual(settings.configuredPersonIds, ["parent"])
         XCTAssertThrowsError(try decoder.decode(CodeStatus.self, from: Data("{}".utf8)))
+    }
+
+    @MainActor
+    func testStoredSessionChecksSetupWithAuthenticationBeforeChoosingRole() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PhotoProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        for role in ["parent", "kid"] {
+            PhotoProtocol.status = 200
+            PhotoProtocol.requestCount = 0
+            PhotoProtocol.response = Data("""
+                {"setupRequired":true,"actor":{"kind":"person","person":{
+                "id":"stored-person","slug":"focus","name":"Focus","role":"\(role)","color":"red"}}}
+                """.utf8)
+            let house = House(api: APIClient(session: network))
+            house.session = "build8-session"
+            house.person = nil
+            await house.checkCodeSetup()
+            XCTAssertTrue(house.codeSetupRequired)
+            XCTAssertEqual(house.session, "build8-session")
+            XCTAssertEqual(house.person?.role, role)
+            XCTAssertEqual(PhotoProtocol.requestCount, 2)
+            XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "Authorization"), "Bearer build8-session")
+        }
     }
 }

@@ -1,5 +1,18 @@
 # Build 7 → 8 session investigation (read-only)
 
+## Family-code setup migration
+
+The setup gate keeps the same Keychain service, session key and access group.
+On launch with a stored session, House checks code status with that bearer token
+and resolves the person through /me before entering setup. A live parent lands
+on Set up Liendo Plaza with Setting up as their name, locked to their identity.
+Enter the new parent code twice, optionally add the other parent's and kids'
+codes, then tap Set up and sign in. No sign-out or name selection is needed.
+Anonymous/kid devices show the already-signed-in-parent message without a roster.
+The native UI regression preserves the Keychain token across a real relaunch
+before finishing setup; it does not prove validity of any particular phone's
+production token. Invalid/revoked sessions cannot finish setup.
+
 The reported production phone last-seen time (04:48Z) is not enough to identify
 why the installed app later showed **Pair this phone**. No production database,
 Vercel configuration or Michael's device was accessed for this investigation.

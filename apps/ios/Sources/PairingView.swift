@@ -1,6 +1,17 @@
 import SwiftUI
 
-struct CodeStatus: Decodable { let setupRequired: Bool; let people: [Person] }
+struct CodeStatus: Decodable {
+    let setupRequired: Bool
+    let people: [Person]
+
+    enum CodingKeys: String, CodingKey { case setupRequired, people }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        setupRequired = try values.decode(Bool.self, forKey: .setupRequired)
+        people = try values.decodeIfPresent([Person].self, forKey: .people) ?? []
+    }
+}
 struct CodeLogin: Decodable { let token: String; let person: Person }
 struct CodeSettings: Decodable { let configuredPersonIds: [String] }
 
@@ -23,42 +34,45 @@ struct PairingView: View {
                     Text(status?.setupRequired == true ? "Set up Liendo Plaza" : "Enter your code")
                         .font(Plaza.title())
                     if let status {
-                        if status.setupRequired {
-                            Picker("Sign in as", selection: $personId) {
-                                ForEach(status.people.filter(\.isParent)) { Text($0.name).tag($0.id) }
-                            }.accessibilityIdentifier("setup.parent")
-                            .onChange(of: personId) { _, _ in code = ""; confirmation = ""; parentCodes = [:] }
-                        }
-                        SecureField(status.setupRequired ? "Parent code (6+ digits)" : "Enter your code", text: $code)
-                            .keyboardType(.numberPad).textContentType(status.setupRequired ? .newPassword : .password)
-                            .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
-                            .accessibilityIdentifier("code")
-                        if status.setupRequired {
-                            SecureField("Enter parent code again", text: $confirmation)
-                                .keyboardType(.numberPad).textContentType(.newPassword)
+                        if status.setupRequired && personId.isEmpty {
+                            Text("Liendo Plaza isn't set up yet. Open it on a parent's phone that's already signed in to finish setup.")
+                                .accessibilityIdentifier("setup.parentRequired")
+                        } else {
+                            if status.setupRequired {
+                                Text("Setting up as \(house.person?.name ?? "")")
+                                    .accessibilityIdentifier("setup.parent")
+                            }
+                            SecureField(status.setupRequired ? "Parent code (6+ digits)" : "Enter your code", text: $code)
+                                .keyboardType(.numberPad).textContentType(status.setupRequired ? .newPassword : .password)
                                 .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
-                                .accessibilityIdentifier("code.confirmation")
-                            ForEach(status.people.filter { $0.isParent && $0.id != personId }) { person in
-                                SecureField("\(person.name) code (optional, 6+ digits)", text: Binding(
-                                    get: { parentCodes[person.id] ?? "" }, set: { parentCodes[person.id] = $0 }))
+                                .accessibilityIdentifier("code")
+                            if status.setupRequired {
+                                SecureField("Enter parent code again", text: $confirmation)
                                     .keyboardType(.numberPad).textContentType(.newPassword)
                                     .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .accessibilityIdentifier("setup.\(person.slug)")
+                                    .accessibilityIdentifier("code.confirmation")
+                                ForEach(status.people.filter { $0.isParent && $0.id != personId }) { person in
+                                    SecureField("\(person.name) code (optional, 6+ digits)", text: Binding(
+                                        get: { parentCodes[person.id] ?? "" }, set: { parentCodes[person.id] = $0 }))
+                                        .keyboardType(.numberPad).textContentType(.newPassword)
+                                        .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .accessibilityIdentifier("setup.\(person.slug)")
+                                }
+                                Text("Optional: each kid’s birthday as four digits (MMDD). You can set these later in Family.")
+                                    .foregroundStyle(Plaza.muted)
+                                ForEach(status.people.filter { !$0.isParent }) { person in
+                                    SecureField("\(person.name) code (optional)", text: Binding(
+                                        get: { kids[person.id] ?? "" }, set: { kids[person.id] = $0 }))
+                                        .keyboardType(.numberPad).textContentType(.newPassword)
+                                        .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .accessibilityIdentifier("setup.\(person.slug)")
+                                }
                             }
-                            Text("Optional: each kid’s birthday as four digits (MMDD). You can set these later in Family.")
-                                .foregroundStyle(Plaza.muted)
-                            ForEach(status.people.filter { !$0.isParent }) { person in
-                                SecureField("\(person.name) code (optional)", text: Binding(
-                                    get: { kids[person.id] ?? "" }, set: { kids[person.id] = $0 }))
-                                    .keyboardType(.numberPad).textContentType(.newPassword)
-                                    .padding(18).background(Plaza.card).clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .accessibilityIdentifier("setup.\(person.slug)")
-                            }
+                            Button(busy ? "Opening…" : status.setupRequired ? "Set up and sign in" : "Open") {
+                                Task { await submit() }
+                            }.buttonStyle(PrimaryButton()).disabled(busy || code.isEmpty)
+                                .accessibilityIdentifier("open")
                         }
-                        Button(busy ? "Opening…" : status.setupRequired ? "Set up and sign in" : "Open") {
-                            Task { await submit() }
-                        }.buttonStyle(PrimaryButton()).disabled(busy || code.isEmpty)
-                            .accessibilityIdentifier("open")
                     } else {
                         if error.isEmpty { ProgressView("Getting ready…") }
                         else { Button("Try again") { Task { await prepare() } } }
@@ -72,9 +86,10 @@ struct PairingView: View {
     private func prepare() async {
         error = ""
         do {
-            let result: CodeStatus = try await house.api.request("auth/codes/status")
+            let result: CodeStatus = try await house.api.request("auth/codes/status", token: house.session)
             status = result
-            personId = result.people.first(where: \.isParent)?.id ?? ""
+            personId = house.person?.isParent == true && result.people.contains(where: { $0.id == house.person?.id })
+                ? house.person?.id ?? "" : ""
         } catch { if !error.isRequestCancellation { self.error = error.localizedDescription } }
     }
 
@@ -90,7 +105,7 @@ struct PairingView: View {
                 body["parents"] = parentCodes.filter { $0.key != personId && !$0.value.isEmpty }.map { ["personId": $0.key, "code": $0.value] }
             }
             let result: CodeLogin = try await house.api.request(status?.setupRequired == true ? "auth/codes/setup" : "auth/login",
-                                                               method: "POST", payload: JSONSerialization.data(withJSONObject: body))
+                                                               method: "POST", token: house.session, payload: JSONSerialization.data(withJSONObject: body))
             try house.accept(SessionResponse(token: result.token, person: result.person))
             code = ""; confirmation = ""; kids = [:]; parentCodes = [:]
         } catch {

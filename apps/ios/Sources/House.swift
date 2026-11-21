@@ -135,10 +135,20 @@ final class House: ObservableObject {
     func checkCodeSetup() async {
         guard let token = session else { return }
         do {
-            let status: CodeStatus = try await api.request("auth/codes/status")
+            let status: CodeStatus = try await api.request("auth/codes/status", token: token)
+            if status.setupRequired {
+                let me: MeResponse = try await api.request("me", token: token)
+                guard session == token else { return }
+                person = me.actor.person
+            }
             guard session == token else { return }
             codeSetupRequired = status.setupRequired
         } catch {
+            guard session == token else { return }
+            if (error as? APIError)?.status == 401 {
+                do { try clearSession() } catch { self.error = error.localizedDescription }
+                return
+            }
             if !error.isRequestCancellation { self.error = error.localizedDescription }
         }
     }

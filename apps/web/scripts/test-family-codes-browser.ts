@@ -13,15 +13,27 @@ async function main() {
   const browser = await chromium.launch();
   try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
-    const noah = (await getDb().select().from(schema.people)).find((person) => person.slug === "noah")!;
-    const legacy = await loginWithPin(noah.id, "1234", { kind: "browser", label: "Before family-code setup" });
-    await context.addCookies([{ name: "lp_session", value: legacy.token, url: base, httpOnly: true }]);
     const page = await context.newPage();
-    const oldSnapshot = page.waitForResponse((response) => response.url().includes("/api/snapshot?") && response.ok());
     await page.goto(`${base}/family`);
-    await page.getByRole("heading", { name: "Set up Liendo Plaza" }).waitFor();
-    const prior = await (await oldSnapshot).json();
-    assert.ok(prior.chores.length > 0 && prior.chores.every((chore: { personId: string }) => chore.personId === noah.id));
+    await page.getByText("Liendo Plaza isn't set up yet.", { exact: false }).waitFor();
+    assert.equal(await page.locator("input, select").count(), 0);
+    assert.equal((await context.request.get(`${base}/api/auth/codes/status`)).status(), 200);
+    await page.screenshot({ path: `${artifacts}/web-anonymous-setup-blocked.png`, fullPage: true });
+    console.log("PASS anonymous setup shows parent-device message without form or roster");
+    const roster = await getDb().select().from(schema.people);
+    const noah = roster.find((person) => person.slug === "noah")!;
+    const focus = roster.find((person) => person.slug === "focus")!;
+    const kid = await loginWithPin(noah.id, "1234", { kind: "browser", label: "Existing kid" });
+    await context.addCookies([{ name: "lp_session", value: kid.token, url: base, httpOnly: true }]);
+    await page.reload();
+    await page.getByText("Liendo Plaza isn't set up yet.", { exact: false }).waitFor();
+    assert.equal(await page.locator("input, select").count(), 0);
+    console.log("PASS existing kid session cannot render setup form or roster");
+    const legacy = await loginWithPin(focus.id, "123456", { kind: "browser", label: "Existing parent before setup" });
+    await context.addCookies([{ name: "lp_session", value: legacy.token, url: base, httpOnly: true }]);
+    await page.reload();
+    await page.getByText("Setting up as Focus", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("combobox").count(), 0);
     await page.screenshot({ path: `${artifacts}/web-setup.png`, fullPage: true });
     await page.getByLabel("Parent code (6+ digits)", { exact: true }).fill("123456");
     await page.getByLabel("Enter parent code again").fill("123456");
@@ -34,10 +46,11 @@ async function main() {
     assert.ok((await context.cookies()).some((cookie) => cookie.name === "lp_session" && cookie.httpOnly));
     assert.equal((await getDb().select().from(schema.familyCodes)).length, 5);
     console.log("PASS browser setup -> API -> hashed codes and HTTP-only session -> parent home");
-    console.log("PASS setup replaces legacy kid identity and cached chores with the parent snapshot without reload");
+    console.log("PASS existing parent finishes locked-to-self setup and receives parent home without reload");
 
     await page.goto(`${base}/family/pins`);
     await page.getByRole("heading", { name: "Family codes", exact: true }).waitFor();
+    await page.getByRole("combobox").selectOption({ label: "Focus" });
     await page.getByLabel("New parent code (6+ digits)", { exact: true }).fill("654321");
     await page.getByLabel("Enter parent code again").fill("654321");
     await page.getByRole("button", { name: "Save code", exact: true }).click();

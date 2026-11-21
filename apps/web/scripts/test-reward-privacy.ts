@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { inArray } from "drizzle-orm";
 import type { Person } from "@liendo/shared";
-import { pairDisplay } from "../lib/auth";
+import { pairDisplay, loginWithPin } from "../lib/auth";
 import { getDb, getPool, schema } from "../lib/db";
 import { listRewardRequests } from "../lib/stars";
 
@@ -19,8 +19,9 @@ async function main() {
   const codes = ["123456", "0101", "1234", "0303"];
   const status = await fetch(`${base}/api/auth/codes/status`).then((r) => r.json());
   if (status.setupRequired) {
+    const legacy = await loginWithPin(parent.id, "123456", { kind: "browser", label: "Existing privacy-test parent" });
     const setup = await fetch(`${base}/api/auth/codes/setup`, {
-      method: "POST", headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${legacy.token}` },
       body: JSON.stringify({ personId: parent.id, code: codes[0], confirmation: codes[0],
         kids: [sofia, noah, xavier].map((person, index) => ({ personId: person.id, code: codes[index + 1] })) }),
     });
