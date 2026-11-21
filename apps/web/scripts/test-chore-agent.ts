@@ -7,6 +7,7 @@ import { HttpError } from "../lib/http";
 import { getPool } from "../lib/db";
 import { listChores } from "../lib/chores";
 import { NoObjectGeneratedError } from "ai";
+import { MockLanguageModelV4 } from "ai/test";
 
 async function main() {
   process.env.CHORE_AGENT_FAKE = "1";
@@ -52,6 +53,34 @@ async function main() {
   assert.equal(proposal.changes.length, 1);
   const created = (await applyChores(proposal.changes)).chores.find(c => c.title === "Agent regression fish" && c.active)!;
   assert.ok(created);
+  const unknownId = "01234567-89ab-cdef-0123-456789abcdef";
+  const model = new MockLanguageModelV4({
+    doGenerate: {
+      content: [{ type: "text", text: JSON.stringify({
+        summary: `Remove ${created.id} for ${kid.id.toUpperCase()}. Also ${created.id.toUpperCase()}; reference ${unknownId}.`,
+        changes: [{ op: "delete", choreId: created.id }],
+      }) }],
+      finishReason: { unified: "stop", raw: "stop" },
+      usage: {
+        inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 1, text: 1, reasoning: 0 },
+      },
+      warnings: [],
+    },
+  });
+  process.env.CHORE_AGENT_FAKE = "0";
+  try {
+    const removal = await proposeChores({ message: `remove ${created.title}` }, model);
+    assert.equal(removal.summary, `Remove ${created.title} for ${kid.name}. Also ${created.title}; reference .`);
+    assert.doesNotMatch(removal.summary, /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    assert.equal(removal.changes[0].op === "delete" && removal.changes[0].choreId, created.id);
+    assert.equal(model.doGenerateCalls.length, 1);
+    assert.ok(model.doGenerateCalls[0].prompt.some(turn => turn.role === "system" &&
+      turn.content.includes("never IDs or UUIDs")));
+  } finally {
+    process.env.CHORE_AGENT_FAKE = "1";
+  }
+  console.log("PASS stub-model removal summaries replace chore/person IDs with names and strip unknown UUIDs");
   const preview = await validateChanges([{ op: "update", choreId: created.id, patch: { stars: 3 } }]);
   assert.equal(preview[0].before?.stars, 1);
   const updated = await applyChores(preview);
