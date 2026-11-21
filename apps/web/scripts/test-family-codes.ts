@@ -177,7 +177,7 @@ test("concurrent duplicate kid changes cannot both succeed", async () => {
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
 });
 
-test("parents manage each other's codes, reject duplicates, and clearing the final parent reopens setup", async () => {
+test("parents manage each other's codes but cannot clear the final parent or reopen setup", async () => {
   const parent = (await setup()).body.token;
   assert.equal((await api("auth/codes", { personId: otherParentId, code: "543210", confirmation: "543210" }, parent)).status, 409);
   assert.equal((await api("auth/codes", { personId: otherParentId, code: "654321", confirmation: "bad" }, parent)).status, 400);
@@ -187,9 +187,33 @@ test("parents manage each other's codes, reject duplicates, and clearing the fin
   assert.equal((await api("auth/codes", { personId: parentId, code: "" }, other)).status, 200);
   assert.equal((await api("auth/login", { code: "987654" })).status, 401);
   assert.equal((await api("auth/codes/status")).body.setupRequired, false);
-  assert.equal((await api("auth/codes", { personId: otherParentId, code: "" }, other)).status, 200);
+  const blocked = await api("auth/codes", { personId: otherParentId, code: "" }, other);
+  assert.equal(blocked.status, 409);
+  assert.equal(blocked.body.error, "Keep at least one parent code. Set a new code instead.");
+  assert.equal((await api("auth/codes/status")).body.setupRequired, false);
+  assert.equal((await setup()).status, 409);
+  assert.equal((await api("auth/login", { code: "654321" })).body.person.id, otherParentId);
+  assert.equal((await api("auth/codes", { personId: kidId, code: "0304" }, other)).status, 200);
+});
+
+test("concurrent parent clears keep at least one parent code", async () => {
+  const parent = (await setup({ parents: [{ personId: otherParentId, code: "654321" }] })).body.token;
+  const results = await Promise.all([parentId, otherParentId].map((personId) => api("auth/codes", { personId, code: "" }, parent)));
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+  const settings = (await api("auth/codes", undefined, parent)).body;
+  assert.equal(settings.configuredPersonIds.filter((id: string) => [parentId, otherParentId].includes(id)).length, 1);
+  assert.equal((await api("auth/codes/status")).body.setupRequired, false);
+});
+
+test("setup rejects a code already held by a different kid without writing partial state", async () => {
+  const hash = await hashPin("0102");
+  await db.insert(schema.familyCodes).values({ id: otherKidId, hash });
   assert.equal((await api("auth/codes/status")).body.setupRequired, true);
-  assert.equal((await setup()).status, 200);
+  assert.equal((await setup()).status, 409);
+  assert.deepEqual(await db.select().from(schema.familyCodes), [{ id: otherKidId, hash, failedAttempts: 0, lockedUntil: null }]);
+  assert.equal((await setup({ kids: [{ personId: kidId, code: "0304" }] })).status, 200);
+  assert.equal((await api("auth/login", { code: "0102" })).body.person.id, otherKidId);
+  assert.equal((await api("auth/login", { code: "0304" })).body.person.id, kidId);
 });
 
 test("concurrent duplicate parent changes cannot both succeed or reset household failures", async () => {

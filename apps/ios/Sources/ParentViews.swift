@@ -44,6 +44,9 @@ struct FamilyCodesView: View {
     @State private var configured: [String]?
 
     private var isParent: Bool { house.snapshot?.people.first { $0.id == personId }?.isParent == true }
+    private var canClear: Bool {
+        !isParent || (house.snapshot?.people.contains { $0.isParent && $0.id != personId && configured?.contains($0.id) == true } ?? false)
+    }
 
     var body: some View {
         Form {
@@ -60,8 +63,9 @@ struct FamilyCodesView: View {
                     SecureField("Enter parent code again", text: $confirmation)
                         .keyboardType(.numberPad).textContentType(.newPassword).accessibilityIdentifier("codes.confirmation")
                 }
-                Button(!code.isEmpty ? "Save code" : "Clear code") { Task { await save() } }
-                    .disabled(busy || personId.isEmpty).accessibilityIdentifier("codes.save")
+                if isParent && !canClear { Text("Keep at least one parent code. Enter a new code to replace this one.").foregroundStyle(Plaza.muted) }
+                Button(!code.isEmpty || !canClear ? "Save code" : "Clear code") { Task { await save() } }
+                    .disabled(busy || personId.isEmpty || (code.isEmpty && !canClear)).accessibilityIdentifier("codes.save")
             } footer: {
                 Text("Each parent has their own code of 6 or more digits. Each kid has a different four-digit birthday code (MMDD). Leave a code empty to clear it. Existing signed-in devices stay signed in.")
             }

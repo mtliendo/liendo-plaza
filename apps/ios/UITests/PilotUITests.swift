@@ -126,6 +126,7 @@ final class PilotUITests: XCTestCase {
         app.buttons["familyCodes"].tap()
         XCTAssertTrue(app.secureTextFields["codes.new"].waitForExistence(timeout: 20))
         capture(app, "individual-parent-code")
+        _ = try await api("auth/codes", body: ["personId": try XCTUnwrap(jess["id"] as? String), "code": ""], token: parentToken)
     }
 
     @MainActor
@@ -140,6 +141,9 @@ final class PilotUITests: XCTestCase {
         app.buttons["familyCodes"].tap()
         let code = app.secureTextFields["codes.new"]
         XCTAssertTrue(code.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Keep at least one parent code. Enter a new code to replace this one."].exists)
+        XCTAssertEqual(app.buttons["codes.save"].label, "Save code")
+        XCTAssertFalse(app.buttons["codes.save"].isEnabled)
         code.tap(); code.typeText("654321")
         app.secureTextFields["codes.confirmation"].tap()
         app.secureTextFields["codes.confirmation"].typeText("654321")

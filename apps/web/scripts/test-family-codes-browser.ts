@@ -47,6 +47,7 @@ async function main() {
 
     const parentContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const parentPage = await parentContext.newPage();
+    parentPage.on("pageerror", (error) => console.error("Browser error:", error.message));
     await parentPage.goto(`${base}/family`);
     await parentPage.getByLabel("Enter your code", { exact: true }).fill("9999");
     await parentPage.getByRole("button", { name: "Open", exact: true }).click();
@@ -58,12 +59,23 @@ async function main() {
     assert.ok((await parentContext.cookies()).some((cookie) => cookie.name === "lp_session"));
     console.log("PASS wrong code error and individual parent code -> direct parent session");
     await parentPage.goto(`${base}/family/pins`);
-    await parentPage.getByLabel("Who", { exact: true }).selectOption({ label: "Focus" });
+    await parentPage.getByRole("combobox").selectOption({ label: "Focus" });
     await parentPage.getByLabel("New parent code (6+ digits)", { exact: true }).fill("765432");
     await parentPage.getByLabel("Enter parent code again").fill("765432");
     await parentPage.getByRole("button", { name: "Save code", exact: true }).click();
     await parentPage.getByRole("status").filter({ hasText: "Code saved." }).waitFor();
     console.log("PASS a signed-in parent resets the other parent's code");
+    await parentPage.getByRole("button", { name: "Clear code", exact: true }).click();
+    await parentPage.getByRole("status").filter({ hasText: "Code cleared." }).waitFor();
+    await parentPage.getByRole("combobox").selectOption({ label: "Jess" });
+    await parentPage.getByText("Keep at least one parent code. Enter a new code to replace this one.").waitFor();
+    assert.equal(await parentPage.getByRole("button", { name: "Clear code", exact: true }).count(), 0);
+    assert.equal(await parentPage.getByRole("button", { name: "Save code", exact: true }).isDisabled(), true);
+    await parentPage.getByLabel("New parent code (6+ digits)", { exact: true }).fill("345678");
+    await parentPage.getByLabel("Enter parent code again").fill("345678");
+    await parentPage.getByRole("button", { name: "Save code", exact: true }).click();
+    await parentPage.getByRole("status").filter({ hasText: "Code saved." }).waitFor();
+    console.log("PASS settings clear one parent's code but only offer replacement for the last parent");
 
     const kidContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const kidPage = await kidContext.newPage();

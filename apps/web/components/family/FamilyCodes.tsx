@@ -76,6 +76,7 @@ export function FamilyCodeSettings({ people }: { people: Person[] }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const isParent = people.find((p) => p.id === personId)?.role === "parent";
+  const canClear = !isParent || people.some((p) => p.role === "parent" && p.id !== personId && configured?.includes(p.id));
   useEffect(() => { if (!personId) setPersonId(people.find((p) => p.role === "parent")?.id ?? ""); }, [people, personId]);
   useEffect(() => { void request("auth/codes").then((result) => setConfigured(result.configuredPersonIds)).catch((error: Error) => setMessage(error.message)); }, []);
   return <><h1>Family codes</h1><p>Each parent has their own code of 6 or more digits. Each kid has a different four-digit birthday code (MMDD). Leave a code empty to clear it. Existing signed-in devices stay signed in.</p>
@@ -88,6 +89,7 @@ export function FamilyCodeSettings({ people }: { people: Person[] }) {
       <label className="field"><span>Who</span><select className="select" value={personId} onChange={(event) => { setPersonId(event.target.value); setCode(""); setConfirmation(""); setMessage(""); }}>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       <label className="field"><span>{isParent ? "New parent code (6+ digits)" : "New kid code (4 digits; leave empty to clear)"}</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" maxLength={isParent ? 72 : 4} value={code} onChange={(event) => setCode(event.target.value)} /></label>
       {isParent && code ? <label className="field"><span>Enter parent code again</span><input className="input" type="password" inputMode="numeric" autoComplete="new-password" required value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label> : null}
-      <button className="btn" disabled={busy} type="submit">{!code ? "Clear code" : "Save code"}</button>
+      {isParent && !canClear ? <p>Keep at least one parent code. Enter a new code to replace this one.</p> : null}
+      <button className="btn" disabled={busy || (!code && !canClear)} type="submit">{!code && canClear ? "Clear code" : "Save code"}</button>
     </form>{message ? <p role="status">{message}</p> : null}</>;
 }

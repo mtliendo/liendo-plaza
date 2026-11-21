@@ -37,8 +37,10 @@ verification across server instances, including duplicate parent/kid checks.
 - `GET /api/auth/codes`: parent-only configured person IDs (parents and kids).
 - `POST /api/auth/codes`: parent-only `{personId, code, confirmation?}`.
   Any signed-in parent can set/reset/clear any person's code. Nonempty parent
-  codes require confirmation. Empty code clears it; clearing the final parent
-  code deliberately reopens first-run setup, so coordinate this with the family.
+  codes require confirmation. Empty code clears it, except the last remaining
+  parent code cannot be cleared (HTTP 409); set a replacement code instead.
+  Setup also rejects kid codes that collide with existing kids' codes, even
+  when no parent code exists yet.
 
 The existing in-memory per-IP helper limits sign-in to 20/minute and setup to
 10/minute per server instance. Ten consecutive wrong codes also persist a 5-minute

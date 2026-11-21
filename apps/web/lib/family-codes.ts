@@ -52,6 +52,12 @@ export async function setupFamilyCodes(input: unknown, device: DeviceAttach) {
     if (!chosen || parents.some((entry) => !people.some((p) => p.id === entry.personId && p.role === "parent")) || body.kids.some((kid) => !people.some((p) => p.id === kid.personId && p.role === "kid"))) {
       throw new HttpError(400, "Pick a parent and valid kids.");
     }
+    for (const kid of body.kids) {
+      for (const other of people.filter((p) => p.role === "kid" && p.id !== kid.personId)) {
+        const row = rows.find((row) => row.id === other.id);
+        if (row && await bcrypt.compare(kid.code, row.hash)) throw new HttpError(409, "Each person needs a different code.");
+      }
+    }
     await tx.insert(schema.familyCodes).values({ id: "household", hash: "" }).onConflictDoNothing();
     for (const entry of codes) {
       const hash = await hashPin(entry.code);
@@ -112,7 +118,13 @@ export async function changeFamilyCode(input: unknown) {
     const person = people.find((p) => p.id === body.personId);
     if (!person) throw new HttpError(400, "Pick a person.");
     const id = person.id;
-    if (!body.code) { await tx.delete(schema.familyCodes).where(eq(schema.familyCodes.id, id)); return; }
+    if (!body.code) {
+      if (person.role === "parent" && !people.some((p) => p.role === "parent" && p.id !== id && rows.some((row) => row.id === p.id))) {
+        throw new HttpError(409, "Keep at least one parent code. Set a new code instead.");
+      }
+      await tx.delete(schema.familyCodes).where(eq(schema.familyCodes.id, id));
+      return;
+    }
     parse(person.role === "parent" ? parentCode : kidCode, body.code);
     if (person.role === "parent" && body.confirmation !== body.code) throw new HttpError(400, "The codes do not match.");
     for (const other of people.filter((p) => p.role === person.role && p.id !== id)) {
