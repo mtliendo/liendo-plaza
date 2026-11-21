@@ -43,6 +43,7 @@ final class House: ObservableObject {
     @Published var snapshot: Snapshot?
     @Published var pendingInstances: [ChoreInstance] = []
     @Published var loading = false
+    @Published var codeSetupRequired = false
     @Published var error = ""
     @Published var pairingVersion = UUID()
     @Published var deviceApproval: DeviceApproval?
@@ -99,14 +100,21 @@ final class House: ObservableObject {
 
     func accept(_ result: SessionResponse) throws {
         try Keychain.write(result.token, key: "session")
+        api.session.configuration.urlCache?.removeAllCachedResponses()
+        snapshot = nil
+        pendingInstances = []
+        deviceApproval = nil
+        ChoreReminders.remove()
         person = result.person
         UserDefaults.standard.set(result.person.id, forKey: "phonePersonId")
         session = result.token
+        codeSetupRequired = false
         error = ""
     }
 
     func clearSession() throws {
         try Keychain.write(nil, key: "session")
+        api.session.configuration.urlCache?.removeAllCachedResponses()
         session = nil
         person = nil
         snapshot = nil
@@ -141,6 +149,17 @@ final class House: ObservableObject {
         if includingPendingProofs { await loadPendingProofs() }
     }
 
+    func checkCodeSetup() async {
+        guard let token = session else { return }
+        do {
+            let status: CodeStatus = try await api.request("auth/codes/status")
+            guard session == token else { return }
+            codeSetupRequired = status.setupRequired
+        } catch {
+            if !error.isRequestCancellation { self.error = error.localizedDescription }
+        }
+    }
+
     func loadPendingProofs() async {
         guard person?.isParent == true, let token = session else {
             pendingInstances = []
@@ -161,9 +180,6 @@ final class House: ObservableObject {
         await pushRegistrationTask?.value
         if let pushToken, let token = session {
             await unregisterPush(pushToken, session: token)
-        }
-        if person?.isParent == true && family == nil {
-            try? await provisionFamily()
         }
         let _: OKResponse? = try? await api.request("auth/logout", method: "POST", token: session)
         do {

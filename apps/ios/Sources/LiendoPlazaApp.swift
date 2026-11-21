@@ -8,7 +8,7 @@ struct LiendoPlazaApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if house.session != nil {
+                if house.session != nil && !house.codeSetupRequired {
                     RoleTabs()
                 } else {
                     PairingView().id(house.pairingVersion)
@@ -27,6 +27,7 @@ struct LiendoPlazaApp: App {
                 .foregroundStyle(Plaza.ink).tint(Plaza.accent)
             }
             .onOpenURL { url in Task { await house.open(url) } }
+            .task(id: house.session) { await house.checkCodeSetup() }
             .task(id: house.person?.id) { await registerPush() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await registerPush() } }

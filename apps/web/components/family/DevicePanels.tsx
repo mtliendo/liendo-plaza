@@ -15,13 +15,11 @@ type Device = {
   lastSeenAt: string | null;
   createdAt: string;
 };
-type Invite = { webUrl: string; deepLink: string; qrDataUrl: string; expiresAt: string };
 
 export function AddDevicePanel() {
   const visible = usePageVisible();
   const [code, setCode] = useState("");
   const [pending, setPending] = useState<Pending[]>([]);
-  const [invite, setInvite] = useState<Invite | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -57,25 +55,10 @@ export function AddDevicePanel() {
     await loadPending();
   }
 
-  async function invitePhone() {
-    setError("");
-    const res = await fetch("/api/pair/invite", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ deviceKind: "phone" }),
-    });
-    const body = (await res.json()) as Invite & { error?: string };
-    if (!res.ok) {
-      setError(body.error ?? "Could not make an invite.");
-      return;
-    }
-    setInvite(body);
-  }
-
   return (
     <>
       <h1>Add a device</h1>
-      <p>Approve the kitchen frame or another phone that is showing a short code, or make a one-time QR for a new phone.</p>
+      <p>Approve a kitchen board showing a short code. Phones and browsers sign in with a family code.</p>
 
       <form
         className="list"
@@ -117,23 +100,6 @@ export function AddDevicePanel() {
             </button>
           ))}
         </section>
-      ) : null}
-
-      <button className="btn" type="button" onClick={() => void invitePhone()} data-testid="invite-phone">
-        Invite a new phone
-      </button>
-
-      {invite ? (
-        <div className="pair-card pair-card-compact" id="invite-card">
-          <p className="small">New phone scans this</p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={invite.qrDataUrl} alt="Invite QR code" className="pair-qr" data-testid="invite-qr" />
-          <p className="small" data-testid="invite-url">
-            {invite.webUrl}
-          </p>
-          <p className="small">{invite.deepLink}</p>
-          <p className="small">One use. Expires in about ten minutes.</p>
-        </div>
       ) : null}
 
       {message ? <p>{message}</p> : null}

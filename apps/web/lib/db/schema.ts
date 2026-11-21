@@ -23,6 +23,13 @@ export const people = pgTable("people", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const familyCodes = pgTable("family_codes", {
+  id: text("id").primaryKey(),
+  hash: text("hash").notNull(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+});
+
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   personId: uuid("person_id")

@@ -16,7 +16,7 @@ struct AddDeviceView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Add a device").font(Plaza.title())
-                Text("Approve a kitchen frame or another phone that is showing a short code.")
+                Text("Approve a kitchen board that is showing a short code. Phones sign in with a family code.")
                     .foregroundStyle(Plaza.muted)
                 TextField("Code from the other screen", text: $code)
                     .textInputAutocapitalization(.characters).autocorrectionDisabled()

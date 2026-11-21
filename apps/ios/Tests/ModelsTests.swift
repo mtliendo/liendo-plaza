@@ -74,6 +74,58 @@ private final class ToggleProtocol: URLProtocol {
 }
 
 final class ModelsTests: XCTestCase {
+    @MainActor
+    func testSignInAndSignOutClearURLCache() throws {
+        let cache = URLCache(memoryCapacity: 512_000, diskCapacity: 512_000, diskPath: "role-audit-\(UUID().uuidString)")
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = cache
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel(); cache.removeAllCachedResponses() }
+        let house = House(api: APIClient(session: network))
+        defer { try? house.clearSession() }
+        let request = URLRequest(url: URL(string: "https://cache.test/api/snapshot")!)
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+            headerFields: ["Cache-Control": "public, max-age=600"])!
+        let cached = CachedURLResponse(response: response, data: Data("private proof metadata".utf8), storagePolicy: .allowed)
+        cache.storeCachedResponse(cached, for: request)
+        XCTAssertNotNil(cache.cachedResponse(for: request))
+        let person = Person(id: "parent", slug: "focus", name: "Focus", role: "parent", color: "", avatarKey: nil)
+        try house.accept(SessionResponse(token: "code-issued-session", person: person))
+        XCTAssertNil(cache.cachedResponse(for: request))
+        cache.storeCachedResponse(cached, for: request)
+        XCTAssertNotNil(cache.cachedResponse(for: request))
+        try house.clearSession()
+        XCTAssertNil(cache.cachedResponse(for: request))
+    }
+
+    @MainActor
+    func testAcceptClearsPreviousIdentityState() throws {
+        let kid = Person(id: "kid", slug: "noah", name: "Noah", role: "kid", color: "", avatarKey: nil)
+        let focus = Person(id: "focus", slug: "focus", name: "Focus", role: "parent", color: "", avatarKey: nil)
+        let jess = Person(id: "jess", slug: "jess", name: "Jess", role: "parent", color: "", avatarKey: nil)
+        for (previous, next) in [(focus, kid), (kid, focus), (focus, jess)] {
+            let house = House()
+            defer { try? house.clearSession() }
+            let proof = ChoreInstance(id: "proof", choreId: "chore", personId: "other-kid", date: "2026-11-20",
+                status: "pending", title: "Private chore", stars: 2, starsAwarded: 0,
+                requiresPhoto: true, description: nil, photoPath: "local:private.jpg", steps: [])
+            house.session = "old-session"
+            house.person = previous
+            house.snapshot = Snapshot(now: "2026-11-20T12:00:00-06:00", timezone: "America/Chicago",
+                chores: [proof], meals: [], people: [previous], stars: nil, settings: nil)
+            house.pendingInstances = [proof]
+            house.deviceApproval = DeviceApproval(code: "ABC123")
+            house.codeSetupRequired = true
+            try house.accept(SessionResponse(token: "new-session", person: next))
+            XCTAssertEqual(house.person, next)
+            XCTAssertEqual(house.session, "new-session")
+            XCTAssertFalse(house.codeSetupRequired)
+            XCTAssertNil(house.snapshot)
+            XCTAssertTrue(house.pendingInstances.isEmpty)
+            XCTAssertNil(house.deviceApproval)
+        }
+    }
+
     func testCancellationClassificationKeepsRealErrors() {
         XCTAssertTrue(CancellationError().isRequestCancellation)
         XCTAssertTrue(URLError(.cancelled).isRequestCancellation)
@@ -342,7 +394,7 @@ final class ModelsTests: XCTestCase {
     }
 
     @MainActor
-    func testSignOutClearsRevokedParentDespiteProvisionAndLogoutFailure() async throws {
+    func testSignOutClearsRevokedParentDespiteLogoutFailure() async throws {
         let saved = Keychain.read("session")
         defer { try? Keychain.write(saved, key: "session") }
         let configuration = URLSessionConfiguration.ephemeral
@@ -356,7 +408,7 @@ final class ModelsTests: XCTestCase {
         try Keychain.write("revoked-session", key: "session")
         RevokedSessionProtocol.paths = []
         await house.signOut()
-        XCTAssertEqual(RevokedSessionProtocol.paths, ["/api/pair/invite", "/api/auth/logout"])
+        XCTAssertEqual(RevokedSessionProtocol.paths, ["/api/auth/logout"])
         XCTAssertNil(house.session)
         XCTAssertNil(house.person)
         XCTAssertNil(Keychain.read("session"))
@@ -545,5 +597,19 @@ final class ModelsTests: XCTestCase {
 
     func testMalformedSnapshotIsNotSilentlyEmpty() {
         XCTAssertThrowsError(try JSONDecoder().decode(Snapshot.self, from: Data("{}".utf8)))
+    }
+
+    func testCodeLoginResponses() throws {
+        let decoder = JSONDecoder()
+        let setup = try decoder.decode(CodeStatus.self, from: Data("{\"setupRequired\":true,\"people\":[]}".utf8))
+        XCTAssertTrue(setup.setupRequired)
+        XCTAssertTrue(setup.people.isEmpty)
+        let login = try decoder.decode(CodeLogin.self, from: Data(#"{"token":"session","person":{"id":"parent","slug":"focus","name":"Focus","role":"parent","color":"red"}}"#.utf8))
+        XCTAssertEqual(login.token, "session")
+        XCTAssertTrue(login.person.isParent)
+        XCTAssertThrowsError(try decoder.decode(CodeLogin.self, from: Data("{}".utf8)))
+        let settings = try decoder.decode(CodeSettings.self, from: Data("{\"configuredPersonIds\":[\"parent\"]}".utf8))
+        XCTAssertEqual(settings.configuredPersonIds, ["parent"])
+        XCTAssertThrowsError(try decoder.decode(CodeStatus.self, from: Data("{}".utf8)))
     }
 }
