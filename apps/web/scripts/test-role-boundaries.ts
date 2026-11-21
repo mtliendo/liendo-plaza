@@ -86,7 +86,7 @@ async function main() {
     parents: [{ personId: person("jess").id, code: "234567" }],
     kids: [{ personId: noah.id, code: "0102" }, { personId: sofia.id, code: "0304" }, { personId: person("xavier").id, code: "0506" }] };
   await check("auth/codes/status", "Anonymous", 200, "GET", undefined, (data) => {
-    assert.deepEqual(data, { setupRequired: true });
+    assert.deepEqual(data, { setupRequired: true, people: [] });
   }, "no public roster");
   await check("auth/codes/setup", "Anonymous", 401, "POST", setup);
   tokens.Focus = (await issuePersonSession(asPerson(person("focus")), { kind: "phone", label: "Existing audit parent" })).token;
@@ -129,7 +129,7 @@ async function main() {
   for (const role of ["Noah", "Focus", "Jess"] as const) {
     const kid = role === "Noah";
     const current = person(kid ? "noah" : role.toLowerCase());
-    await check("auth/codes/status", role, 200, "GET", undefined, (data) => { assert.deepEqual(data, kid ? { setupRequired: false } : { setupRequired: false, people: [] }); });
+    await check("auth/codes/status", role, 200, "GET", undefined, (data) => { assert.deepEqual(data, { setupRequired: false, people: [] }); });
     await check("auth/codes/setup", role, kid ? 403 : 409, "POST", { code: "123456", confirmation: "123456", personId: current.id });
     await check("auth/codes", role, kid ? 403 : 200, "GET", undefined, (data) => {
       noSecrets(data); if (!kid) { assert.deepEqual(Object.keys(data), ["configuredPersonIds"]); assert.equal(data.configuredPersonIds.length, 5); }

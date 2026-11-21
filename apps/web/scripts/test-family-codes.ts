@@ -88,13 +88,14 @@ test("setup and status require a live parent, bind identity and protect the rost
     };
     const status = await send("auth/codes/status");
     assert.equal(status.status, 200);
+    assert.ok(Array.isArray(status.body.people), "legacy iOS requires a people array for every caller");
     if (caller.parent) {
       assert.equal(status.body.people.length, 4);
       assert.doesNotMatch(JSON.stringify(status.body), /pinHash|failedAttempts|lockedUntil/);
       const wrong = await send("auth/codes/setup", { personId: caller.parent.id === parentId ? otherParentId : parentId,
         code: "543210", confirmation: "543210" });
       assert.equal(wrong.status, 403);
-    } else assert.deepEqual(status.body, { setupRequired: true });
+    } else assert.deepEqual(status.body, { setupRequired: true, people: [] });
     const result = await send("auth/codes/setup", { personId: caller.parent?.id ?? parentId, code: "543210", confirmation: "543210" });
     assert.equal(result.status, caller.expected);
     if (caller.parent) {
@@ -104,7 +105,8 @@ test("setup and status require a live parent, bind identity and protect the rost
     } else assert.equal((await db.select().from(schema.familyCodes)).length, 0);
     if (!caller.parent) await setup();
     const established = await send("auth/codes/status");
-    assert.deepEqual(established.body, caller.parent ? { setupRequired: false, people: [] } : { setupRequired: false });
+    assert.ok(Array.isArray(established.body.people));
+    assert.deepEqual(established.body, { setupRequired: false, people: [] });
   }
 });
 
@@ -116,7 +118,7 @@ test("revoked and expired parent sessions cannot obtain a setup roster or write 
     if (state === "expired") {
       await db.update(schema.sessions).set({ expiresAt: new Date(0) }).where(eq(schema.sessions.tokenHash, createHash("sha256").update(session.token).digest("hex")));
     }
-    assert.deepEqual((await api("auth/codes/status", undefined, session.token)).body, { setupRequired: true });
+    assert.deepEqual((await api("auth/codes/status", undefined, session.token)).body, { setupRequired: true, people: [] });
     assert.equal((await api("auth/codes/setup", { personId: parentId, code: "543210", confirmation: "543210" }, session.token)).status, 401);
     assert.equal((await db.select().from(schema.familyCodes)).length, 0);
   }
@@ -132,7 +134,7 @@ test("setup is atomic under a race and stores only hashes; omitted kid codes rem
   const result = results.find((r) => r.status === 200)!;
   assert.equal((await personFromSession(result.body.token))?.id, parentId);
   assert.equal((await api("auth/codes/status")).body.setupRequired, false);
-  assert.deepEqual((await api("auth/codes/status")).body, { setupRequired: false });
+  assert.deepEqual((await api("auth/codes/status")).body, { setupRequired: false, people: [] });
   assert.equal((await api("auth/login", { code: "1234" })).status, 401);
 });
 

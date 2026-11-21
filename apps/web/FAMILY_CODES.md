@@ -33,9 +33,10 @@ or migration 0006 is needed: 0005 remains unchanged and works with the existing
 empty production table. A shared lock serializes setup, code edits and sign-in
 verification across server instances, including duplicate parent/kid checks.
 
-- `GET /api/auth/codes/status`: anonymous/kid/display receive only
-  `{setupRequired}`. A live parent additionally gets `people` (sanitized roster
-  before setup; empty after setup). Responses remain private/no-store with Vary.
+- `GET /api/auth/codes/status`: always includes a `people` array for older iOS
+  decoders. Anonymous/kid/display receive `{setupRequired, people: []}`. Only a
+  live parent before setup gets a nonempty sanitized roster; everyone gets an
+  empty array after setup. Responses remain private/no-store with Vary.
 - `POST /api/auth/codes/setup`: `{code, confirmation, personId, parents?:
   [{personId, code}], kids?: [{personId, code}], deviceKind?, cookie?}`.
   Requires a live parent bearer/cookie session. Anonymous/display return 401,

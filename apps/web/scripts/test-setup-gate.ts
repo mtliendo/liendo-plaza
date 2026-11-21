@@ -59,8 +59,9 @@ async function main() {
   for (const caller of callers) {
     await db.delete(schema.familyCodes);
     await check(caller, "before setup", "auth/codes/status", 200, undefined, (data) => {
+      assert.ok(Array.isArray(data.people), "legacy iOS requires a people array for every caller");
       if (caller.parentId) { assert.equal(data.setupRequired, true); assert.equal(data.people.length, 5); }
-      else assert.deepEqual(data, { setupRequired: true });
+      else assert.deepEqual(data, { setupRequired: true, people: [] });
     });
     const body = { personId: caller.parentId ?? focus.id, code: "123456", confirmation: "123456" };
     if (caller.parentId) {
@@ -79,7 +80,8 @@ async function main() {
         { ...body, personId: focus.id }, (data) => assert.equal(data.person.id, focus.id));
     }
     await check(caller, "after setup", "auth/codes/status", 200, undefined, (data) => {
-      assert.deepEqual(data, caller.parentId ? { setupRequired: false, people: [] } : { setupRequired: false });
+      assert.ok(Array.isArray(data.people));
+      assert.deepEqual(data, { setupRequired: false, people: [] });
     });
     await check(caller, "after setup", "auth/codes/setup", caller.parentId ? 409 : caller.denied, body,
       (data) => assert.deepEqual(Object.keys(data), ["error"]));

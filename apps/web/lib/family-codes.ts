@@ -31,9 +31,7 @@ export async function familyCodeStatus(parent?: Person) {
   const rows = await db.select({ id: schema.familyCodes.id }).from(schema.familyCodes);
   const people = await db.select().from(schema.people);
   const setupRequired = !people.some((p) => p.role === "parent" && rows.some((row) => row.id === p.id));
-  return parent?.role === "parent"
-    ? { setupRequired, people: setupRequired ? people.map(asPerson) : [] }
-    : { setupRequired };
+  return { setupRequired, people: setupRequired && parent?.role === "parent" ? people.map(asPerson) : [] };
 }
 
 export async function setupFamilyCodes(input: unknown, device: DeviceAttach) {
