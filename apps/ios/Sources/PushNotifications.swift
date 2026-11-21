@@ -1,5 +1,19 @@
 import UIKit
 import UserNotifications
+import Combine
+
+@MainActor
+final class PushNavigation: ObservableObject {
+    static let shared = PushNavigation()
+    @Published var tab = "today"
+    @Published private(set) var refreshID: UUID?
+
+    func receive(_ userInfo: [AnyHashable: Any], openChores: Bool = true) {
+        guard userInfo["type"] as? String == "chores" else { return }
+        if openChores { tab = "today" }
+        refreshID = UUID()
+    }
+}
 
 struct PushRegistration: Equatable {
     let token: String
@@ -50,6 +64,17 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound])
+        Task { @MainActor in
+            PushNavigation.shared.receive(notification.request.content.userInfo, openChores: false)
+            completionHandler([.banner, .sound])
+        }
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        Task { @MainActor in
+            PushNavigation.shared.receive(response.notification.request.content.userInfo)
+            completionHandler()
+        }
     }
 }

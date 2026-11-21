@@ -217,6 +217,11 @@ async function main() {
     await check("push/unregister", role, 200, "POST", foreignPush, async () => { assert.equal((await db.select().from(schema.pushTokens).where(eq(schema.pushTokens.token, foreignPush.token))).length, 1); }, "cannot unregister another person's push record");
     await db.delete(schema.pushTokens).where(eq(schema.pushTokens.token, foreignPush.token));
   }
+  for (const role of ["Anonymous", "Noah", "Display"] as const) {
+    await check("chores/reorder", role, role === "Noah" ? 403 : 401, "POST", {
+      personId: noah.id, choreIds: chores.filter((chore) => chore.assignedPersonId === noah.id).map((chore) => chore.id),
+    }, noSecrets, "only a signed-in parent can reorder chores");
+  }
   for (const path of ["snapshot", "chores", `chores/${other.id}`, photoPath("proof-sofia"), "rewards", "stars", "meals", "settings", "me"]) await check(path, "Display", 200);
   for (const path of ["auth/codes", "rewards/requests", "devices", "pair/pending", "chores/instances/pending"]) await check(path, "Display", 401);
   for (const path of ["auth/codes", "display/refresh", "push/register", "push/unregister", "pair/approve", "chores", "rewards", "meals"]) await check(path, "Display", 401, "POST", {});

@@ -306,4 +306,43 @@ final class ParentFeaturesTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(ChoreListResponse.self, from: Data(#"{"chores":[{}]}"#.utf8)))
         XCTAssertTrue(try JSONDecoder().decode(ChoreListResponse.self, from: Data(#"{"chores":[]}"#.utf8)).chores.isEmpty)
     }
+
+    func testChoreMovesStayWithinPersonAndEncodeOrderedIDs() throws {
+        let chores = ["a", "other", "b", "c"].map { id in
+            ChoreDefinition(id: id, title: id, assignedPersonId: id == "other" ? "other" : "kid",
+                stars: 1, requiresPhoto: false, repeatType: "daily", steps: [], active: true)
+        }
+        let moved = ChoreReorder.moving(chores, personId: "kid", from: IndexSet(integer: 2), to: 0)
+        XCTAssertEqual(moved.map(\.id), ["c", "other", "a", "b"])
+        let payload = ChoreReorder(personId: "kid", choreIds: moved.filter { $0.assignedPersonId == "kid" }.map(\.id))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
+        XCTAssertEqual(json["personId"] as? String, "kid")
+        XCTAssertEqual(json["choreIds"] as? [String], ["c", "a", "b"])
+        XCTAssertEqual(ChoreReorder.moving(chores, personId: "kid", from: IndexSet(integer: 0), to: 3).map(\.id),
+            ["b", "other", "c", "a"])
+        XCTAssertTrue(ChoreReorder.moving([], personId: "kid", from: [], to: 0).isEmpty)
+        XCTAssertEqual(ChoreReorder.moving(chores, personId: "kid", from: [], to: 0).map(\.id), chores.map(\.id))
+    }
+
+    @MainActor
+    func testChoreNotificationRequestsRefreshInForegroundAndOnTap() {
+        let navigation = PushNavigation()
+        navigation.tab = "dinner"
+        navigation.receive([:])
+        XCTAssertEqual(navigation.tab, "dinner")
+        XCTAssertNil(navigation.refreshID)
+        navigation.receive(["type": "reward"])
+        XCTAssertEqual(navigation.tab, "dinner")
+        XCTAssertNil(navigation.refreshID)
+        navigation.receive(["type": "chores"], openChores: false)
+        let foregroundRefresh = navigation.refreshID
+        XCTAssertNotNil(foregroundRefresh)
+        XCTAssertEqual(navigation.tab, "dinner")
+        navigation.receive(["type": "chores"])
+        XCTAssertNotEqual(navigation.refreshID, foregroundRefresh)
+        XCTAssertEqual(navigation.tab, "today")
+        let tapRefresh = navigation.refreshID
+        navigation.receive(["type": "reward"])
+        XCTAssertEqual(navigation.refreshID, tapRefresh)
+    }
 }
