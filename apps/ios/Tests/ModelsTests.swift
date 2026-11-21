@@ -342,7 +342,7 @@ final class ModelsTests: XCTestCase {
     }
 
     @MainActor
-    func testSignOutClearsRevokedParentDespiteProvisionAndLogoutFailure() async throws {
+    func testSignOutClearsRevokedParentDespiteLogoutFailure() async throws {
         let saved = Keychain.read("session")
         defer { try? Keychain.write(saved, key: "session") }
         let configuration = URLSessionConfiguration.ephemeral
@@ -356,7 +356,7 @@ final class ModelsTests: XCTestCase {
         try Keychain.write("revoked-session", key: "session")
         RevokedSessionProtocol.paths = []
         await house.signOut()
-        XCTAssertEqual(RevokedSessionProtocol.paths, ["/api/pair/invite", "/api/auth/logout"])
+        XCTAssertEqual(RevokedSessionProtocol.paths, ["/api/auth/logout"])
         XCTAssertNil(house.session)
         XCTAssertNil(house.person)
         XCTAssertNil(Keychain.read("session"))
@@ -545,5 +545,16 @@ final class ModelsTests: XCTestCase {
 
     func testMalformedSnapshotIsNotSilentlyEmpty() {
         XCTAssertThrowsError(try JSONDecoder().decode(Snapshot.self, from: Data("{}".utf8)))
+    }
+
+    func testCodeLoginResponses() throws {
+        let decoder = JSONDecoder()
+        let setup = try decoder.decode(CodeStatus.self, from: Data("{\"setupRequired\":true,\"people\":[]}".utf8))
+        XCTAssertTrue(setup.setupRequired)
+        XCTAssertTrue(setup.people.isEmpty)
+        let choice = try decoder.decode(CodeLogin.self, from: Data("{\"parents\":[]}".utf8))
+        XCTAssertNil(choice.token)
+        XCTAssertNotNil(choice.parents)
+        XCTAssertThrowsError(try decoder.decode(CodeStatus.self, from: Data("{}".utf8)))
     }
 }

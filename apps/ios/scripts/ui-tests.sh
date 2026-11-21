@@ -56,8 +56,9 @@ fi
 reset_database() (
   cd "$ROOT"
   set -a
-  if [[ -f .env.local ]]; then source .env.local; fi
+  if [[ -z "${DATABASE_URL:-}" && -f .env.local ]]; then source .env.local; fi
   set +a
+  node -e 'const u = new URL(process.env.DATABASE_URL); if (!["localhost", "127.0.0.1"].includes(u.hostname) || !/^\/liendo_.*test_\d+$/.test(u.pathname)) throw Error("UI tests require a dedicated local test database")'
   npx --yes pnpm@10.15.0 db:reset
   npx --yes pnpm@10.15.0 db:seed
 )
@@ -70,10 +71,10 @@ xcodebuild "${OPTIONS[@]}" test-without-building \
   -only-testing:LiendoPlazaUITests/PilotUITests/testFirstParentBootstrapShowsToday \
   -resultBundlePath "$RUN/bootstrap.xcresult" | tee "$RUN/bootstrap.log"
 reset_database
-PARENTS="$(curl --fail --silent --show-error "$API/api/pair/status")"
-PERSON="$(printf '%s' "$PARENTS" | python3 -c 'import json,sys; print(next(p["id"] for p in json.load(sys.stdin)["parents"] if p["slug"]=="focus"))')"
+PARENTS="$(curl --fail --silent --show-error "$API/api/auth/codes/status")"
+SETUP="$(printf '%s' "$PARENTS" | python3 -c 'import json,sys; p=json.load(sys.stdin)["people"]; print(json.dumps({"personId":next(x["id"] for x in p if x["slug"]=="focus"), "code":"123456", "confirmation":"123456", "deviceKind":"phone", "kids":[{"personId":x["id"],"code":{"noah":"1234","sofia":"0101","xavier":"0303"}[x["slug"]]} for x in p if x["role"]=="kid"]}))')"
 RESPONSE="$(curl --fail --silent --show-error -H 'Content-Type: application/json' \
-  -d "{\"personId\":\"$PERSON\",\"pin\":\"123456\",\"deviceKind\":\"phone\"}" "$API/api/pair/bootstrap")"
+  -d "$SETUP" "$API/api/auth/codes/setup")"
 TEST_RUNNER_LP_PARENT_TOKEN="$(printf '%s' "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
 export TEST_RUNNER_LP_PARENT_TOKEN
 unset RESPONSE

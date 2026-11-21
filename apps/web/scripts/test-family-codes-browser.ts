@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import { chromium } from "playwright";
+import { getDb, getPool, schema } from "../lib/db";
+
+async function main() {
+  const base = process.env.E2E_BASE_URL!;
+  const artifacts = process.env.E2E_ARTIFACTS!;
+  assert.ok(base && artifacts);
+  const database = new URL(process.env.DATABASE_URL ?? "");
+  assert.ok(["localhost", "127.0.0.1"].includes(database.hostname));
+  assert.match(database.pathname, /^\/liendo_codes_web_test_\d+$/);
+  const browser = await chromium.launch();
+  try {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
+    const page = await context.newPage();
+    await page.goto(`${base}/family`);
+    await page.getByRole("heading", { name: "Set up Liendo Plaza" }).waitFor();
+    await page.screenshot({ path: `${artifacts}/web-setup.png`, fullPage: true });
+    await page.getByLabel("Parent code (6+ digits)", { exact: true }).fill("123456");
+    await page.getByLabel("Enter parent code again").fill("123456");
+    await page.getByLabel("Noah code (optional)").fill("1234");
+    await page.getByRole("button", { name: "Set up and sign in" }).click();
+    await page.getByRole("link", { name: "Manage", exact: true }).waitFor();
+    assert.ok((await context.cookies()).some((cookie) => cookie.name === "lp_session" && cookie.httpOnly));
+    assert.equal((await getDb().select().from(schema.familyCodes)).length, 2);
+    console.log("PASS browser setup -> API -> hashed codes and HTTP-only session -> parent home");
+
+    await page.goto(`${base}/family/pins`);
+    await page.getByRole("heading", { name: "Family codes", exact: true }).waitFor();
+    await page.getByLabel("New parent code (6+ digits)", { exact: true }).fill("654321");
+    await page.getByLabel("Enter parent code again").fill("654321");
+    await page.getByRole("button", { name: "Save code", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Code saved." }).waitFor();
+    await page.screenshot({ path: `${artifacts}/web-code-settings.png`, fullPage: true });
+    console.log("PASS parent changes the shared code through Family settings");
+
+    const parentContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const parentPage = await parentContext.newPage();
+    await parentPage.goto(`${base}/family`);
+    await parentPage.getByLabel("Enter your code", { exact: true }).fill("9999");
+    await parentPage.getByRole("button", { name: "Open", exact: true }).click();
+    await parentPage.getByRole("alert").filter({ hasText: "That code is not recognized." }).waitFor();
+    await parentPage.getByLabel("Enter your code", { exact: true }).fill("654321");
+    await parentPage.getByRole("button", { name: "Open", exact: true }).click();
+    await parentPage.getByRole("heading", { name: "Who are you?" }).waitFor();
+    assert.equal((await parentContext.cookies()).some((cookie) => cookie.name === "lp_session"), false);
+    await parentPage.screenshot({ path: `${artifacts}/web-parent-picker.png`, fullPage: true });
+    await parentPage.getByRole("button", { name: "Jess", exact: true }).click();
+    await parentPage.getByRole("link", { name: "Manage", exact: true }).waitFor();
+    console.log("PASS wrong code error and shared parent code -> parent-only name picker -> session");
+
+    const kidContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const kidPage = await kidContext.newPage();
+    await kidPage.goto(`${base}/family`);
+    await kidPage.getByLabel("Enter your code", { exact: true }).fill("1234");
+    await kidPage.getByRole("button", { name: "Open", exact: true }).click();
+    await kidPage.getByRole("heading", { name: "Today", exact: true }).waitFor();
+    await kidPage.locator(".phone-who").filter({ hasText: "Noah" }).waitFor();
+    assert.equal(await kidPage.getByRole("link", { name: "Manage", exact: true }).count(), 0);
+    assert.equal(await kidPage.getByRole("heading", { name: "Who are you?" }).count(), 0);
+    await kidPage.screenshot({ path: `${artifacts}/web-kid-home.png`, fullPage: true });
+    const denied = await kidContext.request.post(`${base}/api/auth/codes`, { data: { code: "111111", confirmation: "111111" } });
+    assert.equal(denied.status(), 403);
+    console.log("PASS kid code -> direct kid home; parent code-management API rejects kid session");
+  } finally { await browser.close(); await getPool().end(); }
+}
+
+main().catch((error) => { console.error(error); process.exitCode = 1; });

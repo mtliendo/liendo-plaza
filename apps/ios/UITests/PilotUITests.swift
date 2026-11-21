@@ -28,11 +28,14 @@ final class PilotUITests: XCTestCase {
     }
 
     private func open(_ app: XCUIApplication, person: String, pin: String) {
-        XCTAssertTrue(app.buttons["person.\(person)"].waitForExistence(timeout: 40))
-        app.buttons["person.\(person)"].tap()
-        app.secureTextFields["pin"].tap()
-        app.secureTextFields["pin"].typeText(pin)
+        XCTAssertTrue(app.secureTextFields["code"].waitForExistence(timeout: 40))
+        app.secureTextFields["code"].tap()
+        app.secureTextFields["code"].typeText(pin)
         app.buttons["open"].tap()
+        if pin.count >= 6 {
+            XCTAssertTrue(app.buttons["person.\(person)"].waitForExistence(timeout: 40))
+            app.buttons["person.\(person)"].tap()
+        }
     }
 
     private func api(_ path: String, body: [String: String]? = nil, token: String? = nil) async throws -> [String: Any] {
@@ -53,19 +56,26 @@ final class PilotUITests: XCTestCase {
     @MainActor
     func testFirstParentBootstrapShowsToday() {
         let app = launch()
-        XCTAssertTrue(app.buttons["person.focus"].waitForExistence(timeout: 40))
-        capture(app, "bootstrap-picker")
-        open(app, person: "focus", pin: "123456")
+        XCTAssertTrue(app.staticTexts["Set up Liendo Plaza"].waitForExistence(timeout: 40))
+        capture(app, "setup")
+        app.secureTextFields["code"].tap()
+        app.secureTextFields["code"].typeText("123456")
+        app.secureTextFields["code.confirmation"].tap()
+        app.secureTextFields["code.confirmation"].typeText("123456")
+        app.swipeUp()
+        app.buttons["open"].tap()
         XCTAssertTrue(app.buttons["chore.Unload the dishwasher"].waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Focus"].exists)
         XCTAssertTrue(app.buttons["chore.Make your bed"].exists)
         capture(app, "bootstrap-today")
+        app.terminate()
+        app.launchArguments = []
+        app.launch()
+        XCTAssertTrue(app.buttons["chore.Unload the dishwasher"].waitForExistence(timeout: 60))
+        capture(app, "session-survives-relaunch")
         app.tabBars.buttons["Family"].tap()
         app.buttons["signOut"].tap()
-        XCTAssertTrue(app.buttons["Someone else"].waitForExistence(timeout: 40))
-        app.buttons["Someone else"].tap()
-        XCTAssertTrue(app.buttons["person.focus"].waitForExistence(timeout: 40))
-        XCTAssertTrue(app.staticTexts["Who are you?"].exists)
+        XCTAssertTrue(app.secureTextFields["code"].waitForExistence(timeout: 40))
         capture(app, "bootstrap-signed-out")
         open(app, person: "focus", pin: "123456")
         XCTAssertTrue(app.buttons["chore.Unload the dishwasher"].waitForExistence(timeout: 60))
@@ -74,16 +84,12 @@ final class PilotUITests: XCTestCase {
     }
 
     @MainActor
-    func testPairingByCodeThenKidCompletesChore() async throws {
+    func testCodeSignInThenKidCompletesChore() async throws {
         let app = launch()
-        let code = app.staticTexts["pairing.code"]
-        XCTAssertTrue(code.waitForExistence(timeout: 40))
-        capture(app, "pairing-code")
-        _ = try await api("pair/approve", body: ["code": code.label], token: parentToken)
         open(app, person: "noah", pin: "0000")
-        XCTAssertTrue(app.staticTexts["That PIN is wrong."].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["That code is not recognized."].waitForExistence(timeout: 20))
         capture(app, "wrong-pin")
-        let pin = app.secureTextFields["pin"]
+        let pin = app.secureTextFields["code"]
         pin.tap()
         pin.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 4) + "1234")
         app.buttons["open"].tap()
@@ -111,25 +117,33 @@ final class PilotUITests: XCTestCase {
     }
 
     @MainActor
-    func testParentApprovesDeviceInApp() async throws {
-        let claim = try await api("pair/claim", body: ["deviceKind": "phone"])
-        _ = try await api("pair/approve", body: ["code": try XCTUnwrap(claim["displayCode"] as? String)], token: parentToken)
-        let poll = try await api("pair/poll", body: [
-            "id": try XCTUnwrap(claim["id"] as? String),
-            "pollSecret": try XCTUnwrap(claim["pollSecret"] as? String)
-        ])
-        let family = try XCTUnwrap(poll["familyToken"] as? String)
-        var peopleRequest = URLRequest(url: URL(string: environment["LP_API_URL"] ?? "http://localhost:3000")!.appendingPathComponent("api/people"))
-        peopleRequest.setValue(family, forHTTPHeaderField: "x-family-token")
-        let (data, response) = try await URLSession.shared.data(for: peopleRequest)
-        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
-        let people = try XCTUnwrap((JSONSerialization.jsonObject(with: data) as? [String: Any])?["people"] as? [[String: Any]])
+    func testParentChangesFamilyCode() async throws {
+        let response = try await api("people", token: parentToken)
+        let people = try XCTUnwrap(response["people"] as? [[String: Any]])
         let focus = try XCTUnwrap(people.first { $0["slug"] as? String == "focus" })
-        let login = try await api("auth/login", body: [
-            "familyToken": family, "personId": try XCTUnwrap(focus["id"] as? String),
-            "pin": "123456", "deviceKind": "phone"
-        ])
-        let app = launch(session: try XCTUnwrap(login["token"] as? String), family: family)
+        let login = try await api("auth/login", body: ["code": "123456", "personId": try XCTUnwrap(focus["id"] as? String), "deviceKind": "phone"])
+        let app = launch(session: try XCTUnwrap(login["token"] as? String))
+        XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
+        app.tabBars.buttons["Family"].tap()
+        app.buttons["familyCodes"].tap()
+        let code = app.secureTextFields["codes.new"]
+        XCTAssertTrue(code.waitForExistence(timeout: 20))
+        code.tap(); code.typeText("654321")
+        app.secureTextFields["codes.confirmation"].tap()
+        app.secureTextFields["codes.confirmation"].typeText("654321")
+        app.buttons["codes.save"].tap()
+        XCTAssertTrue(app.staticTexts["codes.success"].waitForExistence(timeout: 30))
+        capture(app, "family-code-saved")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["signOut"].tap()
+        open(app, person: "focus", pin: "654321")
+        XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
+        _ = try await api("auth/codes", body: ["code": "123456", "confirmation": "123456"], token: parentToken)
+    }
+
+    @MainActor
+    func testParentApprovesDeviceInApp() async throws {
+        let app = launch(session: try parentToken)
         XCTAssertTrue(app.tabBars.buttons["Family"].waitForExistence(timeout: 60))
         app.tabBars.buttons["Family"].tap()
         XCTAssertTrue(app.buttons["addDevice"].waitForExistence(timeout: 60))

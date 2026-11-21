@@ -265,17 +265,8 @@ final class ParentFeaturesUITests: XCTestCase {
 
     @MainActor
     func testKidOnlyHasChoresAndDinner() async throws {
-        let claim = try await api("pair/claim", body: ["deviceKind": "phone"])
-        _ = try await api("pair/approve", body: ["code": try XCTUnwrap(claim["displayCode"] as? String)], token: parentToken)
-        let poll = try await api("pair/poll", body: [
-            "id": try XCTUnwrap(claim["id"] as? String), "pollSecret": try XCTUnwrap(claim["pollSecret"] as? String)
-        ])
-        let snapshot = try await api("snapshot", token: parentToken)
-        let people = try XCTUnwrap(snapshot["people"] as? [[String: Any]])
-        let noah = try XCTUnwrap(people.first { $0["slug"] as? String == "noah" })
         let login = try await api("auth/login", body: [
-            "familyToken": try XCTUnwrap(poll["familyToken"] as? String),
-            "personId": try XCTUnwrap(noah["id"] as? String), "pin": "1234", "deviceKind": "phone"
+            "code": "1234", "deviceKind": "phone"
         ])
         let app = launch(token: try XCTUnwrap(login["token"] as? String))
         XCTAssertTrue(app.staticTexts["stars.balance"].waitForExistence(timeout: 60))
