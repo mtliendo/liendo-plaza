@@ -124,7 +124,9 @@ async function dispatchApi(req: Request): Promise<Response> {
     } catch {
       refreshRequestedAt = null;
     }
-    const revision = await cachedHouseholdRevision().catch(() => null);
+    // Only a paired display gets the revision; it would otherwise reveal when the household changes.
+    const paired = await requireActor(req, ["display"]).then(() => true, () => false);
+    const revision = paired ? await cachedHouseholdRevision().catch(() => null) : null;
     return json({ buildId, refreshRequestedAt, revision }, 200, { "cache-control": "no-store, must-revalidate" });
   }
 
