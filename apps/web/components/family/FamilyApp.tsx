@@ -139,8 +139,11 @@ function FamilyAppInner({ screen }: { screen: Exclude<Screen, "gate" | "people" 
 
   if (phase === "gate") {
     return <FamilyCodeGate onReady={async () => {
-      queryClient.removeQueries({ queryKey: ["family-code-status"] });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.me });
+      setPhase("loading");
+      setOpenChoreId(null);
+      setSuggestions([]);
+      await queryClient.cancelQueries();
+      await queryClient.resetQueries();
     }} />;
   }
 
