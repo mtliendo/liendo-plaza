@@ -85,6 +85,10 @@ final class House: ObservableObject {
 
     func accept(_ result: SessionResponse) throws {
         try Keychain.write(result.token, key: "session")
+        api.session.configuration.urlCache?.removeAllCachedResponses()
+        snapshot = nil
+        pendingInstances = []
+        ChoreReminders.remove()
         person = result.person
         UserDefaults.standard.set(result.person.id, forKey: "phonePersonId")
         session = result.token
@@ -94,6 +98,7 @@ final class House: ObservableObject {
 
     func clearSession() throws {
         try Keychain.write(nil, key: "session")
+        api.session.configuration.urlCache?.removeAllCachedResponses()
         session = nil
         person = nil
         snapshot = nil

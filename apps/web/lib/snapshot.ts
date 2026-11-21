@@ -9,6 +9,7 @@ import { starSummaries } from "./stars";
 import { calendarWindow, nowCt, todayIso } from "./time";
 import { asPerson, toMeal } from "./person";
 import { getWeather } from "./weather";
+import { householdCached } from "./household-cache";
 
 export async function peopleList(): Promise<Person[]> {
   const db = getDb();
@@ -38,16 +39,30 @@ export async function mealSuggestions(q: string): Promise<string[]> {
   return [...seen].sort((a, b) => a.localeCompare(b)).slice(0, 12);
 }
 
-export async function buildSnapshot(fromIso?: string, toIso?: string): Promise<DisplaySnapshot> {
-  const window = calendarWindow(fromIso, toIso);
-  const [weather, events, chores, meals, stars, people, settings] = await Promise.all([
-    getWeather(),
-    getCalendarEvents(window.from, window.to),
-    ensureInstances(window.from, window.to),
-    mealsInRange(window.from, window.to),
+async function householdParts(from: string, to: string) {
+  const [chores, meals, stars, people, settings] = await Promise.all([
+    ensureInstances(from, to),
+    mealsInRange(from, to),
     starSummaries(),
     peopleList(),
     getSettings(),
+  ]);
+  return { chores, meals, stars, people, settings };
+}
+
+const cachedHouseholdParts = householdCached(householdParts, "snapshot-household");
+
+export async function buildSnapshot(
+  fromIso?: string,
+  toIso?: string,
+  options: { cached?: boolean } = {},
+): Promise<DisplaySnapshot> {
+  const window = calendarWindow(fromIso, toIso);
+  const parts = options.cached ? cachedHouseholdParts : householdParts;
+  const [weather, events, household] = await Promise.all([
+    getWeather(),
+    getCalendarEvents(window.from, window.to),
+    parts(window.from, window.to),
   ]);
 
   return {
@@ -55,11 +70,7 @@ export async function buildSnapshot(fromIso?: string, toIso?: string): Promise<D
     timezone: "America/Chicago",
     weather,
     events,
-    chores,
-    meals,
-    stars,
-    people,
-    settings,
+    ...household,
   };
 }
 

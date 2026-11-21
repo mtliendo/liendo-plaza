@@ -6,6 +6,7 @@ import type { Person } from "@liendo/shared";
 import { getDb, schema } from "./db";
 import { HttpError } from "./http";
 import { asPerson } from "./person";
+import { householdCached } from "./household-cache";
 import { presenceIsStale } from "./presence";
 
 export const DISPLAY_COOKIE = "lp_display";
@@ -231,6 +232,9 @@ export async function displayFromToken(token: string): Promise<boolean> {
   return true;
 }
 
+// Display presence is refreshed when this cache misses (writes or hourly), not every 15 minutes.
+export const cachedDisplayFromToken = householdCached(displayFromToken, "display-token");
+
 function bearer(req: Request): string | null {
   const header = req.headers.get("authorization");
   if (!header?.startsWith("Bearer ")) return null;
@@ -247,6 +251,10 @@ function cookieFromRequest(req: Request, name: string): string | null {
   return null;
 }
 
+export function sessionTokenFromRequest(req: Request): string | null {
+  return bearer(req) ?? cookieFromRequest(req, SESSION_COOKIE);
+}
+
 export async function requireActor(
   req: Request,
   allow: Actor["kind"][] = ["person", "display"],
@@ -258,14 +266,14 @@ export async function requireActor(
     if (cron && header === `Bearer ${cron}`) return { kind: "cron" };
   }
 
-  const token = bearer(req) ?? cookieFromRequest(req, SESSION_COOKIE);
+  const token = sessionTokenFromRequest(req);
   if (token && allow.includes("person")) {
     const person = await personFromSession(token, options.touchDevice !== false);
     if (person) return { kind: "person", person };
   }
 
   const display = cookieFromRequest(req, DISPLAY_COOKIE) ?? req.headers.get("x-display-token");
-  if (display && allow.includes("display") && (await displayFromToken(display))) {
+  if (display && allow.includes("display") && (await cachedDisplayFromToken(display))) {
     return { kind: "display" };
   }
 

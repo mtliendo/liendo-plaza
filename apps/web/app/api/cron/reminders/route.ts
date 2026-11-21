@@ -3,7 +3,10 @@ import { ensureInstances } from "@/lib/chores";
 import { getDb, schema } from "@/lib/db";
 import { json } from "@/lib/http";
 import { notifyPerson } from "@/lib/push";
+import { householdCached } from "@/lib/household-cache";
 import { getSettings } from "@/lib/settings";
+
+const cachedSettings = householdCached(getSettings, "settings");
 import { nowCt, todayIso } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +22,7 @@ export async function GET(req: Request) {
   if (now.minute >= 15) {
     return json({ skipped: true, reason: "past the first quarter hour" });
   }
-  const settings = await getSettings();
+  const settings = await cachedSettings();
   if (now.hour !== settings.choreReminderHour) {
     return json({ skipped: true, reason: "not the reminder hour" });
   }

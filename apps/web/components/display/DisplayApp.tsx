@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DISPLAY_REFETCH_MS, isDimHours, mealPhotoSrc, queryKeys, upcomingDates, weekdayIndex, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
+import { DISPLAY_SNAPSHOT_REFETCH_MS, isDimHours, mealPhotoSrc, queryKeys, upcomingDates, weekdayIndex, weekDates, WEEKDAY_LABELS } from "@liendo/shared";
 import { EventBoard } from "@/components/EventBoard";
 import { ChoreDetail } from "@/components/family/ChoreDetail";
 import { PersonAvatar } from "@/components/PersonAvatar";
@@ -62,7 +62,7 @@ export function DisplayApp({ view }: { view: View }) {
   const [tick, setTick] = useState(Date.now());
   const visible = usePageVisible();
   const polling = shouldPollDisplay(tick, visible, awakeUntil);
-  const snapshotQuery = useSnapshot(paired === true && visible, polling ? DISPLAY_REFETCH_MS : false, !polling);
+  const snapshotQuery = useSnapshot(paired === true && visible, polling ? DISPLAY_SNAPSHOT_REFETCH_MS : false, !polling);
   const snapshot = snapshotQuery.data ?? null;
   const offline = snapshotQuery.isError;
   const toggle = useChoreToggle();
@@ -88,7 +88,7 @@ export function DisplayApp({ view }: { view: View }) {
   const dim = Boolean(
     snapshot && (forceDim || isDimHours(hourInChicago(new Date(tick).toISOString()))) && tick >= awakeUntil,
   );
-  useKitchenReload(dim, polling);
+  useKitchenReload(dim, polling, () => void queryClient.invalidateQueries({ queryKey: ["snapshot"] }));
 
   const kids = useMemo(() => {
     const order = ["sofia", "noah", "xavier"];

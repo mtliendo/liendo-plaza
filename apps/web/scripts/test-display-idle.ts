@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium, type Page } from "playwright";
+import { DISPLAY_SNAPSHOT_REFETCH_MS } from "@liendo/shared";
 
 const base = new URL(process.env.E2E_BASE_URL ?? "");
 assert.ok(["localhost", "127.0.0.1"].includes(base.hostname) && base.port && base.port !== "3000");
@@ -21,6 +22,7 @@ async function main() {
     let paired = true;
     let finishPairing = false;
     let versionFails = false;
+    let revision = "before-write";
     await page.clock.install({ time: new Date("2026-01-15T12:00:00-06:00") });
     await page.route("**/api/**", async (route) => {
       const name = new URL(route.request().url()).pathname;
@@ -34,7 +36,7 @@ async function main() {
         chores: [], meals: [], stars: [], people: [], settings: { choreReminderHour: 18, choreReminderMinute: 0 },
       };
       if (name === "/api/version") {
-        body = { buildId: "idle-test", refreshRequestedAt: null };
+        body = { buildId: "idle-test", refreshRequestedAt: null, revision };
         if (versionFails) status = 500;
       }
       if (name === "/api/chores") body = { chores: [] };
@@ -66,16 +68,22 @@ async function main() {
       assert.equal(counts[path] ?? 0, 0);
     }
     console.log("PASS display load and navigation hover/focus/touch do not prefetch unused house lists or retry reward requests");
-    assert.ok(counts["/api/snapshot"] >= 2);
+    assert.equal(counts["/api/snapshot"], 1);
     assert.ok(counts["/api/version"] >= 2);
-    console.log("PASS paired daytime board: minute refresh preserved; zero pairing requests");
+    const beforeWrite = counts["/api/snapshot"];
+    const revisionRefresh = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/snapshot");
+    revision = "after-write";
+    await page.clock.runFor(61_000);
+    await revisionRefresh;
+    assert.ok(counts["/api/snapshot"] > beforeWrite);
+    console.log("PASS paired daytime board: minute version polling avoids unchanged snapshots; changed revision refreshes immediately; zero pairing requests");
 
     await visibility(page, "hidden");
     const hidden = { ...counts };
     await page.clock.runFor(601_000);
     assert.deepEqual(counts, hidden);
     await visibility(page, "visible");
-    await page.clock.runFor(61_000);
+    await page.clock.runFor(DISPLAY_SNAPSHOT_REFETCH_MS + 1000);
     assert.ok(counts["/api/snapshot"] > hidden["/api/snapshot"]);
     console.log("PASS hidden board: no API traffic for ten minutes; visible board resumes");
 
