@@ -176,10 +176,11 @@ export async function proposeChores(body: z.infer<typeof proposalRequest>,
 export async function applyChores(raw: unknown[]) {
   const changes = await validateChanges(raw, true);
   const photos = new Set<string>();
+  const collectPhoto = async (path: string | null | undefined) => { if (path) photos.add(path); };
   await getDb().transaction(async tx => {
     for (const change of changes) {
-      if (change.op === "delete") await deactivateChore(change.choreId, tx, async path => { if (path) photos.add(path); });
-      else if (change.op === "update") await updateChore(change.choreId, change.patch, tx);
+      if (change.op === "delete") await deactivateChore(change.choreId, tx, collectPhoto);
+      else if (change.op === "update") await updateChore(change.choreId, change.patch, tx, collectPhoto);
       else await createChore({ ...change.chore, weekdays: change.chore.weekdays ?? null,
         weeklyWeekday: change.chore.weeklyWeekday ?? null, onceDate: change.chore.onceDate ?? null,
         description: change.chore.description ?? null, steps: change.chore.steps ?? [], guidePhotoPath: null }, tx);

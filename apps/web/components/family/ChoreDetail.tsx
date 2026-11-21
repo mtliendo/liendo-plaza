@@ -29,7 +29,8 @@ export function ChoreDetail({
   onPhoto?: (file: File) => void;
 }) {
   const guide = mealPhotoSrc(chore.guidePhotoPath);
-  const proof = mealPhotoSrc(chore.photoPath);
+  const proof = chore.status === "pending" || (chore.requiresPhoto && chore.status === "done")
+    ? mealPhotoSrc(chore.photoPath) : null;
   const open = chore.status === "open" || chore.status === "rejected";
   return (
     <div className="chore-detail-back" data-testid="chore-detail" onClick={onClose}>

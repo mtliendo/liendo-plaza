@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte, max, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lte, max, sql } from "drizzle-orm";
 import type { Chore, ChoreInstance, RepeatType } from "@liendo/shared";
 import { addDays } from "@liendo/shared";
 import { deleteStoredPhoto } from "./blob";
@@ -124,7 +124,7 @@ export async function createChore(input: Omit<Chore, "id" | "active" | "sortOrde
   });
 }
 
-export async function updateChore(id: string, patch: Partial<Chore>, db: ChoreDb = getDb()): Promise<Chore> {
+export async function updateChore(id: string, patch: Partial<Chore>, db: ChoreDb = getDb(), removePhoto = deleteStoredPhoto): Promise<Chore> {
   const chore = await db.transaction(async (db) => {
     await db.execute(sql`select pg_advisory_xact_lock(726104)`);
     const [current] = await db.select().from(schema.chores).where(eq(schema.chores.id, id));
@@ -157,8 +157,21 @@ export async function updateChore(id: string, patch: Partial<Chore>, db: ChoreDb
       .returning();
     return asChore(row);
   });
+  if (patch.requiresPhoto === false) await clearUnapprovedProofs(chore.id, db, removePhoto);
   await refreshFutureOpenInstances(chore, db);
   return chore;
+}
+
+async function clearUnapprovedProofs(choreId: string, db: ChoreDb, removePhoto: (path: string | null | undefined) => Promise<void>) {
+  const unapproved = and(
+    eq(schema.choreInstances.choreId, choreId),
+    inArray(schema.choreInstances.status, ["open", "rejected"]),
+    isNotNull(schema.choreInstances.photoPath),
+  );
+  const stale = await db.select({ photoPath: schema.choreInstances.photoPath }).from(schema.choreInstances).where(unapproved);
+  if (!stale.length) return;
+  await db.update(schema.choreInstances).set({ photoPath: null }).where(unapproved);
+  for (const { photoPath } of stale) await removePhoto(photoPath);
 }
 
 export async function reorderChores(personId: string, choreIds: string[]) {

@@ -306,6 +306,30 @@ test("proof metadata in JSON responses prohibits caching for every actor", async
   }
 });
 
+test("turning proof off clears unapproved proofs and keeps the pending one for review", async () => {
+  const [chore] = await db.insert(schema.chores).values({
+    title: "Proof toggled off", assignedPersonId: kidId, stars: 1,
+    requiresPhoto: true, repeatType: "once", onceDate: yesterday,
+  }).returning();
+  const [rejected] = await db.insert(schema.choreInstances).values({
+    choreId: chore.id, personId: kidId, date: yesterday, status: "rejected", photoPath: ownPhoto,
+  }).returning();
+  const [waiting] = await db.insert(schema.choreInstances).values({
+    choreId: chore.id, personId: kidId, date: addDays(yesterday, -1), status: "pending", photoPath: ownPhoto,
+  }).returning();
+  assert.equal((await request(`chores/${chore.id}`, "kid", "PATCH", { title: "x" })).status, 403);
+  const off = await handleApi(new Request(`http://photo-access.test/api/chores/${chore.id}`, {
+    method: "PATCH", body: JSON.stringify({ requiresPhoto: false }),
+    headers: { authorization: `Bearer ${tokens.parent}`, "content-type": "application/json" },
+  }));
+  assert.equal(off.status, 200);
+  const [after] = await db.select().from(schema.choreInstances).where(eq(schema.choreInstances.id, rejected.id));
+  assert.equal(after.photoPath, null);
+  assert.equal(after.status, "rejected");
+  const [pending] = await db.select().from(schema.choreInstances).where(eq(schema.choreInstances.id, waiting.id));
+  assert.equal(pending.photoPath, ownPhoto);
+});
+
 test("guide upload and clear responses, including failed mutations, prohibit caching", async () => {
   const [chore] = await db.insert(schema.chores).values({
     title: "Cache fixture", assignedPersonId: kidId, stars: 1, requiresPhoto: false, repeatType: "daily",

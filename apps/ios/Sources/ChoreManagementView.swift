@@ -91,10 +91,12 @@ struct ChoreManagementView: View {
                                 Button { editing = chore } label: {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(chore.title).foregroundStyle(Plaza.ink)
-                                        Text("★ \(chore.stars) · \(chore.repeatType)").font(.caption).foregroundStyle(Plaza.muted)
+                                        Text("★ \(chore.stars) · \(chore.repeatType)\(chore.requiresPhoto ? " · photo proof" : "")")
+                                            .font(.caption).foregroundStyle(Plaza.muted)
                                     }
                                 }
                                 .accessibilityLabel(chore.title)
+                                .accessibilityValue("\(chore.stars) stars, \(chore.repeatType)\(chore.requiresPhoto ? ", photo proof" : "")")
                                 .accessibilityIdentifier("manage.chore.\(chore.title)")
                                 .disabled(reordering)
                                 .swipeActions {
@@ -194,13 +196,20 @@ struct ChoreEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Chore") {
+                Section {
                     TextField("Title", text: $chore.title).accessibilityIdentifier("manage.title")
                     Picker("Person", selection: $chore.assignedPersonId) {
                         ForEach(house.snapshot?.people ?? []) { Text($0.name).tag($0.id) }
                     }.accessibilityIdentifier("manage.person")
                     Stepper("Stars: \(chore.stars)", value: $chore.stars, in: 1...50)
-                    Toggle("Needs a photo", isOn: $chore.requiresPhoto)
+                    Toggle("Require photo proof", isOn: $chore.requiresPhoto)
+                        .accessibilityIdentifier("manage.requiresPhoto")
+                } header: {
+                    Text("Chore")
+                } footer: {
+                    Text(chore.requiresPhoto
+                        ? "The kid sends a photo when done. Stars count after a parent approves it."
+                        : "The kid checks it off. No photo needed.")
                 }
                 Section("Guide photo") {
                     if let data = pendingGuide, let image = UIImage(data: data) {
