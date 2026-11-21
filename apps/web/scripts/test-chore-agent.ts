@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { loginWithPin } from "../lib/auth";
 import { handleApi } from "../lib/api";
-import { applyChores, proposeChores, validateChanges } from "../lib/chore-agent";
+import { applyChores, proposeChores, recoverChoreProposal, validateChanges } from "../lib/chore-agent";
 import { peopleList } from "../lib/snapshot";
 import { HttpError } from "../lib/http";
 import { getPool } from "../lib/db";
 import { listChores } from "../lib/chores";
+import { NoObjectGeneratedError } from "ai";
 
 async function main() {
   process.env.CHORE_AGENT_FAKE = "1";
@@ -26,6 +27,27 @@ async function main() {
   ]), []);
   assert.deepEqual(await validateChanges([]), []);
   console.log("PASS validation drops invalid changes and handles empty input");
+  const generationError = (text: string | undefined) => new NoObjectGeneratedError({
+    text, response: { id: "test", modelId: "test", timestamp: new Date() }, finishReason: "stop",
+    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2,
+      inputTokenDetails: { noCacheTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      outputTokenDetails: { textTokens: 1, reasoningTokens: 0 } },
+  });
+  const recovered = await recoverChoreProposal(generationError(JSON.stringify({
+    summary: "Review these changes.", changes: [
+      { op: "create", chore: valid }, { op: "create", chore: { ...valid, stars: 100 } },
+    ],
+  })));
+  assert.equal(recovered.changes.length, 1);
+  assert.equal(recovered.summary, "Review these changes.");
+  for (const text of [undefined, "{", "{}", JSON.stringify({ summary: "Invalid", changes: [{ op: "bad" }] })]) {
+    const result = await recoverChoreProposal(generationError(text));
+    assert.deepEqual(result.changes, []);
+    assert.ok(result.summary.includes("try again"));
+  }
+  const providerError = new Error("Provider unavailable");
+  await assert.rejects(() => recoverChoreProposal(providerError), error => error === providerError);
+  console.log("PASS structured-output fallback salvages valid changes, handles malformed output, and preserves other errors");
   const proposal = await proposeChores({ message: "add Agent regression fish" });
   assert.equal(proposal.changes.length, 1);
   const created = (await applyChores(proposal.changes)).chores.find(c => c.title === "Agent regression fish" && c.active)!;
