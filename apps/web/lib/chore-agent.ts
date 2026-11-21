@@ -86,9 +86,17 @@ export async function validateChanges(raw: unknown[], strict = false) {
     )) { invalid(); continue; }
     if (change.op !== "delete") {
       const fields = change.op === "create" ? change.chore : change.patch;
-      fields.onceDate = chore.repeatType === "once" ? chore.onceDate : null;
-      fields.weekdays = chore.repeatType === "weekdays" || chore.repeatType === "weekly" ? chore.weekdays : null;
-      fields.weeklyWeekday = chore.repeatType === "weekly" ? chore.weeklyWeekday : null;
+      const repeatChanged = change.op === "update" && fields.repeatType !== undefined && fields.repeatType !== before!.repeatType;
+      if (change.op === "create" || fields.onceDate !== undefined || repeatChanged)
+        fields.onceDate = chore.repeatType === "once" ? chore.onceDate : null;
+      if (change.op === "create" || fields.weekdays !== undefined || repeatChanged)
+        fields.weekdays = chore.repeatType === "weekdays" || chore.repeatType === "weekly" ? chore.weekdays : null;
+      if (change.op === "create" || fields.weeklyWeekday !== undefined || repeatChanged)
+        fields.weeklyWeekday = chore.repeatType === "weekly" ? chore.weeklyWeekday : null;
+      if (change.op === "update" && !strict) {
+        change.patch = Object.fromEntries(Object.entries(change.patch)
+          .filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(before![key as keyof Chore])));
+      }
     }
     if (change.op !== "create") seen.add(change.choreId);
     const person = people.find(p => p.id === chore.assignedPersonId);

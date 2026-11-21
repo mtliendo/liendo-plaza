@@ -103,11 +103,27 @@ async function main() {
   const weekly = await validateChanges([{ op: "update", choreId: created.id, patch: { stars: 4 } }]);
   assert.equal(weekly.length, 1);
   assert.ok(weekly[0].label.includes("★3 → ★4"));
-  await applyChores(weekly);
+  assert.deepEqual(weekly[0].op === "update" && weekly[0].patch, { stars: 4 });
+  const copiedSchedule = await validateChanges([{ op: "update", choreId: created.id,
+    patch: { stars: 4, repeatType: "weekly", weekdays: [6, 0], weeklyWeekday: null, onceDate: null } }]);
+  assert.deepEqual(copiedSchedule[0].op === "update" && copiedSchedule[0].patch, { stars: 4 });
+  await getPool().query("UPDATE chores SET weekdays = ARRAY[2,4] WHERE id = $1", [created.id]);
+  const concurrent = await applyChores(weekly);
+  assert.equal(concurrent.chores.find(c => c.id === created.id)?.stars, 4);
+  assert.deepEqual(concurrent.chores.find(c => c.id === created.id)?.weekdays, [2, 4]);
+  const copiedResult = await applyChores(copiedSchedule);
+  assert.deepEqual(copiedResult.chores.find(c => c.id === created.id)?.weekdays, [2, 4]);
+  console.log("PASS stars-only previews stay sparse and preserve concurrent database schedule changes");
   const monday = await validateChanges([{ op: "update", choreId: created.id,
     patch: { weekdays: [], weeklyWeekday: 1 } }]);
-  assert.ok(monday[0].label.includes("Sat, Sun → Mon"));
+  assert.ok(monday[0].label.includes("Tue, Thu → Mon"));
   await applyChores(monday);
+  const switchToDaily = await validateChanges([{ op: "update", choreId: created.id, patch: { repeatType: "daily" } }]);
+  const daily = (await applyChores(switchToDaily)).chores.find(c => c.id === created.id)!;
+  assert.equal(daily.repeatType, "daily");
+  assert.equal(daily.weekdays, null);
+  assert.equal(daily.weeklyWeekday, null);
+  assert.equal(daily.onceDate, null);
   const creates = await validateChanges([{ op: "create", chore: {
     ...valid, repeatType: "weekdays", weekdays: [1, 3, 5],
   } }]);
