@@ -64,7 +64,8 @@ The backend must already be running with a migrated, dedicated local test
 database. Set `DATABASE_URL` explicitly, or use the root `.env.local`.
 **The script resets and seeds that database twice**, refusing remote/non-test URLs.
 It checks `/api/health` before doing anything destructive, builds for testing
-once, runs setup alone, resets again, sets up a curl parent, and runs
+once, runs setup using an existing live parent fixture, resets again, sets up
+through an authenticated parent session, and runs
 the kid complete/undo and parent device-approval tests plus model tests.
 Every UI test starts with `-uiTestReset`. Parent authorization is passed through
 `TEST_RUNNER_LP_PARENT_TOKEN`; never enable shell tracing or commit this token.

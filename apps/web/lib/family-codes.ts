@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import type { Person } from "@liendo/shared";
 import { getDb, schema } from "./db";
 import { hashPin, issuePersonSession, type DeviceAttach } from "./auth";
 import { HttpError } from "./http";
@@ -25,12 +26,12 @@ function parse<T extends z.ZodTypeAny>(definition: T, input: unknown): z.infer<T
   return result.data;
 }
 
-export async function familyCodeStatus() {
+export async function familyCodeStatus(parent?: Person) {
   const db = getDb();
   const rows = await db.select({ id: schema.familyCodes.id }).from(schema.familyCodes);
   const people = await db.select().from(schema.people);
   const setupRequired = !people.some((p) => p.role === "parent" && rows.some((row) => row.id === p.id));
-  return { setupRequired, people: setupRequired ? people.map(asPerson) : [] };
+  return { setupRequired, people: setupRequired && parent?.role === "parent" ? people.map(asPerson) : [] };
 }
 
 export async function setupFamilyCodes(input: unknown, device: DeviceAttach) {

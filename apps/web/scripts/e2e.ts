@@ -2,6 +2,8 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { getDb, schema } from "../lib/db";
+import { loginWithPin } from "../lib/auth";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
 
@@ -32,10 +34,14 @@ async function main() {
   const retired = await json("auth/family", "POST", { secret: "nope" });
   assert(retired.res.status === 410, "family secret route should be retired");
 
-  const status = await req("auth/codes/status");
+  const existing = (await getDb().select().from(schema.people)).find((person) => person.slug === "focus");
+  assert(existing, "existing parent fixture missing");
+  const legacy = await loginWithPin(existing.id, "123456", { kind: "browser", label: "Existing e2e parent" });
+  const setupAuth = { authorization: `Bearer ${legacy.token}` };
+  const status = await req("auth/codes/status", { headers: setupAuth });
   const parents = (status.data.people as { id: string; slug: string }[]) ?? [];
   const focus = parents.find((p) => p.slug === "focus");
-  assert(status.data.setupRequired === true && focus, "setup should be open on a fresh database");
+  assert(status.data.setupRequired === true && focus, "setup should be available to an existing parent");
 
   const bootstrap = await json("auth/codes/setup", "POST", {
     personId: focus.id,
@@ -44,7 +50,7 @@ async function main() {
     kids: parents.filter((p) => ["sofia", "noah", "xavier"].includes(p.slug)).map((p) => ({ personId: p.id, code: ({ sofia: "0101", noah: "1234", xavier: "0303" } as Record<string, string>)[p.slug] })),
     deviceKind: "browser",
     deviceLabel: "e2e parent",
-  });
+  }, setupAuth);
   assert(bootstrap.res.ok, `bootstrap failed: ${JSON.stringify(bootstrap.data)}`);
   const parentToken = String(bootstrap.data.token);
   const auth = { authorization: `Bearer ${parentToken}` };

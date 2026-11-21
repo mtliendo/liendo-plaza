@@ -130,12 +130,18 @@ async function dispatchApi(req: Request): Promise<Response> {
   }
 
   if (path === "auth/codes/status" && method === "GET") {
-    return json(await familyCodeStatus(), 200, { "cache-control": "no-store" });
+    const actor = await requireActor(req, ["person"]).catch((error: unknown) => {
+      if (error instanceof HttpError && error.status === 401) return null;
+      throw error;
+    });
+    return json(await familyCodeStatus(actor?.kind === "person" ? actor.person : undefined), 200, { "cache-control": "no-store" });
   }
 
   if (path === "auth/codes/setup" && method === "POST") {
+    const parent = requireParent(await requireActor(req, ["person"]));
     rateLimit(`setup:${clientIp(req)}`, 10, 60_000);
     const body = await readJson<Record<string, unknown>>(req);
+    if (body.personId !== parent.id) throw new HttpError(403, "Set up using your own parent profile.");
     const kind = body.deviceKind === "phone" ? "phone" : "browser";
     const result = await setupFamilyCodes(body, { kind, label: defaultDeviceLabel(kind, req.headers.get("user-agent") ?? "") });
     if (body.cookie === true) await setSessionCookie(result.token);
