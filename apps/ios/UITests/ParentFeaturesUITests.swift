@@ -343,4 +343,48 @@ final class ParentFeaturesUITests: XCTestCase {
         XCTAssertFalse(app.buttons["chore.photo"].exists)
         capture(app, "Kid-no-photo")
     }
+
+    @MainActor
+    func testKidSeesOwnPendingProofButNotAnotherKids() async throws {
+        let title = "Feed the fish"
+        let xavierLogin = try await api("auth/login", body: ["code": "0303", "deviceKind": "phone"])
+        let xavierToken = try XCTUnwrap(xavierLogin["token"] as? String)
+        let snapshot = try await api("snapshot", token: xavierToken)
+        let today = String(try XCTUnwrap(snapshot["now"] as? String).prefix(10))
+        let instance = try XCTUnwrap((snapshot["chores"] as? [[String: Any]])?.first {
+            $0["title"] as? String == title && $0["date"] as? String == today && $0["status"] as? String == "open"
+        })
+        let id = try XCTUnwrap(instance["id"] as? String)
+        let base = URL(string: environment["LP_API_URL"] ?? "http://localhost:3000")!
+        var upload = URLRequest(url: base.appendingPathComponent("api/chores/instances/\(id)/photo"))
+        upload.httpMethod = "POST"
+        upload.setValue("Bearer \(xavierToken)", forHTTPHeaderField: "authorization")
+        upload.setValue("image/png", forHTTPHeaderField: "Content-Type")
+        upload.httpBody = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 32, height: 32)).image { context in
+            UIColor.systemGreen.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
+        }.pngData())
+        let (_, uploaded) = try await URLSession.shared.data(for: upload)
+        XCTAssertEqual((uploaded as? HTTPURLResponse)?.statusCode, 200)
+        let token = try parentToken
+        addTeardownBlock { _ = try await self.api("chores/instances/\(id)/review", body: ["action": "reject"], token: token) }
+
+        var app = launch(token: xavierToken)
+        let own = app.buttons["chore.\(title)"]
+        XCTAssertTrue(own.waitForExistence(timeout: 60))
+        own.tap()
+        XCTAssertTrue(app.images["Proof photo"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["Approve"].exists)
+        XCTAssertFalse(app.buttons["Send back"].exists)
+        capture(app, "Kid-own-pending-proof")
+        app.terminate()
+
+        app = try await launchNoah()
+        XCTAssertFalse(app.buttons["chore.\(title)"].exists)
+        XCTAssertFalse(app.images["Proof photo"].exists)
+        let noahLogin = try await api("auth/login", body: ["code": "1234", "deviceKind": "phone"])
+        let noahSnapshot = try await api("snapshot", token: try XCTUnwrap(noahLogin["token"] as? String))
+        XCTAssertFalse((noahSnapshot["chores"] as? [[String: Any]] ?? []).contains { $0["id"] as? String == id })
+        capture(app, "Other-kid-proof-hidden")
+    }
 }

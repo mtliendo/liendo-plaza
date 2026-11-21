@@ -119,8 +119,11 @@ struct ChoreDetailView: View {
                         }
                     }
                     if let actor = house.person, actor.isParent || actor.id == chore.personId {
+                        if let path = chore.photoPath,
+                           chore.status == "pending" || (chore.requiresPhoto && chore.status == "done") {
+                            MealPhoto(path: path, accessibilityLabel: "Proof photo")
+                        }
                         if actor.isParent && chore.status == "pending" {
-                            if let path = chore.photoPath { MealPhoto(path: path, accessibilityLabel: "Proof photo") }
                             HStack {
                                 reviewButton("Approve", action: "approve")
                                 reviewButton("Send back", action: "reject")
