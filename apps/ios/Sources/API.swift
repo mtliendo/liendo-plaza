@@ -147,9 +147,10 @@ enum Keychain {
                 var result: CFTypeRef?
                 let status = SecItemCopyMatching(query as CFDictionary, &result)
                 if status == errSecItemNotFound { continue }
-                guard status == errSecSuccess, let data = result as? Data,
+                guard status == errSecSuccess else { throw StorageError(status: status) }
+                guard let data = result as? Data,
                       let token = String(data: data, encoding: .utf8) else {
-                    throw APIError(status: 0, message: "Could not migrate secure storage (\(status)).")
+                    throw StorageError(status: errSecDecode)
                 }
                 try write(token, key: key)
                 break

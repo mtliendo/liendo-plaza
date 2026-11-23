@@ -632,14 +632,51 @@ final class ModelsTests: XCTestCase {
             for status in [errSecInteractionNotAllowed, errSecNotAvailable, errSecDecode] {
                 let house = House(keychainReader: { _ in throw Keychain.StorageError(status: status) }, migrateKeychain: {})
                 house.restoreSessionIfNeeded()
-                XCTAssertTrue(house.sessionUnresolved)
+                XCTAssertEqual(house.sessionUnresolved, status == errSecInteractionNotAllowed)
+                XCTAssertNil(house.session)
                 XCTAssertEqual(try Keychain.read("session"), "keep-this-session")
                 XCTAssertNil(try Keychain.read("expoMigration"))
             }
-            let house = House(keychainReader: { _ in XCTFail("Must not read after migration failure"); return nil },
+            let house = House(keychainReader: { _ in nil },
                               migrateKeychain: { throw Keychain.StorageError(status: errSecInteractionNotAllowed) })
             XCTAssertTrue(house.sessionUnresolved)
             XCTAssertEqual(try Keychain.read("session"), "keep-this-session")
+        }
+    }
+
+    @MainActor
+    func testUndecodableFamilyDoesNotWithholdReadableSession() throws {
+        try withMigrationState {
+            try Keychain.write("readable-session", key: "session")
+            try Keychain.write("family-value", key: "family")
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "com.focusotter.liendoplaza",
+                kSecAttrAccount as String: "family"
+            ]
+            XCTAssertEqual(SecItemUpdate(query as CFDictionary, [
+                kSecValueData as String: Data([0xff])
+            ] as CFDictionary), errSecSuccess)
+            let house = House()
+            XCTAssertEqual(house.session, "readable-session")
+            XCTAssertNil(house.family)
+            XCTAssertFalse(house.sessionUnresolved)
+            XCTAssertThrowsError(try Keychain.read("family"))
+        }
+    }
+
+    @MainActor
+    func testNonStorageSessionErrorResolvesWithoutClearingItem() throws {
+        try withMigrationState {
+            try Keychain.write("keep-session", key: "session")
+            let house = House(keychainReader: { key in
+                if key == "session" { throw URLError(.unknown) }
+                return "readable-family"
+            }, migrateKeychain: {})
+            XCTAssertNil(house.session)
+            XCTAssertFalse(house.sessionUnresolved)
+            XCTAssertEqual(house.family, "readable-family")
+            XCTAssertEqual(try Keychain.read("session"), "keep-session")
         }
     }
 

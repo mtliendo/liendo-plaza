@@ -1,4 +1,5 @@
 import SwiftUI
+import Security
 
 enum PairingLink: Equatable {
     case invite(String)
@@ -82,16 +83,22 @@ final class House: ObservableObject {
 
     func restoreSessionIfNeeded() {
         guard session == nil || sessionUnresolved else { return }
+        var locked = false
         do {
             try migrateKeychain()
-            let storedSession = try keychainReader("session")
-            let storedFamily = try keychainReader("family")
-            session = storedSession
-            family = storedFamily
-            sessionUnresolved = false
         } catch {
-            if session == nil { sessionUnresolved = true }
+            locked = (error as? Keychain.StorageError)?.status == errSecInteractionNotAllowed
         }
+        func read(_ key: String) -> String? {
+            do { return try keychainReader(key) }
+            catch {
+                if (error as? Keychain.StorageError)?.status == errSecInteractionNotAllowed { locked = true }
+                return nil
+            }
+        }
+        session = read("session")
+        family = read("family")
+        sessionUnresolved = session == nil && locked
     }
 
     func saveFamily(_ value: String) throws {
