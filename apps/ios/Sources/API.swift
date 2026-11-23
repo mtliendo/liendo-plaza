@@ -178,10 +178,9 @@ enum Keychain {
         guard let data = result as? Data, let value = String(data: data, encoding: .utf8) else {
             throw StorageError(status: errSecDecode)
         }
-        let update = SecItemUpdate(Self.query(key) as CFDictionary, [
+        _ = SecItemUpdate(Self.query(key) as CFDictionary, [
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ] as CFDictionary)
-        guard update == errSecSuccess else { throw StorageError(status: update) }
         return value
     }
     static func write(_ value: String?, key: String) throws {
