@@ -1,4 +1,5 @@
 import SwiftUI
+import Security
 
 enum PairingLink: Equatable {
     case invite(String)
@@ -20,11 +21,14 @@ enum PairingLink: Equatable {
 @MainActor
 final class House: ObservableObject {
     let api: APIClient
-    private var pushToken = Keychain.read("apns.\(PushNotifications.environment)")
+    private var pushToken = try? Keychain.read("apns.\(PushNotifications.environment)")
+    private let keychainReader: (String) throws -> String?
+    private let migrateKeychain: () throws -> Void
     private var pushRegistrationTask: Task<Void, Never>?
     private var signingOut = false
-    @Published var session = Keychain.read("session")
-    @Published var family = Keychain.read("family")
+    @Published var session: String?
+    @Published var family: String?
+    @Published private(set) var sessionUnresolved = true
     @Published var person: Person?
     @Published var snapshot: Snapshot?
     @Published var pendingInstances: [ChoreInstance] = []
@@ -45,14 +49,19 @@ final class House: ObservableObject {
         }
     }
 
-    init(api: APIClient = APIClient()) {
+    init(api: APIClient = APIClient(),
+         keychainReader: @escaping (String) throws -> String? = Keychain.read,
+         migrateKeychain: @escaping () throws -> Void = { try Keychain.migrateExpoTokens() }) {
         self.api = api
+        self.keychainReader = keychainReader
+        self.migrateKeychain = migrateKeychain
         if ProcessInfo.processInfo.arguments.contains("-uiTestReset") {
             do {
                 try Keychain.write(nil, key: "session")
                 try Keychain.write(nil, key: "family")
                 session = nil
                 family = nil
+                sessionUnresolved = false
                 UserDefaults.standard.removeObject(forKey: "phonePersonId")
 #if DEBUG
                 let environment = ProcessInfo.processInfo.environment
@@ -68,14 +77,28 @@ final class House: ObservableObject {
                 if !error.isRequestCancellation { self.error = error.localizedDescription }
             }
         } else {
-            do {
-                try Keychain.migrateExpoTokens()
-                session = Keychain.read("session")
-                family = Keychain.read("family")
-            } catch {
-                if !error.isRequestCancellation { self.error = error.localizedDescription }
+            restoreSessionIfNeeded()
+        }
+    }
+
+    func restoreSessionIfNeeded() {
+        guard session == nil || sessionUnresolved else { return }
+        var locked = false
+        do {
+            try migrateKeychain()
+        } catch {
+            locked = (error as? Keychain.StorageError)?.status == errSecInteractionNotAllowed
+        }
+        func read(_ key: String) -> String? {
+            do { return try keychainReader(key) }
+            catch {
+                if (error as? Keychain.StorageError)?.status == errSecInteractionNotAllowed { locked = true }
+                return nil
             }
         }
+        session = read("session")
+        family = read("family")
+        sessionUnresolved = session == nil && locked
     }
 
     func saveFamily(_ value: String) throws {
@@ -92,6 +115,7 @@ final class House: ObservableObject {
         person = result.person
         UserDefaults.standard.set(result.person.id, forKey: "phonePersonId")
         session = result.token
+        sessionUnresolved = false
         codeSetupRequired = false
         error = ""
     }
@@ -100,6 +124,7 @@ final class House: ObservableObject {
         try Keychain.write(nil, key: "session")
         api.session.configuration.urlCache?.removeAllCachedResponses()
         session = nil
+        sessionUnresolved = false
         person = nil
         snapshot = nil
         pendingInstances = []
@@ -108,6 +133,8 @@ final class House: ObservableObject {
     }
 
     func load(includingPendingProofs: Bool = true) async {
+        restoreSessionIfNeeded()
+        guard !sessionUnresolved else { return }
         guard let token = session else { return }
         loading = true
         error = ""
@@ -133,6 +160,8 @@ final class House: ObservableObject {
     }
 
     func checkCodeSetup() async {
+        restoreSessionIfNeeded()
+        guard !sessionUnresolved else { return }
         guard let token = session else { return }
         do {
             let status: CodeStatus = try await api.request("auth/codes/status", token: token)

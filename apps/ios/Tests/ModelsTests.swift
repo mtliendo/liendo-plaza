@@ -389,7 +389,7 @@ final class ModelsTests: XCTestCase {
 
     @MainActor
     func testSignOutClearsRevokedParentDespiteLogoutFailure() async throws {
-        let saved = Keychain.read("session")
+        let saved = try Keychain.read("session")
         defer { try? Keychain.write(saved, key: "session") }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [RevokedSessionProtocol.self]
@@ -405,7 +405,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(RevokedSessionProtocol.paths, ["/api/auth/logout"])
         XCTAssertNil(house.session)
         XCTAssertNil(house.person)
-        XCTAssertNil(Keychain.read("session"))
+        XCTAssertNil(try Keychain.read("session"))
     }
 
     func testPairingURLRejectsBoardApprovalEmptyInvitesAndUntrustedHosts() throws {
@@ -433,7 +433,7 @@ final class ModelsTests: XCTestCase {
 
     private func withMigrationState(_ run: () throws -> Void) throws {
         let keys = ["session", "family", "expoMigration"]
-        let saved = keys.map { Keychain.read($0) }
+        let saved = try keys.map { try Keychain.read($0) }
         var savedExpo: [(query: [String: Any], data: Data)] = []
         for service in ["app:no-auth", "app"] {
             for key in ["lp.session", "lp.family"] {
@@ -490,8 +490,8 @@ final class ModelsTests: XCTestCase {
             writeExpo("session", data: Data("expo-session-✓".utf8))
             writeExpo("family", data: Data("expo-family".utf8))
             try Keychain.migrateExpoTokens()
-            XCTAssertEqual(Keychain.read("session"), "expo-session-✓")
-            XCTAssertEqual(Keychain.read("family"), "expo-family")
+            XCTAssertEqual(try Keychain.read("session"), "expo-session-✓")
+            XCTAssertEqual(try Keychain.read("family"), "expo-family")
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: "app:no-auth",
@@ -501,7 +501,7 @@ final class ModelsTests: XCTestCase {
             XCTAssertEqual(SecItemCopyMatching(query as CFDictionary, nil), errSecSuccess)
             try Keychain.write(nil, key: "session")
             try Keychain.migrateExpoTokens()
-            XCTAssertNil(Keychain.read("session"))
+            XCTAssertNil(try Keychain.read("session"))
         }
     }
 
@@ -511,26 +511,69 @@ final class ModelsTests: XCTestCase {
             writeExpo("session", data: Data("old".utf8))
             writeExpo("family", data: Data("legacy-family".utf8), service: "app")
             try Keychain.migrateExpoTokens()
-            XCTAssertEqual(Keychain.read("session"), "native")
-            XCTAssertEqual(Keychain.read("family"), "legacy-family")
+            XCTAssertEqual(try Keychain.read("session"), "native")
+            XCTAssertEqual(try Keychain.read("family"), "legacy-family")
         }
     }
 
     func testExpoMigrationWithNoItems() throws {
         try withMigrationState {
             try Keychain.migrateExpoTokens()
-            XCTAssertNil(Keychain.read("session"))
-            XCTAssertNil(Keychain.read("family"))
-            XCTAssertEqual(Keychain.read("expoMigration"), "1")
+            XCTAssertNil(try Keychain.read("session"))
+            XCTAssertNil(try Keychain.read("family"))
+            XCTAssertEqual(try Keychain.read("expoMigration"), "1")
         }
     }
 
-    func testExpoMigrationInvalidEncodingDoesNotMarkComplete() throws {
+    func testExpoMigrationInvalidEncodingSkipsKeyAndMarksComplete() throws {
         try withMigrationState {
             writeExpo("session", data: Data([0xFF]))
-            XCTAssertThrowsError(try Keychain.migrateExpoTokens())
-            XCTAssertNil(Keychain.read("expoMigration"))
+            try Keychain.migrateExpoTokens()
+            XCTAssertNil(try Keychain.read("session"))
+            XCTAssertEqual(try Keychain.read("expoMigration"), "1")
         }
+    }
+
+    @MainActor
+    func testInvalidLegacyFamilyDoesNotReimportSessionAfterClearing() throws {
+        try withMigrationState {
+            writeExpo("session", data: Data("stale-session".utf8))
+            writeExpo("family", data: Data([0xff]))
+            try Keychain.migrateExpoTokens()
+            XCTAssertEqual(try Keychain.read("session"), "stale-session")
+            XCTAssertNil(try Keychain.read("family"))
+            XCTAssertEqual(try Keychain.read("expoMigration"), "1")
+            let house = House()
+            try house.clearSession()
+            house.restoreSessionIfNeeded()
+            XCTAssertNil(house.session)
+            XCTAssertFalse(house.sessionUnresolved)
+            XCTAssertNil(try Keychain.read("session"))
+        }
+    }
+
+    func testExpoMigrationWriteFailureLeavesMarkerUnsetAndRetries() throws {
+        try withMigrationState {
+            writeExpo("session", data: Data("legacy-session".utf8))
+            XCTAssertThrowsError(try Keychain.migrateExpoTokens(writeValue: { _, key in
+                XCTAssertEqual(key, "session")
+                throw Keychain.StorageError(status: errSecNotAvailable)
+            }))
+            XCTAssertNil(try Keychain.read("expoMigration"))
+            XCTAssertNil(try Keychain.read("session"))
+            try Keychain.migrateExpoTokens()
+            XCTAssertEqual(try Keychain.read("session"), "legacy-session")
+            XCTAssertEqual(try Keychain.read("expoMigration"), "1")
+        }
+    }
+
+    @MainActor
+    func testMigrationFailureStillReadsNativeItems() {
+        let house = House(keychainReader: { key in "native-\(key)" },
+                          migrateKeychain: { throw Keychain.StorageError(status: errSecNotAvailable) })
+        XCTAssertEqual(house.session, "native-session")
+        XCTAssertEqual(house.family, "native-family")
+        XCTAssertFalse(house.sessionUnresolved)
     }
 
     func testSnapshotIgnoresUnneededFieldsAndFiltersByServerDay() throws {
@@ -580,6 +623,135 @@ final class ModelsTests: XCTestCase {
         let settings = try decoder.decode(CodeSettings.self, from: Data("{\"configuredPersonIds\":[\"parent\"]}".utf8))
         XCTAssertEqual(settings.configuredPersonIds, ["parent"])
         XCTAssertThrowsError(try decoder.decode(CodeStatus.self, from: Data("{}".utf8)))
+    }
+
+    @MainActor
+    func testLockedLaunchRestoresSessionBeforeAuthenticatedSetupCheck() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PhotoProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer { network.invalidateAndCancel() }
+        PhotoProtocol.status = 200
+        PhotoProtocol.requestCount = 0
+        PhotoProtocol.response = Data(#"{"setupRequired":true,"people":[],"actor":{"kind":"person","person":{"id":"parent","slug":"focus","name":"Focus","role":"parent","color":"red"}}}"#.utf8)
+        var locked = true
+        let house = House(api: APIClient(session: network), keychainReader: { key in
+            if locked { throw Keychain.StorageError(status: errSecInteractionNotAllowed) }
+            return key == "session" ? "legacy-phone-session" : nil
+        }, migrateKeychain: {})
+        XCTAssertTrue(house.sessionUnresolved)
+        XCTAssertNil(house.session)
+        await house.checkCodeSetup()
+        await house.load()
+        XCTAssertTrue(house.sessionUnresolved)
+        XCTAssertEqual(PhotoProtocol.requestCount, 0)
+
+        locked = false
+        await house.checkCodeSetup()
+        XCTAssertFalse(house.sessionUnresolved)
+        XCTAssertEqual(house.session, "legacy-phone-session")
+        XCTAssertTrue(house.codeSetupRequired)
+        XCTAssertEqual(house.person?.id, "parent")
+        XCTAssertEqual(PhotoProtocol.requestCount, 2)
+        XCTAssertEqual(PhotoProtocol.request?.value(forHTTPHeaderField: "Authorization"), "Bearer legacy-phone-session")
+    }
+
+    @MainActor
+    func testMissingSessionResolvesSignedOutAndCanBeReadAgainOnActivation() {
+        var token: String?
+        let house = House(keychainReader: { key in key == "session" ? token : nil }, migrateKeychain: {})
+        XCTAssertFalse(house.sessionUnresolved)
+        XCTAssertNil(house.session)
+        token = "restored-phone-session"
+        house.restoreSessionIfNeeded()
+        XCTAssertEqual(house.session, token)
+        XCTAssertFalse(house.sessionUnresolved)
+    }
+
+    @MainActor
+    func testKeychainFailureDoesNotDeleteStoredSessionOrFinishMigration() throws {
+        try withMigrationState {
+            try Keychain.write("keep-this-session", key: "session")
+            for status in [errSecInteractionNotAllowed, errSecNotAvailable, errSecDecode] {
+                let house = House(keychainReader: { _ in throw Keychain.StorageError(status: status) }, migrateKeychain: {})
+                house.restoreSessionIfNeeded()
+                XCTAssertEqual(house.sessionUnresolved, status == errSecInteractionNotAllowed)
+                XCTAssertNil(house.session)
+                XCTAssertEqual(try Keychain.read("session"), "keep-this-session")
+                XCTAssertNil(try Keychain.read("expoMigration"))
+            }
+            let house = House(keychainReader: { _ in nil },
+                              migrateKeychain: { throw Keychain.StorageError(status: errSecInteractionNotAllowed) })
+            XCTAssertTrue(house.sessionUnresolved)
+            XCTAssertEqual(try Keychain.read("session"), "keep-this-session")
+        }
+    }
+
+    @MainActor
+    func testUndecodableFamilyDoesNotWithholdReadableSession() throws {
+        try withMigrationState {
+            try Keychain.write("readable-session", key: "session")
+            try Keychain.write("family-value", key: "family")
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "com.focusotter.liendoplaza",
+                kSecAttrAccount as String: "family"
+            ]
+            XCTAssertEqual(SecItemUpdate(query as CFDictionary, [
+                kSecValueData as String: Data([0xff])
+            ] as CFDictionary), errSecSuccess)
+            let house = House()
+            XCTAssertEqual(house.session, "readable-session")
+            XCTAssertNil(house.family)
+            XCTAssertFalse(house.sessionUnresolved)
+            XCTAssertThrowsError(try Keychain.read("family"))
+        }
+    }
+
+    @MainActor
+    func testNonStorageSessionErrorResolvesWithoutClearingItem() throws {
+        try withMigrationState {
+            try Keychain.write("keep-session", key: "session")
+            let house = House(keychainReader: { key in
+                if key == "session" { throw URLError(.unknown) }
+                return "readable-family"
+            }, migrateKeychain: {})
+            XCTAssertNil(house.session)
+            XCTAssertFalse(house.sessionUnresolved)
+            XCTAssertEqual(house.family, "readable-family")
+            XCTAssertEqual(try Keychain.read("session"), "keep-session")
+        }
+    }
+
+    func testKeychainReadMigratesAccessibilityAndWritesPreserveItem() throws {
+        let key = "accessibility-test"
+        defer { try? Keychain.write(nil, key: key) }
+        try Keychain.write("original", key: key)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.focusotter.liendoplaza",
+            kSecAttrAccount as String: key
+        ]
+        XCTAssertEqual(SecItemUpdate(query as CFDictionary, [
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
+        ] as CFDictionary), errSecSuccess)
+        XCTAssertEqual(try Keychain.read(key), "original")
+        var attributesQuery = query
+        attributesQuery[kSecReturnAttributes as String] = true
+        attributesQuery[kSecReturnPersistentRef as String] = true
+        var before: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(attributesQuery as CFDictionary, &before), errSecSuccess)
+        let attributes = try XCTUnwrap(before as? [String: Any])
+        XCTAssertEqual(attributes[kSecAttrAccessible as String] as? String,
+                       kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+        try Keychain.write("replacement", key: key)
+        var after: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(attributesQuery as CFDictionary, &after), errSecSuccess)
+        XCTAssertEqual(attributes[kSecValuePersistentRef as String] as? Data,
+                       (after as? [String: Any])?[kSecValuePersistentRef as String] as? Data)
+        XCTAssertEqual(try Keychain.read(key), "replacement")
+        try Keychain.write(nil, key: key)
+        XCTAssertNil(try Keychain.read(key))
     }
 
     @MainActor

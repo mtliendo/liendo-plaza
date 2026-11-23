@@ -9,7 +9,9 @@ struct LiendoPlazaApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if house.session != nil && !house.codeSetupRequired {
+                if house.sessionUnresolved {
+                    ProgressView("Opening Liendo Plaza…")
+                } else if house.session != nil && !house.codeSetupRequired {
                     RoleTabs()
                 } else {
                     PairingView().id(house.pairingVersion)
@@ -26,7 +28,12 @@ struct LiendoPlazaApp: App {
                 if pushNavigation.refreshID != nil { await house.load() }
             }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { Task { await registerPush() } }
+                if phase == .active {
+                    Task {
+                        await house.checkCodeSetup()
+                        await registerPush()
+                    }
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: PushNotifications.tokenReceived)) { notification in
                 if let data = notification.object as? Data {

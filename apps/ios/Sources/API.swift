@@ -131,31 +131,43 @@ struct APIClient {
 }
 
 enum Keychain {
-    static func migrateExpoTokens() throws {
-        guard read("expoMigration") == nil else { return }
-        for key in ["session", "family"] where read(key) == nil {
-            let encodedKey = Data("lp.\(key)".utf8)
-            for service in ["app:no-auth", "app"] {
-                let query: [String: Any] = [
-                    kSecClass as String: kSecClassGenericPassword,
-                    kSecAttrService as String: service,
-                    kSecAttrAccount as String: encodedKey,
-                    kSecAttrGeneric as String: encodedKey,
-                    kSecReturnData as String: true,
-                    kSecMatchLimit as String: kSecMatchLimitOne
-                ]
-                var result: CFTypeRef?
-                let status = SecItemCopyMatching(query as CFDictionary, &result)
-                if status == errSecItemNotFound { continue }
-                guard status == errSecSuccess, let data = result as? Data,
-                      let token = String(data: data, encoding: .utf8) else {
-                    throw APIError(status: 0, message: "Could not migrate secure storage (\(status)).")
-                }
-                try write(token, key: key)
-                break
-            }
+    static func migrateExpoTokens(writeValue: (String, String) throws -> Void = { try write($0, key: $1) }) throws {
+        do {
+            guard try read("expoMigration") == nil else { return }
+        } catch {
+            if (error as? StorageError)?.status != errSecDecode { throw error }
         }
-        try write("1", key: "expoMigration")
+        for key in ["session", "family"] {
+            var importedToken: String?
+            do {
+                guard try read(key) == nil else { continue }
+                let encodedKey = Data("lp.\(key)".utf8)
+                for service in ["app:no-auth", "app"] {
+                    let query: [String: Any] = [
+                        kSecClass as String: kSecClassGenericPassword,
+                        kSecAttrService as String: service,
+                        kSecAttrAccount as String: encodedKey,
+                        kSecAttrGeneric as String: encodedKey,
+                        kSecReturnData as String: true,
+                        kSecMatchLimit as String: kSecMatchLimitOne
+                    ]
+                    var result: CFTypeRef?
+                    let status = SecItemCopyMatching(query as CFDictionary, &result)
+                    if status == errSecItemNotFound { continue }
+                    guard status == errSecSuccess else { throw StorageError(status: status) }
+                    guard let data = result as? Data,
+                          let token = String(data: data, encoding: .utf8) else {
+                        throw StorageError(status: errSecDecode)
+                    }
+                    importedToken = token
+                    break
+                }
+            } catch {
+                if (error as? StorageError)?.status != errSecDecode { throw error }
+            }
+            if let importedToken { try writeValue(importedToken, key) }
+        }
+        try writeValue("1", "expoMigration")
     }
 
     private static func query(_ key: String) -> [String: Any] {
@@ -163,27 +175,47 @@ enum Keychain {
          kSecAttrService as String: "com.focusotter.liendoplaza",
          kSecAttrAccount as String: key]
     }
-    static func read(_ key: String) -> String? {
+    struct StorageError: Error {
+        let status: OSStatus
+    }
+
+    static func read(_ key: String) throws -> String? {
         var query = query(key)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw StorageError(status: status) }
+        guard let data = result as? Data, let value = String(data: data, encoding: .utf8) else {
+            throw StorageError(status: errSecDecode)
+        }
+        _ = SecItemUpdate(Self.query(key) as CFDictionary, [
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ] as CFDictionary)
+        return value
     }
     static func write(_ value: String?, key: String) throws {
-        let deletion = SecItemDelete(query(key) as CFDictionary)
-        guard deletion == errSecSuccess || deletion == errSecItemNotFound else {
-            throw APIError(status: 0, message: "Could not update secure storage (\(deletion)).")
+        guard let value else {
+            let status = SecItemDelete(query(key) as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else {
+                throw StorageError(status: status)
+            }
+            return
         }
-        guard let value else { return }
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(value.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        let update = SecItemUpdate(query(key) as CFDictionary, attributes as CFDictionary)
+        if update == errSecSuccess { return }
+        guard update == errSecItemNotFound else { throw StorageError(status: update) }
         var query = query(key)
         query[kSecValueData as String] = Data(value.utf8)
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else {
-            throw APIError(status: 0, message: "Could not save secure storage (\(status)).")
+            throw StorageError(status: status)
         }
     }
 }
