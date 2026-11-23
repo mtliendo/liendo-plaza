@@ -132,28 +132,37 @@ struct APIClient {
 
 enum Keychain {
     static func migrateExpoTokens() throws {
-        guard try read("expoMigration") == nil else { return }
-        for key in ["session", "family"] where try read(key) == nil {
-            let encodedKey = Data("lp.\(key)".utf8)
-            for service in ["app:no-auth", "app"] {
-                let query: [String: Any] = [
-                    kSecClass as String: kSecClassGenericPassword,
-                    kSecAttrService as String: service,
-                    kSecAttrAccount as String: encodedKey,
-                    kSecAttrGeneric as String: encodedKey,
-                    kSecReturnData as String: true,
-                    kSecMatchLimit as String: kSecMatchLimitOne
-                ]
-                var result: CFTypeRef?
-                let status = SecItemCopyMatching(query as CFDictionary, &result)
-                if status == errSecItemNotFound { continue }
-                guard status == errSecSuccess else { throw StorageError(status: status) }
-                guard let data = result as? Data,
-                      let token = String(data: data, encoding: .utf8) else {
-                    throw StorageError(status: errSecDecode)
+        do {
+            guard try read("expoMigration") == nil else { return }
+        } catch {
+            if (error as? StorageError)?.status == errSecInteractionNotAllowed { throw error }
+        }
+        for key in ["session", "family"] {
+            do {
+                guard try read(key) == nil else { continue }
+                let encodedKey = Data("lp.\(key)".utf8)
+                for service in ["app:no-auth", "app"] {
+                    let query: [String: Any] = [
+                        kSecClass as String: kSecClassGenericPassword,
+                        kSecAttrService as String: service,
+                        kSecAttrAccount as String: encodedKey,
+                        kSecAttrGeneric as String: encodedKey,
+                        kSecReturnData as String: true,
+                        kSecMatchLimit as String: kSecMatchLimitOne
+                    ]
+                    var result: CFTypeRef?
+                    let status = SecItemCopyMatching(query as CFDictionary, &result)
+                    if status == errSecItemNotFound { continue }
+                    guard status == errSecSuccess else { throw StorageError(status: status) }
+                    guard let data = result as? Data,
+                          let token = String(data: data, encoding: .utf8) else {
+                        throw StorageError(status: errSecDecode)
+                    }
+                    try write(token, key: key)
+                    break
                 }
-                try write(token, key: key)
-                break
+            } catch {
+                if (error as? StorageError)?.status == errSecInteractionNotAllowed { throw error }
             }
         }
         try write("1", key: "expoMigration")
@@ -204,7 +213,7 @@ enum Keychain {
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else {
-            throw APIError(status: 0, message: "Could not save secure storage (\(status)).")
+            throw StorageError(status: status)
         }
     }
 }

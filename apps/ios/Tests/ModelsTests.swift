@@ -525,11 +525,30 @@ final class ModelsTests: XCTestCase {
         }
     }
 
-    func testExpoMigrationInvalidEncodingDoesNotMarkComplete() throws {
+    func testExpoMigrationInvalidEncodingSkipsKeyAndMarksComplete() throws {
         try withMigrationState {
             writeExpo("session", data: Data([0xFF]))
-            XCTAssertThrowsError(try Keychain.migrateExpoTokens())
-            XCTAssertNil(try Keychain.read("expoMigration"))
+            try Keychain.migrateExpoTokens()
+            XCTAssertNil(try Keychain.read("session"))
+            XCTAssertEqual(try Keychain.read("expoMigration"), "1")
+        }
+    }
+
+    @MainActor
+    func testInvalidLegacyFamilyDoesNotReimportSessionAfterClearing() throws {
+        try withMigrationState {
+            writeExpo("session", data: Data("stale-session".utf8))
+            writeExpo("family", data: Data([0xff]))
+            try Keychain.migrateExpoTokens()
+            XCTAssertEqual(try Keychain.read("session"), "stale-session")
+            XCTAssertNil(try Keychain.read("family"))
+            XCTAssertEqual(try Keychain.read("expoMigration"), "1")
+            let house = House()
+            try house.clearSession()
+            house.restoreSessionIfNeeded()
+            XCTAssertNil(house.session)
+            XCTAssertFalse(house.sessionUnresolved)
+            XCTAssertNil(try Keychain.read("session"))
         }
     }
 
