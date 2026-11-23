@@ -552,6 +552,30 @@ final class ModelsTests: XCTestCase {
         }
     }
 
+    func testExpoMigrationWriteFailureLeavesMarkerUnsetAndRetries() throws {
+        try withMigrationState {
+            writeExpo("session", data: Data("legacy-session".utf8))
+            XCTAssertThrowsError(try Keychain.migrateExpoTokens(writeValue: { _, key in
+                XCTAssertEqual(key, "session")
+                throw Keychain.StorageError(status: errSecNotAvailable)
+            }))
+            XCTAssertNil(try Keychain.read("expoMigration"))
+            XCTAssertNil(try Keychain.read("session"))
+            try Keychain.migrateExpoTokens()
+            XCTAssertEqual(try Keychain.read("session"), "legacy-session")
+            XCTAssertEqual(try Keychain.read("expoMigration"), "1")
+        }
+    }
+
+    @MainActor
+    func testMigrationFailureStillReadsNativeItems() {
+        let house = House(keychainReader: { key in "native-\(key)" },
+                          migrateKeychain: { throw Keychain.StorageError(status: errSecNotAvailable) })
+        XCTAssertEqual(house.session, "native-session")
+        XCTAssertEqual(house.family, "native-family")
+        XCTAssertFalse(house.sessionUnresolved)
+    }
+
     func testSnapshotIgnoresUnneededFieldsAndFiltersByServerDay() throws {
         let data = Data("""
         {"now":"2026-11-20T00:01:00-06:00","timezone":"America/Chicago","weather":null,

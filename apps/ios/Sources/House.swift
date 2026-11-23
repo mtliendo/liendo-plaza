@@ -51,7 +51,7 @@ final class House: ObservableObject {
 
     init(api: APIClient = APIClient(),
          keychainReader: @escaping (String) throws -> String? = Keychain.read,
-         migrateKeychain: @escaping () throws -> Void = Keychain.migrateExpoTokens) {
+         migrateKeychain: @escaping () throws -> Void = { try Keychain.migrateExpoTokens() }) {
         self.api = api
         self.keychainReader = keychainReader
         self.migrateKeychain = migrateKeychain

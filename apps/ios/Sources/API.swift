@@ -131,13 +131,14 @@ struct APIClient {
 }
 
 enum Keychain {
-    static func migrateExpoTokens() throws {
+    static func migrateExpoTokens(writeValue: (String, String) throws -> Void = { try write($0, key: $1) }) throws {
         do {
             guard try read("expoMigration") == nil else { return }
         } catch {
-            if (error as? StorageError)?.status == errSecInteractionNotAllowed { throw error }
+            if (error as? StorageError)?.status != errSecDecode { throw error }
         }
         for key in ["session", "family"] {
+            var importedToken: String?
             do {
                 guard try read(key) == nil else { continue }
                 let encodedKey = Data("lp.\(key)".utf8)
@@ -158,14 +159,15 @@ enum Keychain {
                           let token = String(data: data, encoding: .utf8) else {
                         throw StorageError(status: errSecDecode)
                     }
-                    try write(token, key: key)
+                    importedToken = token
                     break
                 }
             } catch {
-                if (error as? StorageError)?.status == errSecInteractionNotAllowed { throw error }
+                if (error as? StorageError)?.status != errSecDecode { throw error }
             }
+            if let importedToken { try writeValue(importedToken, key) }
         }
-        try write("1", key: "expoMigration")
+        try writeValue("1", "expoMigration")
     }
 
     private static func query(_ key: String) -> [String: Any] {
