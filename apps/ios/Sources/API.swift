@@ -132,8 +132,8 @@ struct APIClient {
 
 enum Keychain {
     static func migrateExpoTokens() throws {
-        guard read("expoMigration") == nil else { return }
-        for key in ["session", "family"] where read(key) == nil {
+        guard try read("expoMigration") == nil else { return }
+        for key in ["session", "family"] where try read(key) == nil {
             let encodedKey = Data("lp.\(key)".utf8)
             for service in ["app:no-auth", "app"] {
                 let query: [String: Any] = [
@@ -163,21 +163,42 @@ enum Keychain {
          kSecAttrService as String: "com.focusotter.liendoplaza",
          kSecAttrAccount as String: key]
     }
-    static func read(_ key: String) -> String? {
+    struct StorageError: Error {
+        let status: OSStatus
+    }
+
+    static func read(_ key: String) throws -> String? {
         var query = query(key)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw StorageError(status: status) }
+        guard let data = result as? Data, let value = String(data: data, encoding: .utf8) else {
+            throw StorageError(status: errSecDecode)
+        }
+        let update = SecItemUpdate(Self.query(key) as CFDictionary, [
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ] as CFDictionary)
+        guard update == errSecSuccess else { throw StorageError(status: update) }
+        return value
     }
     static func write(_ value: String?, key: String) throws {
-        let deletion = SecItemDelete(query(key) as CFDictionary)
-        guard deletion == errSecSuccess || deletion == errSecItemNotFound else {
-            throw APIError(status: 0, message: "Could not update secure storage (\(deletion)).")
+        guard let value else {
+            let status = SecItemDelete(query(key) as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else {
+                throw StorageError(status: status)
+            }
+            return
         }
-        guard let value else { return }
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(value.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        let update = SecItemUpdate(query(key) as CFDictionary, attributes as CFDictionary)
+        if update == errSecSuccess { return }
+        guard update == errSecItemNotFound else { throw StorageError(status: update) }
         var query = query(key)
         query[kSecValueData as String] = Data(value.utf8)
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
